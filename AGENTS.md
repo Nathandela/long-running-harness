@@ -2,6 +2,72 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+## Project Map
+
+```
+README.md             # Project overview
+AGENTS.md             # YOU ARE HERE -- agent entry point
+index.html            # Vite entry point
+package.json          # Dependencies and scripts
+src/
+  main.tsx            # React entry point
+  App.tsx             # Root component
+  audio/              # Web Audio API engine (path alias: @audio)
+  ui/                 # UI components (path alias: @ui)
+  state/              # State management (path alias: @state)
+  test/               # Test setup and utilities
+docs/
+  INDEX.md            # Documentation hub
+  adr/                # Architectural Decision Records
+  research/           # Deep research papers
+  compound/           # Compound-agent documentation
+.claude/
+  CLAUDE.md           # Project instructions + agentic principles
+  skills/             # Skill definitions (compound workflows)
+  agents/             # Subagent definitions
+  commands/           # Slash command definitions
+  lessons/            # Session memory (NEVER edit directly -- use `ca` CLI)
+.beads/               # Issue tracking data (Dolt-powered)
+```
+
+## Stack
+
+- **React 19 + TypeScript 5.8** (strict mode, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
+- **Vite 8** for dev server and build
+- **Vitest 4** for testing (jsdom environment, @testing-library/react)
+- **ESLint 10** with typescript-eslint strict type-checked rules
+- **Prettier** for formatting
+- **Husky** pre-commit hooks (lint + format check)
+- **GitHub Actions CI** (lint, format, test, build)
+
+## Build Commands
+
+```bash
+pnpm dev              # Start dev server
+pnpm build            # Type-check + production build
+pnpm test             # Run tests once
+pnpm test:watch       # Run tests in watch mode
+pnpm test:coverage    # Run tests with coverage
+pnpm lint             # ESLint + TypeScript noEmit
+pnpm lint:fix         # Auto-fix lint issues
+pnpm format           # Format source files
+pnpm format:check     # Check formatting (CI)
+pnpm check            # Full quality gate: lint + format + test
+```
+
+## Path Aliases
+
+Use `@/`, `@audio/`, `@ui/`, `@state/` instead of deep relative imports. ESLint enforces this (no `../../../` allowed).
+
+## Conventions
+
+- **Issue tracking**: `bd` only. No markdown TODOs.
+- **Session memory**: `ca search` before decisions, `ca learn` after discoveries.
+- **Decisions**: Record in `docs/adr/` using the template. See [ADR-0001](docs/adr/0001-initial-tooling-choices.md).
+- **Research**: Extensive docs in `docs/research/`. Send subagents there for context (`ca knowledge "topic"`).
+- **Tests**: Write tests first (TDD). Tests live next to source files as `*.test.tsx`/`*.test.ts`.
+- **Types**: Strict TS everywhere. No `any`. Explicit return types on functions.
+
 ## Quick Reference
 
 ```bash
@@ -148,3 +214,57 @@ For more details, see README.md and docs/QUICKSTART.md.
 - If push fails, resolve and retry until it succeeds
 
 <!-- END BEADS INTEGRATION -->
+<!-- compound-agent:start -->
+## Compound Agent Integration
+
+This project uses compound-agent for session memory via **CLI commands**.
+
+### CLI Commands (ALWAYS USE THESE)
+
+**You MUST use CLI commands for lesson management:**
+
+| Command | Purpose |
+|---------|---------|
+| `ca search "query"` | Search lessons - MUST call before architectural decisions; use anytime you need context |
+| `ca knowledge "query"` | Semantic search over project docs - MUST call before architectural decisions; use keyword phrases, not questions |
+| `ca learn "insight"` | Capture lessons - use AFTER corrections or discoveries |
+| `ca list` | List all stored lessons |
+| `ca show <id>` | Show details of a specific lesson |
+| `ca wrong <id>` | Mark a lesson as incorrect |
+
+### Mandatory Recall
+
+You MUST call `ca search` and `ca knowledge` BEFORE:
+- Architectural decisions or complex planning
+- Patterns you've implemented before in this repo
+- After user corrections ("actually...", "wrong", "use X instead")
+
+**NEVER skip search for complex decisions.** Past mistakes will repeat.
+
+Beyond mandatory triggers, use these commands freely — they are lightweight queries, not heavyweight operations. Uncertain about a pattern? `ca search`. Need a detail from the docs? `ca knowledge`. The cost of an unnecessary search is near-zero; the cost of a missed one can be hours.
+
+### Capture Protocol
+
+Run `ca learn` AFTER:
+- User corrects you
+- Test fail -> fix -> pass cycles
+- You discover project-specific knowledge
+
+**Workflow**: Search BEFORE deciding, capture AFTER learning.
+
+### Quality Gate
+
+Before capturing, verify the lesson is:
+- **Novel** - Not already stored
+- **Specific** - Clear guidance
+- **Actionable** (preferred) - Obvious what to do
+
+### Never Edit JSONL Directly
+
+**WARNING: NEVER edit .claude/lessons/index.jsonl directly.**
+
+The JSONL file requires proper ID generation, schema validation, and SQLite sync.
+Use CLI (`ca learn`) — never manual edits.
+
+See [documentation](https://github.com/Nathandela/compound-agent) for more details.
+<!-- compound-agent:end -->
