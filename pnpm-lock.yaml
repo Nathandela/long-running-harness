@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      compound-agent:
+        specifier: ^2.4.1
+        version: 2.4.1
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -406,6 +409,30 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@syottos/darwin-arm64@2.4.1':
+    resolution: {integrity: sha512-AoJpv0fMRRQGawsI+1XR93ZIe+N+/gtXlZE+iLtxGvf3mksxNYqTh7rgj+uPmUAquo0SY6ySBPfVp27y5X+SIg==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@syottos/darwin-x64@2.4.1':
+    resolution: {integrity: sha512-68ikYw6dTGMpOlQkf2f5nPm+aAq+j+UUBcM5OyVBkKTBCnP7dggHZnjrxF8xizX+ESoEcC5zOmRgEGnHgA+E1w==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@syottos/linux-arm64@2.4.1':
+    resolution: {integrity: sha512-5br2UFZiwVhhlXtgXaRUECpZIP/71LrywVd3s9SNY7dD97tGYoN2zVsSTv/T9ExFokR0L/Ke6l+V43vxTVZoow==}
+    engines: {node: '>=18'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@syottos/linux-x64@2.4.1':
+    resolution: {integrity: sha512-bI5NJDJ/oNeHRKqxJSnKW3eQRJ/fYIJG/m+e/KN9eL7ggzEYQ3ndNbeomhtWuY1qaKF9PPCtwJAjPk4LDZHUBQ==}
+    engines: {node: '>=18'}
+    cpu: [x64]
+    os: [linux]
+
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -633,6 +660,13 @@ packages:
   chai@6.2.2:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
+
+  compound-agent@2.4.1:
+    resolution: {integrity: sha512-aKDlreyOWZZ+42kCXt2ttanYCWJFwlS9QlkGSaXkYiEvh2pZqCErjxLBDlXNrZi8gK8lsm63PlEIW4T8ShENdw==}
+    engines: {node: '>=18'}
+    cpu: [x64, arm64]
+    os: [darwin, linux]
+    hasBin: true
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -1675,6 +1709,18 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@syottos/darwin-arm64@2.4.1':
+    optional: true
+
+  '@syottos/darwin-x64@2.4.1':
+    optional: true
+
+  '@syottos/linux-arm64@2.4.1':
+    optional: true
+
+  '@syottos/linux-x64@2.4.1':
+    optional: true
+
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.0
@@ -1942,6 +1988,13 @@ snapshots:
   caniuse-lite@1.0.30001781: {}
 
   chai@6.2.2: {}
+
+  compound-agent@2.4.1:
+    optionalDependencies:
+      '@syottos/darwin-arm64': 2.4.1
+      '@syottos/darwin-x64': 2.4.1
+      '@syottos/linux-arm64': 2.4.1
+      '@syottos/linux-x64': 2.4.1
 
   convert-source-map@2.0.0: {}
 

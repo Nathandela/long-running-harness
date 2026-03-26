@@ -42,18 +42,18 @@ This is the critical quality gate. Loop as many times as needed. The test suite 
 Apply the agreed changes:
 - Machine-readable output format: `ERROR [file:line] type: description`
 - Include `REMEDIATION` suggestions and `SEE` references
-- Run targeted test validation using the project's test runner (e.g., `detect and run the project's test suite` with module/path filters)
+- Run targeted test validation using the project's test runner (e.g., `pnpm test` with module/path filters)
 
 ### Phase 5: Verification
-- Run full test suite (`detect and run the project's test suite`) and linter (`detect and run the project's linter`) after changes
+- Run full test suite (`pnpm test`) and linter (`pnpm lint`) after changes
 - Compare before/after metrics (count, duration, coverage)
 - Feed findings into compound-agent memory via `ca learn`
 
 ## Targeted Test Execution
 Adapt test commands to the project's stack:
-- **Module isolation**: Run tests for a specific module/path (e.g., `detect and run the project's test suite` with path filter)
+- **Module isolation**: Run tests for a specific module/path (e.g., `pnpm test` with path filter)
 - **Subset testing**: Run a subset of tests for fast feedback (e.g., critical/smoke tests only)
-- **Full suite**: Run `detect and run the project's test suite` for complete validation
+- **Full suite**: Run `pnpm test` for complete validation
 
 ## Memory Integration
 - Run `ca search "test optimization"` before starting

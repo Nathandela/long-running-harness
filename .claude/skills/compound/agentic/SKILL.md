@@ -212,7 +212,7 @@ Run the full audit first. Setup only addresses gaps found by the audit.
 ### Setup Completion Gate
 After all approved actions are applied, verify:
 - List all files created/modified during setup
-- Run quality gates if available (\`detect and run the project's test suite\`, \`detect and run the project's linter\`)
+- Run quality gates if available (\`pnpm test\`, \`pnpm lint\`)
 - Confirm no existing files were overwritten without approval
 - Present summary: principles addressed, files created, remaining gaps
 

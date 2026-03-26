@@ -1,6 +1,6 @@
 ---
-version: "2.3.0"
-last-updated: "2026-03-25"
+version: "2.4.1"
+last-updated: "2026-03-26"
 summary: "The 5-phase compound-agent workflow and cook-it orchestrator"
 ---
 
@@ -40,7 +40,7 @@ Execute implementation through agent teams using TDD.
 
 Multi-agent code review with severity classification.
 
-- Run quality gates: `detect and run the project's test suite && detect and run the project's linter`
+- Run quality gates: `pnpm test && pnpm lint`
 - Spawn specialized reviewers (security, architecture, performance, etc.)
 - Classify findings as P0 (blocks merge) / P1/P2/P3
 - Fix all P0/P1 findings before proceeding
@@ -86,7 +86,7 @@ For each phase, cook-it:
 | Post-plan | After Plan | `bd list --status=open` shows Review + Compound tasks |
 | Gate 3 | After Work | `bd list --status=in_progress` returns empty |
 | Gate 4 | After Review | `/implementation-reviewer` returned APPROVED |
-| Final | After Compound | `ca verify-gates <epic-id>` passes, `detect and run the project's test suite` and `detect and run the project's linter` pass |
+| Final | After Compound | `ca verify-gates <epic-id>` passes, `pnpm test` and `pnpm lint` pass |
 
 If any gate fails, cook-it stops. You must fix the issue before proceeding.
 
