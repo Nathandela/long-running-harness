@@ -1,7 +1,7 @@
 {
   "name": "compound-agent",
   "description": "Session memory for Claude Code - capture and retrieve lessons",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "author": {
     "name": "Nathan Delacretaz",
     "url": "https://github.com/Nathandela"
