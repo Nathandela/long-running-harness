@@ -4,7 +4,7 @@
  * Active routes shown as colored cables with amount controls.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { tokens } from "@ui/tokens/tokens";
 import {
   useModulationStore,
@@ -81,9 +81,15 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
   const routes = useModulationStore(
     (s) => s.matrices[trackId]?.routes ?? EMPTY_ROUTES,
   );
+  const initMatrix = useModulationStore((s) => s.initMatrix);
   const addRoute = useModulationStore((s) => s.addRoute);
   const removeRoute = useModulationStore((s) => s.removeRoute);
   const updateAmount = useModulationStore((s) => s.updateRouteAmount);
+  const toggleBipolar = useModulationStore((s) => s.toggleRouteBipolar);
+
+  useEffect(() => {
+    initMatrix(trackId);
+  }, [trackId, initMatrix]);
 
   const [dragSource, setDragSource] = useState<ModSource | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -296,6 +302,25 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               <span style={{ ...LABEL_STYLE, width: 40, textAlign: "right" }}>
                 {(route.amount * 100).toFixed(0)}%
               </span>
+              <button
+                data-testid={`route-bipolar-${route.id}`}
+                onClick={() => {
+                  toggleBipolar(trackId, route.id);
+                }}
+                style={{
+                  background: "none",
+                  border: `1px solid ${route.bipolar ? tokens.color.blue : tokens.color.gray700}`,
+                  color: route.bipolar
+                    ? tokens.color.blue
+                    : tokens.color.gray500,
+                  fontFamily: tokens.font.mono,
+                  fontSize: tokens.text.xs - 1,
+                  cursor: "pointer",
+                  padding: "1px 3px",
+                }}
+              >
+                {route.bipolar ? "BI" : "UNI"}
+              </button>
               <button
                 data-testid={`route-delete-${route.id}`}
                 onClick={() => {

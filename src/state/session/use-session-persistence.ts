@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useDawStore } from "@state/store";
 import { useEffectsStore } from "@state/effects";
+import { useModulationStore } from "@state/synth/modulation-store";
 import type { SessionStorage } from "./session-storage";
 import { createSaveQueue } from "./save-queue";
 import { createAutoSave } from "./auto-save";
@@ -13,6 +14,43 @@ let sessionMeta: { name: string; createdAt: number } = {
   name: "Untitled",
   createdAt: Date.now(),
 };
+
+function serializeModulation():
+  | Record<
+      string,
+      {
+        id: string;
+        source: string;
+        destination: string;
+        amount: number;
+        bipolar: boolean;
+      }[]
+    >
+  | undefined {
+  const { matrices } = useModulationStore.getState();
+  const entries = Object.entries(matrices);
+  if (entries.length === 0) return undefined;
+  const result: Record<
+    string,
+    {
+      id: string;
+      source: string;
+      destination: string;
+      amount: number;
+      bipolar: boolean;
+    }[]
+  > = {};
+  for (const [trackId, matrix] of entries) {
+    result[trackId] = matrix.routes.map((r) => ({
+      id: r.id,
+      source: r.source,
+      destination: r.destination,
+      amount: r.amount,
+      bipolar: r.bipolar,
+    }));
+  }
+  return result;
+}
 
 function storeToSession(): SessionSchema {
   const state = useDawStore.getState();
@@ -48,6 +86,7 @@ function storeToSession(): SessionSchema {
     clips: Object.values(state.clips),
     mixer: { masterVolume: state.masterVolume },
     effects: effects.length > 0 ? effects : undefined,
+    modulation: serializeModulation(),
   };
 }
 
@@ -87,6 +126,26 @@ export function hydrateStore(session: SessionSchema): void {
     }
   }
   useEffectsStore.setState({ trackEffects });
+
+  // Restore modulation state
+  const matrices: Record<
+    string,
+    {
+      routes: readonly {
+        id: string;
+        source: string;
+        destination: string;
+        amount: number;
+        bipolar: boolean;
+      }[];
+    }
+  > = {};
+  if (session.modulation) {
+    for (const [trackId, routes] of Object.entries(session.modulation)) {
+      matrices[trackId] = { routes };
+    }
+  }
+  useModulationStore.setState({ matrices });
 }
 
 type SessionPersistenceResult = {
@@ -145,11 +204,15 @@ export function useSessionPersistence(
     const unsubEffects = useEffectsStore.subscribe(() => {
       autoSave.notifyChange();
     });
+    const unsubMod = useModulationStore.subscribe(() => {
+      autoSave.notifyChange();
+    });
 
     return () => {
       autoSave.stop();
       unsubDaw();
       unsubEffects();
+      unsubMod();
     };
   }, [autoSave]);
 

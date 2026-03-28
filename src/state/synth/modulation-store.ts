@@ -37,6 +37,7 @@ export type ModulationStore = {
   ) => void;
   removeRoute: (trackId: string, routeId: string) => void;
   updateRouteAmount: (trackId: string, routeId: string, amount: number) => void;
+  toggleRouteBipolar: (trackId: string, routeId: string) => void;
   getRoutes: (trackId: string) => readonly ModRoute[];
   getWorkletRoutes: (trackId: string) => WorkletModRoute[];
 };
@@ -108,6 +109,23 @@ export const useModulationStore = create<ModulationStore>()((set, get) => ({
           [trackId]: {
             routes: matrix.routes.map((r) =>
               r.id === routeId ? { ...r, amount: clamped } : r,
+            ),
+          },
+        },
+      };
+    });
+  },
+
+  toggleRouteBipolar(trackId, routeId) {
+    set((s) => {
+      const matrix = s.matrices[trackId];
+      if (!matrix) return s;
+      return {
+        matrices: {
+          ...s.matrices,
+          [trackId]: {
+            routes: matrix.routes.map((r) =>
+              r.id === routeId ? { ...r, bipolar: !r.bipolar } : r,
             ),
           },
         },

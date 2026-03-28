@@ -110,9 +110,10 @@ class SynthProcessor extends AudioWorkletProcessor {
   private filterParams: ADSRParams;
   private alive = true;
 
-  // Modulation matrix (pre-allocated)
+  // Modulation matrix (pre-allocated, zero-allocation in process())
   private modRoutes: WorkletModRoute[] = [];
   private modSourceValues = new Float64Array(8); // Global source values
+  private voiceSrcValues = new Float64Array(8); // Per-voice source values
   private modAccGlobal: ModAccumulators = createModAccumulators();
   private modAccVoice: ModAccumulators = createModAccumulators();
 
@@ -298,9 +299,6 @@ class SynthProcessor extends AudioWorkletProcessor {
     const osc2OctMul = Math.pow(2, p.osc2Octave);
     const osc2DetMul = Math.pow(2, p.osc2Detune / 1200);
 
-    // Per-voice source values (reused each voice iteration)
-    const voiceSrcValues = new Float64Array(8);
-
     for (let s = 0; s < numSamples; s++) {
       // LFO rates incorporate modulation from previous sample (1-sample delay, inaudible)
       const lfo1Rate = Math.max(0.01, p.lfo1Rate + this.modAccGlobal.lfo1Rate);
@@ -308,9 +306,9 @@ class SynthProcessor extends AudioWorkletProcessor {
       const lfo1Val = this.lfo1.process(lfo1Rate, sr);
       const lfo2Val = this.lfo2.process(lfo2Rate, sr);
 
-      // Update global source values for modulation
-      this.modSourceValues[SOURCE_INDEX.lfo1] = lfo1Val;
-      this.modSourceValues[SOURCE_INDEX.lfo2] = lfo2Val;
+      // Update global source values for modulation (scaled by depth)
+      this.modSourceValues[SOURCE_INDEX.lfo1] = lfo1Val * p.lfo1Depth;
+      this.modSourceValues[SOURCE_INDEX.lfo2] = lfo2Val * p.lfo2Depth;
 
       // Compute global modulation (from non-per-voice sources)
       resetAccumulators(this.modAccGlobal);
@@ -375,9 +373,9 @@ class SynthProcessor extends AudioWorkletProcessor {
         resetAccumulators(this.modAccVoice);
         if (this.modRoutes.length > 0) {
           // Set per-voice source values
-          voiceSrcValues[SOURCE_INDEX.ampEnv] = ampLevel;
-          voiceSrcValues[SOURCE_INDEX.filterEnv] = filterEnvVal;
-          voiceSrcValues[SOURCE_INDEX.velocity] = vd.velocity;
+          this.voiceSrcValues[SOURCE_INDEX.ampEnv] = ampLevel;
+          this.voiceSrcValues[SOURCE_INDEX.filterEnv] = filterEnvVal;
+          this.voiceSrcValues[SOURCE_INDEX.velocity] = vd.velocity;
 
           for (let ri = 0; ri < this.modRoutes.length; ri++) {
             const route = at(
@@ -393,7 +391,7 @@ class SynthProcessor extends AudioWorkletProcessor {
             ) {
               applyModRoute(
                 this.modAccVoice,
-                voiceSrcValues,
+                this.voiceSrcValues,
                 si,
                 route.destIdx,
                 route.amount,
