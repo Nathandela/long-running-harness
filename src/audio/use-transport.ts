@@ -140,7 +140,7 @@ export function useTransportInit(): UseTransportReturn {
 
       clock.seek(seconds);
       schedulerRef.current?.sync();
-      storeSetCursor(seconds);
+      storeSetCursor(clock.getCursorSeconds());
     },
     [storeSetCursor],
   );

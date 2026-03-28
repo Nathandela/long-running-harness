@@ -43,18 +43,24 @@ export function createMediaPool(
         }
         throw e;
       }
-      await storage.putMeta(handle.id, handle);
+      try {
+        await storage.putMeta(handle.id, handle);
 
-      // Compute and cache peaks at default resolution
-      const peaks = computeWaveformPeaks(
-        buffer,
-        DEFAULT_SAMPLES_PER_PEAK,
-        handle.id,
-      );
-      await storage.putPeaks(
-        `${handle.id}:${String(DEFAULT_SAMPLES_PER_PEAK)}`,
-        peaks,
-      );
+        // Compute and cache peaks at default resolution
+        const peaks = computeWaveformPeaks(
+          buffer,
+          DEFAULT_SAMPLES_PER_PEAK,
+          handle.id,
+        );
+        await storage.putPeaks(
+          `${handle.id}:${String(DEFAULT_SAMPLES_PER_PEAK)}`,
+          peaks,
+        );
+      } catch (e: unknown) {
+        // Rollback blob to prevent orphaned storage
+        await storage.deleteBlob(handle.id).catch(() => {});
+        throw e;
+      }
 
       sources.set(handle.id, handle);
       bufferCache.set(handle.id, buffer);

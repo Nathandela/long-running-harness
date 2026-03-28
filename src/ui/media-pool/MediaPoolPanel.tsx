@@ -111,27 +111,30 @@ export function MediaPoolPanel({
       if (importingRef.current) return;
       importingRef.current = true;
       setErrors([]);
-      const importErrors: MediaPoolError[] = [];
-      for (const file of files) {
-        const result = await pool.importFile(file);
-        if (result.ok) {
-          const peaks = await pool.getPeaks(result.handle.id, 256);
-          if (peaks !== undefined) {
-            setPeaksMap((prev) => {
-              const next = new Map(prev);
-              next.set(result.handle.id, peaks);
-              return next;
-            });
+      try {
+        const importErrors: MediaPoolError[] = [];
+        for (const file of files) {
+          const result = await pool.importFile(file);
+          if (result.ok) {
+            const peaks = await pool.getPeaks(result.handle.id, 256);
+            if (peaks !== undefined) {
+              setPeaksMap((prev) => {
+                const next = new Map(prev);
+                next.set(result.handle.id, peaks);
+                return next;
+              });
+            }
+          } else {
+            importErrors.push(result.error);
           }
-        } else {
-          importErrors.push(result.error);
         }
+        if (importErrors.length > 0) {
+          setErrors(importErrors);
+        }
+        setVersion((v) => v + 1);
+      } finally {
+        importingRef.current = false;
       }
-      if (importErrors.length > 0) {
-        setErrors(importErrors);
-      }
-      setVersion((v) => v + 1);
-      importingRef.current = false;
     },
     [pool],
   );
