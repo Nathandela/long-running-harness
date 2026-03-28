@@ -9,7 +9,13 @@ export function TransportBar(): React.JSX.Element {
   const transport = useTransport();
   const transportState = useDawStore((s) => s.transportState);
   const bpm = useDawStore((s) => s.bpm);
+  const loopEnabled = useDawStore((s) => s.loopEnabled);
+  const setLoop = useDawStore((s) => s.setLoop);
   const [metronomeOn, setMetronomeOn] = useState(false);
+
+  const handleLoopToggle = useCallback((): void => {
+    setLoop(!loopEnabled);
+  }, [loopEnabled, setLoop]);
 
   const handleMetronomeToggle = useCallback((): void => {
     const next = !metronomeOn;
@@ -66,6 +72,18 @@ export function TransportBar(): React.JSX.Element {
           transportSAB={transport.getTransportSAB()}
           tempoMap={tempoMap}
         />
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={loopEnabled}
+          aria-label="Loop"
+          className={styles["transportBtn"]}
+          data-active={loopEnabled}
+          onClick={handleLoopToggle}
+        >
+          LOOP
+        </button>
 
         <div className={styles["metronomeToggle"]}>
           <button

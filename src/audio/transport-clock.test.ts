@@ -198,4 +198,67 @@ describe("createTransportClock", () => {
       clock.dispose();
     });
   });
+
+  describe("loop support", () => {
+    it("wraps cursor at loop end", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 1.0, end: 3.0 });
+
+      ctx.currentTime = 0;
+      clock.play();
+      // Advance past loop end
+      ctx.currentTime = 3.5;
+      const pos = clock.getCursorSeconds();
+      // Should wrap: 3.5 -> loopStart + (3.5 - 1.0) % 2.0 = 1.0 + 0.5 = 1.5
+      expect(pos).toBeCloseTo(1.5, 6);
+      clock.dispose();
+    });
+
+    it("does not wrap when loop is disabled", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: false, start: 1.0, end: 3.0 });
+
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 4.0;
+      expect(clock.getCursorSeconds()).toBeCloseTo(4.0, 6);
+      clock.dispose();
+    });
+
+    it("continues correctly after loop wrap", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 0, end: 2.0 });
+
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 2.5;
+      // First wrap
+      const pos1 = clock.getCursorSeconds();
+      expect(pos1).toBeCloseTo(0.5, 6);
+
+      // Continue playing after wrap
+      ctx.currentTime = 3.5;
+      const pos2 = clock.getCursorSeconds();
+      expect(pos2).toBeCloseTo(1.5, 6);
+      clock.dispose();
+    });
+
+    it("does not wrap if loop end <= loop start", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 3.0, end: 1.0 });
+
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 5.0;
+      expect(clock.getCursorSeconds()).toBeCloseTo(5.0, 6);
+      clock.dispose();
+    });
+
+    it("getLoop returns current loop region", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 2.0, end: 6.0 });
+      expect(clock.getLoop()).toEqual({ enabled: true, start: 2.0, end: 6.0 });
+      clock.dispose();
+    });
+  });
 });

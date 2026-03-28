@@ -13,6 +13,12 @@ const STATE_STOPPED = 0;
 const STATE_PLAYING = 1;
 const STATE_PAUSED = 2;
 
+export type LoopRegion = {
+  readonly enabled: boolean;
+  readonly start: number;
+  readonly end: number;
+};
+
 export type TransportClock = {
   readonly state: TransportState;
   play(): void;
@@ -20,6 +26,8 @@ export type TransportClock = {
   stop(): void;
   seek(seconds: number): void;
   setBpm(bpm: number): void;
+  setLoop(region: LoopRegion): void;
+  getLoop(): LoopRegion;
   getCursorSeconds(): number;
   getTempoMap(): TempoMap;
   dispose(): void;
@@ -51,6 +59,7 @@ export function createTransportClock(
     { numerator: 4, denominator: 4 },
     rate,
   );
+  let loop: LoopRegion = { enabled: false, start: 0, end: 0 };
 
   // Write initial values to SAB
   stateView[0] = STATE_STOPPED;
@@ -113,10 +122,28 @@ export function createTransportClock(
       bpmView[0] = clamped;
     },
 
+    setLoop(region: LoopRegion): void {
+      loop = region;
+    },
+
+    getLoop(): LoopRegion {
+      return loop;
+    },
+
     getCursorSeconds(): number {
       if (currentState === "playing") {
         const elapsed = ctx.currentTime - playStartContextTime;
-        const pos = playStartCursorSeconds + elapsed;
+        let pos = playStartCursorSeconds + elapsed;
+
+        // Loop wrapping
+        if (loop.enabled && loop.end > loop.start && pos >= loop.end) {
+          const loopLen = loop.end - loop.start;
+          pos = loop.start + ((pos - loop.start) % loopLen);
+          // Re-anchor so future calls compute correctly
+          playStartContextTime = ctx.currentTime;
+          playStartCursorSeconds = pos;
+        }
+
         writeSABCursor(pos);
         return pos;
       }

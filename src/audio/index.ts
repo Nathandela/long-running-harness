@@ -23,7 +23,11 @@ export {
   type BBT,
   type TimeSignature,
 } from "./tempo-map";
-export { createTransportClock, type TransportClock } from "./transport-clock";
+export {
+  createTransportClock,
+  type TransportClock,
+  type LoopRegion,
+} from "./transport-clock";
 export {
   createLookAheadScheduler,
   type LookAheadScheduler,

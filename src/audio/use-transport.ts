@@ -41,6 +41,18 @@ export function useTransport(): UseTransportReturn {
   const storeSetBpm = useDawStore((s) => s.setBpm);
   const storeSetCursor = useDawStore((s) => s.setCursor);
   const bpm = useDawStore((s) => s.bpm);
+  const loopEnabled = useDawStore((s) => s.loopEnabled);
+  const loopStart = useDawStore((s) => s.loopStart);
+  const loopEnd = useDawStore((s) => s.loopEnd);
+
+  // Sync loop region from store to clock
+  useEffect(() => {
+    clockRef.current?.setLoop({
+      enabled: loopEnabled,
+      start: loopStart,
+      end: loopEnd,
+    });
+  }, [loopEnabled, loopStart, loopEnd]);
 
   // Initialize on mount
   useEffect(() => {
