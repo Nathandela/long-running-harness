@@ -390,6 +390,72 @@ describe("createArpeggiator", () => {
     expect(events[0]?.note).toBe(64); // down starts at highest
   });
 
+  // ─── enabled guard ───
+
+  it("scheduleStep does nothing when disabled", () => {
+    const arp = makeArp({ enabled: false });
+    arp.noteOn(60, 100);
+    arp.scheduleStep(0, 0.0, 0.25);
+    expect(events).toHaveLength(0);
+  });
+
+  // ─── MIDI clamping ───
+
+  it("clamps out-of-range MIDI note values", () => {
+    const arp = makeArp();
+    arp.noteOn(-5, 100);
+    arp.noteOn(200, 100);
+    arp.scheduleStep(0, 0.0, 0.25);
+    arp.scheduleStep(1, 0.25, 0.25);
+    expect(events).toHaveLength(2);
+    expect(events[0]?.note).toBe(0);
+    expect(events[1]?.note).toBe(127);
+  });
+
+  it("clamps out-of-range velocity values", () => {
+    const arp = makeArp();
+    arp.noteOn(60, -10);
+    arp.scheduleStep(0, 0.0, 0.25);
+    expect(events[0]?.velocity).toBe(0);
+  });
+
+  // ─── latch dynamic toggle ───
+
+  it("latch toggled on mid-chord snapshots currently held notes", () => {
+    const arp = makeArp({ latch: false });
+    arp.noteOn(60, 100);
+    arp.noteOn(64, 100);
+
+    // Enable latch while notes are held
+    arp.setParams({ ...DEFAULT_ARP_PARAMS, enabled: true, latch: true });
+
+    // Release all keys - should latch the held chord
+    arp.noteOff(60);
+    arp.noteOff(64);
+
+    arp.scheduleStep(0, 0.0, 0.25);
+    arp.scheduleStep(1, 0.25, 0.25);
+    expect(events).toHaveLength(2);
+    expect(events[0]?.note).toBe(60);
+    expect(events[1]?.note).toBe(64);
+  });
+
+  // ─── swing uses internal stepCounter ───
+
+  it("swing uses internal stepCounter for parity", () => {
+    const arp = makeArp({ swing: 1.0 });
+    arp.noteOn(60, 100);
+
+    // Even with mismatched external stepIndex, swing should use internal counter
+    arp.scheduleStep(5, 0.0, 0.25); // external=5(odd), internal=0(even)
+    arp.scheduleStep(6, 0.25, 0.25); // external=6(even), internal=1(odd)
+
+    // Step 0 (internal even) should have no swing
+    expect(events[0]?.startTime).toBe(0.0);
+    // Step 1 (internal odd) should have swing
+    expect(events[1]?.startTime).toBeGreaterThan(0.25);
+  });
+
   // ─── reset ───
 
   it("reset clears state and step counter", () => {

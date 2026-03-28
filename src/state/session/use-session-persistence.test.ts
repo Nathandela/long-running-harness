@@ -5,6 +5,8 @@ import { createDefaultSession } from "./session-schema";
 import { useSessionPersistence, hydrateStore } from "./use-session-persistence";
 import { useDawStore } from "@state/store";
 import { useModulationStore } from "@state/synth/modulation-store";
+import { useArpeggiatorStore } from "@state/arpeggiator";
+import { DEFAULT_ARP_PARAMS } from "@audio/arpeggiator/arpeggiator-types";
 import {
   createModRoute,
   _resetRouteCounter,
@@ -156,6 +158,61 @@ describe("useSessionPersistence", () => {
       expect(
         useModulationStore.getState().matrices["track-1"]?.routes,
       ).toHaveLength(32);
+    });
+  });
+
+  describe("arpeggiator round-trip", () => {
+    it("hydrates arpeggiator state from session", () => {
+      const session = createDefaultSession();
+      session.arpeggiator = [
+        {
+          trackId: "track-1",
+          params: { ...DEFAULT_ARP_PARAMS, pattern: "down", gate: 0.5 },
+        },
+      ];
+
+      hydrateStore(session);
+
+      const arp = useArpeggiatorStore.getState().arps["track-1"];
+      expect(arp).toBeDefined();
+      expect(arp?.params.pattern).toBe("down");
+      expect(arp?.params.gate).toBe(0.5);
+    });
+
+    it("clears arpeggiator state when session has no arpeggiator section", () => {
+      // Pre-populate arp state
+      useArpeggiatorStore.getState().initArp("track-1");
+      expect(useArpeggiatorStore.getState().arps["track-1"]).toBeDefined();
+
+      const session = createDefaultSession();
+      hydrateStore(session);
+
+      expect(useArpeggiatorStore.getState().arps["track-1"]).toBeUndefined();
+    });
+
+    it("persists arpeggiator state in saveNow", async () => {
+      const storage = createInMemorySessionStorage();
+      const { result } = renderHook(() => useSessionPersistence(storage));
+
+      useArpeggiatorStore.getState().initArp("track-1");
+      useArpeggiatorStore.getState().setParam("track-1", "pattern", "random");
+
+      await act(async () => {
+        await result.current.saveNow();
+      });
+
+      const saved = await storage.getCurrent();
+      expect(saved).toBeDefined();
+      if (saved === undefined) return;
+      const parsed = JSON.parse(saved) as {
+        arpeggiator?: Array<{
+          trackId: string;
+          params: { pattern: string };
+        }>;
+      };
+      expect(parsed.arpeggiator).toBeDefined();
+      expect(parsed.arpeggiator?.[0]?.trackId).toBe("track-1");
+      expect(parsed.arpeggiator?.[0]?.params.pattern).toBe("random");
     });
   });
 });

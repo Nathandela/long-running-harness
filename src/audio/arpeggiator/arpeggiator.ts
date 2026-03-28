@@ -125,6 +125,10 @@ export function createArpeggiator(
 
   const arp: Arpeggiator = {
     noteOn(note: number, velocity: number): void {
+      // Clamp to valid MIDI range
+      const clampedNote = Math.max(0, Math.min(127, Math.round(note)));
+      const clampedVel = Math.max(0, Math.min(127, Math.round(velocity)));
+
       // If latched and new note arrives, clear latch pool and start fresh
       if (params.latch && isLatched && heldNotes.length === 0) {
         latchedNotes = [];
@@ -134,9 +138,13 @@ export function createArpeggiator(
       }
 
       // Don't add duplicates
-      if (heldNotes.some((h) => h.note === note)) return;
+      if (heldNotes.some((h) => h.note === clampedNote)) return;
 
-      heldNotes.push({ note, velocity, order: insertionCounter++ });
+      heldNotes.push({
+        note: clampedNote,
+        velocity: clampedVel,
+        order: insertionCounter++,
+      });
 
       // Keep a live snapshot of the held pool for latch
       if (params.latch) {
@@ -151,6 +159,9 @@ export function createArpeggiator(
       heldNotes.splice(idx, 1);
 
       // If latch is on and all keys released, freeze from snapshot
+      // Snapshot is taken on noteOn and captures the full chord being played.
+      // This is standard latch behavior: the full held chord is latched,
+      // regardless of the order keys are released.
       if (params.latch && heldNotes.length === 0 && !isLatched) {
         latchedNotes = latchSnapshot;
         isLatched = true;
@@ -165,16 +176,18 @@ export function createArpeggiator(
       stepCounter = 0;
     },
 
-    scheduleStep(stepIndex: number, time: number, stepDuration: number): void {
+    scheduleStep(_stepIndex: number, time: number, stepDuration: number): void {
+      if (!params.enabled) return;
+
       const seq = buildSequence();
       if (seq.length === 0) return;
 
       const entry = getNoteAtStep(seq, stepCounter);
       if (!entry) return;
 
-      // Apply swing: shift odd steps forward
+      // Apply swing: use internal stepCounter for consistent parity
       let adjustedTime = time;
-      if (params.swing > 0 && stepIndex % 2 === 1) {
+      if (params.swing > 0 && stepCounter % 2 === 1) {
         adjustedTime += (params.swing * stepDuration) / 3;
       }
 
@@ -196,9 +209,14 @@ export function createArpeggiator(
 
     setParams(newParams: ArpParams): void {
       const patternChanged = newParams.pattern !== params.pattern;
+      const latchToggled = !params.latch && newParams.latch;
       params = { ...newParams };
       if (patternChanged) {
         stepCounter = 0;
+      }
+      // If latch just turned on, snapshot current held notes
+      if (latchToggled && heldNotes.length > 0) {
+        latchSnapshot = heldNotes.map((h) => ({ ...h }));
       }
     },
 

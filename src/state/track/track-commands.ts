@@ -1,5 +1,6 @@
 import type { UndoCommand } from "@state/undo/undo-command";
 import { useDawStore } from "@state/store";
+import { useArpeggiatorStore } from "@state/arpeggiator";
 import type { TrackModel, ClipModel } from "@state/track/types";
 
 function getStore(): ReturnType<typeof useDawStore.getState> {
@@ -20,9 +21,11 @@ export class AddTrackCommand implements UndoCommand {
 
   execute(): void {
     getStore().addTrack(this.track, this.index);
+    useArpeggiatorStore.getState().initArp(this.track.id);
   }
 
   undo(): void {
+    useArpeggiatorStore.getState().removeArp(this.track.id);
     getStore().removeTrack(this.track.id);
   }
 
@@ -51,6 +54,7 @@ export class RemoveTrackCommand implements UndoCommand {
         .filter((c): c is ClipModel => c !== undefined);
     }
 
+    useArpeggiatorStore.getState().removeArp(this.trackId);
     state.removeTrack(this.trackId);
   }
 
@@ -60,6 +64,7 @@ export class RemoveTrackCommand implements UndoCommand {
     // Re-add the track at its original position (without clips first)
     const trackWithoutClips: TrackModel = { ...this.savedTrack, clipIds: [] };
     getStore().addTrack(trackWithoutClips, this.savedIndex);
+    useArpeggiatorStore.getState().initArp(this.savedTrack.id);
 
     // Re-add all clips (addClip also wires up clipIds)
     for (const clip of this.savedClips) {

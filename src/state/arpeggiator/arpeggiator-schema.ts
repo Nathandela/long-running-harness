@@ -36,7 +36,7 @@ export type ArpeggiatorSectionSchema = z.infer<typeof arpeggiatorSectionSchema>;
 
 // Compile-time check: ArpParams and arpParamsSchema stay in sync
 type _SchemaType = z.infer<typeof arpParamsSchema>;
-const _syncCheck: _SchemaType = {} as ArpParams;
-const _reverseCheck: ArpParams = {} as _SchemaType;
+const _syncCheck: _SchemaType = null as unknown as ArpParams;
+const _reverseCheck: ArpParams = null as unknown as _SchemaType;
 void _syncCheck;
 void _reverseCheck;

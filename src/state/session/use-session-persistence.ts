@@ -5,6 +5,7 @@ import {
   useModulationStore,
   type ModulationStore,
 } from "@state/synth/modulation-store";
+import { useArpeggiatorStore, type ArpeggiatorStore } from "@state/arpeggiator";
 import type { SessionStorage } from "./session-storage";
 import { createSaveQueue } from "./save-queue";
 import { createAutoSave } from "./auto-save";
@@ -76,6 +77,16 @@ function storeToSession(): SessionSchema {
     }),
   );
 
+  // Convert arpeggiator store to session schema format
+  const arpEntries = Object.entries(useArpeggiatorStore.getState().arps);
+  const arpeggiator =
+    arpEntries.length > 0
+      ? arpEntries.map(([trackId, state]) => ({
+          trackId,
+          params: { ...state.params },
+        }))
+      : undefined;
+
   return {
     version: SESSION_VERSION,
     meta: {
@@ -94,6 +105,7 @@ function storeToSession(): SessionSchema {
     mixer: { masterVolume: state.masterVolume },
     effects: effects.length > 0 ? effects : undefined,
     modulation: serializeModulation(),
+    arpeggiator,
   };
 }
 
@@ -155,6 +167,15 @@ export function hydrateStore(session: SessionSchema): void {
     _seedRouteCounter(maxRouteNum);
   }
   useModulationStore.setState({ matrices });
+
+  // Restore arpeggiator state
+  const arps: ArpeggiatorStore["arps"] = {};
+  if (session.arpeggiator) {
+    for (const entry of session.arpeggiator) {
+      arps[entry.trackId] = { trackId: entry.trackId, params: entry.params };
+    }
+  }
+  useArpeggiatorStore.setState({ arps });
 }
 
 type SessionPersistenceResult = {
@@ -216,12 +237,16 @@ export function useSessionPersistence(
     const unsubMod = useModulationStore.subscribe(() => {
       autoSave.notifyChange();
     });
+    const unsubArp = useArpeggiatorStore.subscribe(() => {
+      autoSave.notifyChange();
+    });
 
     return () => {
       autoSave.stop();
       unsubDaw();
       unsubEffects();
       unsubMod();
+      unsubArp();
     };
   }, [autoSave]);
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useDawStore } from "@state/store";
+import { useArpeggiatorStore } from "@state/arpeggiator";
 import type { AudioClipModel, TrackModel } from "./types";
 import {
   AddTrackCommand,
@@ -60,6 +61,7 @@ describe("Track commands", () => {
       selectedTrackIds: [],
       selectedClipIds: [],
     });
+    useArpeggiatorStore.setState({ arps: {} });
   });
 
   describe("AddTrackCommand", () => {
@@ -99,6 +101,19 @@ describe("Track commands", () => {
       const data = cmd.serialize();
       expect(data["track"]).toEqual(track);
       expect(data["index"]).toBe(2);
+    });
+
+    it("initializes arpeggiator state on execute", () => {
+      const cmd = new AddTrackCommand(makeTrack({ id: "t1" }));
+      cmd.execute();
+      expect(useArpeggiatorStore.getState().arps["t1"]).toBeDefined();
+    });
+
+    it("removes arpeggiator state on undo", () => {
+      const cmd = new AddTrackCommand(makeTrack({ id: "t1" }));
+      cmd.execute();
+      cmd.undo();
+      expect(useArpeggiatorStore.getState().arps["t1"]).toBeUndefined();
     });
   });
 
@@ -150,6 +165,23 @@ describe("Track commands", () => {
       const cmd = new RemoveTrackCommand("t1");
       const data = cmd.serialize();
       expect(data["trackId"]).toBe("t1");
+    });
+
+    it("removes arpeggiator state on execute", () => {
+      getStore().addTrack(makeTrack({ id: "t1" }));
+      useArpeggiatorStore.getState().initArp("t1");
+      const cmd = new RemoveTrackCommand("t1");
+      cmd.execute();
+      expect(useArpeggiatorStore.getState().arps["t1"]).toBeUndefined();
+    });
+
+    it("restores arpeggiator state on undo", () => {
+      getStore().addTrack(makeTrack({ id: "t1" }));
+      useArpeggiatorStore.getState().initArp("t1");
+      const cmd = new RemoveTrackCommand("t1");
+      cmd.execute();
+      cmd.undo();
+      expect(useArpeggiatorStore.getState().arps["t1"]).toBeDefined();
     });
   });
 
