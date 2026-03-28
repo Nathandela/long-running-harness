@@ -27,16 +27,11 @@ describe("StepButton", () => {
 
   it("has aria-label with step number", () => {
     render(<StepButton active={false} onToggle={vi.fn()} index={7} />);
-    expect(screen.getByRole("button")).toHaveAttribute(
-      "aria-label",
-      "Step 8",
-    );
+    expect(screen.getByRole("button")).toHaveAttribute("aria-label", "Step 8");
   });
 
   it("has current step visual indicator", () => {
-    render(
-      <StepButton active={false} current onToggle={vi.fn()} index={0} />,
-    );
+    render(<StepButton active={false} current onToggle={vi.fn()} index={0} />);
     expect(screen.getByRole("button").className).toContain("current");
   });
 });

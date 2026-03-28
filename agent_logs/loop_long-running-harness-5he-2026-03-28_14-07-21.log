@@ -1,0 +1,25 @@
+Let me understand the project structure and spec before planning.Now let me read the existing tests and remaining spec sections relevant to E2.Now I have a thorough understanding of the project. Let me check existing tests pass, then launch the plan phase.All 52 tests pass. Now let me claim the epic and plan the implementation.Now let me plan the implementation. The epic scope is:
+
+1. **Design tokens** - color palette, typography, spacing (8px grid)
+2. **Custom components** - rotary knobs, faders, VU meters, drum pads, step buttons, toggles
+3. **Standard primitives** - buttons, dropdowns, modals, tooltips, context menus
+4. **Keyboard shortcut system** - command registry + shortcut map
+5. **Focus management and WCAG 2.2 AA**
+6. **prefers-reduced-motion support**
+7. **Neo-Brutalist aesthetic**
+
+Let me create the implementation plan by breaking this into sub-tasks and then work through them.Excellent plan. Let me start executing. I'll work phase by phase following TDD.
+
+## Phase 1: Tokens + Global CSS Foundation
+
+Let me start by creating the design tokens and global styles.Now wire the CSS into the app and add the font:Now migrate existing components to use CSS tokens. Update DawShell, Toolbar, panels, and ClickToStart:Let me run tests to verify Phase 1 doesn't break anything:All 58 tests pass (6 new token tests + 52 existing). Let me commit Phase 1 and move on.## Phase 2: Standard Primitives
+
+Now I'll build the primitives using TDD. Let me write tests and implementations for all primitives in parallel using subagents.
+
+All 6 primitives implemented. Let me verify everything works together:110 tests passing. Let me check lint:Clean. Commit Phase 2:## Phase 3: DAW-Specific Controls + Phase 4: Keyboard System
+
+Let me build controls and keyboard system in parallel:
+
+All Phase 3 and Phase 4 agents completed successfully. Let me verify everything together:177 tests all passing. Check lint:Clean. Commit Phase 3 and 4:## Phase 5: Update barrel export
+
+Now update the barrel `index.ts` to export everything:Full check also passes:Formatting issues. Let me fix them:Full check passes: lint + format + 177 tests. Commit the final phase:

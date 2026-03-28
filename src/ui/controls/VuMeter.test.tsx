@@ -45,7 +45,9 @@ describe("VuMeter", () => {
   });
 
   it("accepts custom dimensions", () => {
-    const { container } = render(<VuMeter level={0.5} width={24} height={200} />);
+    const { container } = render(
+      <VuMeter level={0.5} width={24} height={200} />,
+    );
     const canvas = container.querySelector("canvas");
     expect(canvas).toHaveAttribute("width", "24");
     expect(canvas).toHaveAttribute("height", "200");

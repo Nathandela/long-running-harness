@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  cleanup,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { App } from "./App";
 import { useDawStore } from "@state/store";
@@ -77,9 +83,12 @@ describe("App", () => {
 
   it("sets engine status to error when AudioContext constructor throws", () => {
     vi.stubGlobal("crossOriginIsolated", true);
-    vi.stubGlobal("AudioContext", vi.fn(() => {
-      throw new Error("Web Audio not supported");
-    }));
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(() => {
+        throw new Error("Web Audio not supported");
+      }),
+    );
     render(<App />);
     act(() => {
       fireEvent.click(screen.getByRole("button"));
@@ -136,7 +145,9 @@ describe("App", () => {
   it("does not update state if unmounted while resume() is in flight", async () => {
     vi.stubGlobal("crossOriginIsolated", true);
     let resolveResume: (() => void) | undefined;
-    const resumePromise = new Promise<void>((r) => { resolveResume = r; });
+    const resumePromise = new Promise<void>((r) => {
+      resolveResume = r;
+    });
     const closeSpy = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal(
       "AudioContext",

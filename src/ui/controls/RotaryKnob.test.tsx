@@ -112,7 +112,9 @@ describe("RotaryKnob", () => {
 
   it("clamps value at max", () => {
     const onChange = vi.fn();
-    render(<RotaryKnob {...defaultProps} value={99} onChange={onChange} step={5} />);
+    render(
+      <RotaryKnob {...defaultProps} value={99} onChange={onChange} step={5} />,
+    );
     const slider = screen.getByRole("slider");
     fireEvent.keyDown(slider, { key: "ArrowUp" });
     expect(onChange).toHaveBeenCalledWith(100);
@@ -120,7 +122,9 @@ describe("RotaryKnob", () => {
 
   it("clamps value at min", () => {
     const onChange = vi.fn();
-    render(<RotaryKnob {...defaultProps} value={1} onChange={onChange} step={5} />);
+    render(
+      <RotaryKnob {...defaultProps} value={1} onChange={onChange} step={5} />,
+    );
     const slider = screen.getByRole("slider");
     fireEvent.keyDown(slider, { key: "ArrowDown" });
     expect(onChange).toHaveBeenCalledWith(0);

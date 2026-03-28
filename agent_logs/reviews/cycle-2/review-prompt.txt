@@ -1,0 +1,29 @@
+You are reviewing code changes made by an autonomous agent loop.
+
+## Recently Completed Epics/Tasks
+✓ long-running-harness-0ph ● P0 task SharedArrayBuffer layout + MessagePort protocol types
+✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
+✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
+✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
+✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
+
+--------------------------------------------------------------------------------
+Total: 5 issues (0 open, 0 in progress)
+
+Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
+
+## Commits in scope
+1d94e83 Fix audio engine lifecycle and validation issues from code review
+acdad8c chore: auto-commit uncommitted changes from long-running-harness-9sl
+d7ecbbb E1: Project shell and audio infrastructure
+
+## Your job
+Review the code that was changed by those commits. Use git, read files, and
+explore the codebase yourself to understand what was done.
+
+Review for: correctness, security, edge cases, code quality.
+Provide a numbered list of findings with severity (P0/P1/P2/P3).
+Be concise, actionable, no praise.
+
+If everything looks good: output REVIEW_APPROVED on its own line.
+If changes needed: output REVIEW_CHANGES_REQUESTED then your findings.

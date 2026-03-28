@@ -13,9 +13,10 @@ interface MockMediaQueryList {
   dispatchEvent: ReturnType<typeof vi.fn>;
 }
 
-function mockMatchMedia(
-  matches: boolean,
-): { trigger: (matches: boolean) => void; mql: MockMediaQueryList } {
+function mockMatchMedia(matches: boolean): {
+  trigger: (matches: boolean) => void;
+  mql: MockMediaQueryList;
+} {
   let listener: ((e: { matches: boolean }) => void) | null = null;
   const mql: MockMediaQueryList = {
     matches,

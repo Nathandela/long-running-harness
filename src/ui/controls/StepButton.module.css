@@ -9,7 +9,8 @@
   border-radius: 0;
   background: var(--color-gray-900);
   cursor: pointer;
-  transition: background-color var(--transition-fast),
+  transition:
+    background-color var(--transition-fast),
     border-color var(--transition-fast);
 }
 

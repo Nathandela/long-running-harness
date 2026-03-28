@@ -33,14 +33,11 @@ export function ContextMenu({
     setFocusIndex(-1);
   }, []);
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent): void => {
-      e.preventDefault();
-      setPosition({ x: e.clientX, y: e.clientY });
-      setFocusIndex(-1);
-    },
-    [],
-  );
+  const handleContextMenu = useCallback((e: React.MouseEvent): void => {
+    e.preventDefault();
+    setPosition({ x: e.clientX, y: e.clientY });
+    setFocusIndex(-1);
+  }, []);
 
   const handleItemClick = useCallback(
     (item: MenuItem): void => {
@@ -127,8 +124,12 @@ export function ContextMenu({
                 styles.item,
                 focusIndex === index ? styles.focused : "",
                 item.disabled === true ? styles.disabled : "",
-              ].filter(Boolean).join(" ")}
-              onClick={() => { handleItemClick(item); }}
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                handleItemClick(item);
+              }}
             >
               <span className={styles.label}>{item.label}</span>
               {item.shortcut != null && (

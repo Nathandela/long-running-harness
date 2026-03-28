@@ -22,7 +22,9 @@ function getLevelColor(normalizedY: number): string {
 
 function buildAriaLabel(level: number, clip: boolean): string {
   const pct = Math.round(level * 100);
-  return clip ? `Audio level: ${String(pct)}% (clipping)` : `Audio level: ${String(pct)}%`;
+  return clip
+    ? `Audio level: ${String(pct)}% (clipping)`
+    : `Audio level: ${String(pct)}%`;
 }
 
 export function VuMeter({
@@ -99,7 +101,10 @@ export function VuMeter({
     // Animate peak decay
     const animate = (): void => {
       if (peakHoldRef.current > 0) {
-        peakHoldRef.current = Math.max(0, peakHoldRef.current - PEAK_DECAY_RATE);
+        peakHoldRef.current = Math.max(
+          0,
+          peakHoldRef.current - PEAK_DECAY_RATE,
+        );
         draw(ctx);
         rafRef.current = requestAnimationFrame(animate);
       }

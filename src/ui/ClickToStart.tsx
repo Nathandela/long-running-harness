@@ -30,10 +30,20 @@ export function ClickToStart({
       }}
     >
       <div style={{ textAlign: "center" }}>
-        <p style={{ fontSize: "var(--text-2xl)", marginBottom: "var(--space-2)" }}>
+        <p
+          style={{
+            fontSize: "var(--text-2xl)",
+            marginBottom: "var(--space-2)",
+          }}
+        >
           BRUTALWAV
         </p>
-        <p style={{ fontSize: "var(--text-base)", color: "var(--color-gray-300)" }}>
+        <p
+          style={{
+            fontSize: "var(--text-base)",
+            color: "var(--color-gray-300)",
+          }}
+        >
           Click to start audio engine
         </p>
       </div>

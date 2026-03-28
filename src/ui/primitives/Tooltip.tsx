@@ -17,8 +17,12 @@ export function Tooltip({
   const [visible, setVisible] = useState(false);
   const tooltipId = useId();
 
-  const show = (): void => { setVisible(true); };
-  const hide = (): void => { setVisible(false); };
+  const show = (): void => {
+    setVisible(true);
+  };
+  const hide = (): void => {
+    setVisible(false);
+  };
 
   const child = cloneElement(children, {
     "aria-describedby": visible ? tooltipId : undefined,

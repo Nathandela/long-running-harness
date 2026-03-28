@@ -44,7 +44,11 @@ export function Modal({
   }, [onClose]);
 
   return (
-    <dialog ref={dialogRef} className={styles.dialog} data-testid="modal-dialog">
+    <dialog
+      ref={dialogRef}
+      className={styles.dialog}
+      data-testid="modal-dialog"
+    >
       <div className={styles.titleBar}>{title}</div>
       <div className={styles.body}>{children}</div>
     </dialog>

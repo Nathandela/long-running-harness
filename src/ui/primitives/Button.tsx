@@ -12,7 +12,14 @@ type ButtonProps = {
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
-    { variant = "secondary", size = "md", disabled = false, className, onClick, ...rest },
+    {
+      variant = "secondary",
+      size = "md",
+      disabled = false,
+      className,
+      onClick,
+      ...rest
+    },
     ref,
   ): React.JSX.Element {
     const classes = [
