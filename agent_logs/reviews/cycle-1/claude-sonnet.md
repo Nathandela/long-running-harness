@@ -2,23 +2,28 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. P1 — `getAudioBuffer` has no in-memory cache; will re-decode on every call**
-`media-pool-manager.ts:56` reads the blob from IDB and calls `decodeAudioData` every time. `decodeAudioData` is CPU-expensive and must not be called on the hot path. When tracks/clips start consuming this API, every playback event will trigger a full decode. An `AudioBuffer` cache (`Map<string, AudioBuffer>`) needs to be maintained alongside `sources`.
+**Findings:**
 
-**2. P2 — `importFile` writes are non-atomic; orphaned blobs accumulate on partial failure**
-`media-pool-manager.ts:34-46`: `putBlob` → `putMeta` → `putPeaks` are three separate IDB transactions. A crash after `putBlob` but before `putMeta` leaves an invisible orphaned blob that will never be cleaned up (since `init()` only loads from `getMeta`). Same issue for `removeSource` (lines 78-80) in reverse: if `deleteBlob` succeeds but `deleteMeta` fails, dead metadata persists. Either use a blob-key-matches-meta invariant enforced on startup, or document that orphans are tolerated and add a cleanup path.
+**P1 — Bugs that will break functionality**
 
-**3. P2 — `deletePeaksBySource` in IDB issues one transaction per peak key**
-`idb-storage.ts:217-225`: sequentially awaits `idbDelete` per key inside a loop. Each is a separate transaction with its own overhead. Should batch all deletes under one transaction using a cursor or `IDBKeyRange`.
+1. **Recovery dialog never shows** (`DawShell.tsx:26`): `useState(recoveryWarnings.length > 0)` captures the initial value once — before the async load completes, `recoveryWarnings` is always `[]`. Subsequent `setRecoveryWarnings(...)` calls update the returned array but React's `useState` doesn't re-initialize from it. `showRecovery` is permanently `false`. Fix: add a `useEffect` that calls `setShowRecovery(true)` when `recoveryWarnings.length > 0`.
 
-**4. P3 — Unsafe cast `as unknown as File[]` in `useFileDrop.ts:46`**
-`[...(e.dataTransfer.files as unknown as File[])]` — `FileList` is not `File[]`; the cast hides the type. Use `Array.from(e.dataTransfer.files)` which is typed correctly and handles `null` safely.
+2. **Save queue permanently broken after first IDB error** (`save-queue.ts:23-30`): `inflight` is set to `null` only inside `processQueue()`, which is called via `.then()`. If `doSave` (or an inner `doSave` in the loop) throws, the `.then()` callback never runs and `inflight` stays pointing at the rejected promise. All future `enqueue` calls short-circuit on `inflight !== null` and return the stale rejection. Fix: reset `inflight = null` in a `.finally()` block or in a `try/finally` inside `processQueue`.
 
-**5. P3 — `App.tsx` shows `ClickToStart` during pool init**
-Lines 90-92: `engine === null || pool === null` renders `ClickToStart` while IDB is initializing after the user has already clicked start. Any IDB delay causes a confusing re-appearance of the start screen. Pool init should not block render; show a loading state or initialize pool synchronously before first render.
+3. **Draft-then-swap is incomplete** (`use-session-persistence.ts:63-64`): On mount, only `getCurrent()` is read. A crash between `putDraft` and `putCurrent` leaves a draft in IDB that is never checked or recovered. The advertised crash-safety guarantee is not implemented. Fix: on load, check for a draft first — if one exists, use it (it's the most recent write attempt).
 
-**6. P3 — `WaveformPreview.tsx:32` hardcodes `#0066ff`**
-Comment says `/* --color-blue */` but uses the literal hex. If the design token changes the displayed waveform won't follow. Use `var(--color-blue)` with a `fillStyle` computed from a CSS variable or accept the color as a prop.
+**P2 — Correctness issues**
 
-**7. P3 — `handleImport` silently discards all but the last error in multi-file imports**
-`MediaPoolPanel.tsx:118`: `setError(result.error)` inside the `for` loop overwrites each previous error. If files 1 and 2 fail but file 3 succeeds, no error is shown at all. Accumulate errors and display all of them, or stop on first error and report which file failed.
+4. **`createdAt` overwritten on every save** (`use-session-persistence.ts:13`): `storeToSession()` sets `meta.createdAt: Date.now()` unconditionally, so the original session creation time is lost after the first auto-save. The store has no `createdAt` field to round-trip this value through.
+
+5. **Unsafe cast in recovery** (`session-recovery.ts:38`): After `fullResult` fails, `parsed` is cast to `Record<string, unknown>`. If the JSON is `null`, `42`, `[]`, or any non-object, subsequent indexed property accesses are wrong. Each `safeParse` would fall back to defaults silently, but the cast itself is unsound. Needs an `if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))` guard before line 38.
+
+6. **IDB `dbPromise` cached on rejection** (`session-storage.ts:173-180`): If `openSessionDb()` rejects (e.g. storage quota, blocked by another tab), `dbPromise` is left as the rejected promise. Every subsequent call to `getDb()` returns the same rejection with no retry. A transient open failure becomes a permanent one for the tab's lifetime.
+
+**P3 — Quality / minor**
+
+7. **`listSessions()` IDB N+1** (`session-storage.ts:211-229`): Fetches all keys, then issues one `idbGet` per key in a loop (separate read transactions). Use a single `getAll()` call to the object store instead.
+
+8. **`sessionSchema.version` unconstrained** (`session-schema.ts:24`): `z.number()` accepts any number. A session from a future schema version will load without warning. Consider `z.literal(SESSION_VERSION)` or at minimum `z.number().max(SESSION_VERSION)` with a migration hook, so future version bumps are handled explicitly rather than silently.
+
+9. **`RecoveryDialog.onDiscard` doesn't reset state** (`RecoveryDialog.tsx:17`, `DawShell.tsx:71-73`): Both "Continue" and "Discard" just hide the dialog; "Discard" should reset the store to `createDefaultSession()` defaults to match user expectation.

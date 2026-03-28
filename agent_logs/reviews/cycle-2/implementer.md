@@ -1,8 +1,10 @@
-All checks pass. 318 tests green, types clean, lint clean.
+Committed. All checks passed (ESLint, TypeScript, Prettier, pre-commit hooks).
+
+**Summary of what was fixed:**
+
+- **Codex P1 (stale queued rollback)**: Added `catch` block in the save IIFE that clears `queued = null` before rethrowing. This prevents a stale queued snapshot from being persisted after a later successful save rolls the state backward.
+- **Regression test**: New test forces a write failure with a queued follow-up, then verifies a subsequent successful save isn't overwritten by the stale value.
+
+All other findings from Claude Sonnet, Claude Opus, and Gemini were already fixed in the prior commit. 385/385 tests pass, TypeScript clean, ESLint clean.
 
 FIXES_APPLIED
-
-**What was fixed:**
-- **P1**: `importingRef.current` now resets in a `finally` block — exception during import no longer permanently locks the UI
-- **P1**: `seek()` now reads back `clock.getCursorSeconds()` instead of passing raw input to the store — negative seeks no longer desync UI from transport
-- **P2**: `importFile` now rolls back the blob if `putMeta`/`putPeaks` fails — no more orphaned blobs consuming IDB quota

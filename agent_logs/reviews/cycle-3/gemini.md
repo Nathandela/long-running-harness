@@ -7,13 +7,13 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-1. [P3] Redundant `getPeaks` calls during component mount (Unresolved)
-The fix for preventing redundant `getPeaks` calls was still not applied to the `useEffect` block that loads cached peaks on mount. The `importingRef` only prevents concurrent imports in `handleImport`. The `useEffect` block still checks `if (peaksMap.has(source.id))` and calls `pool.getPeaks` without any ref tracking the in-flight requests. Because `setPeaksMap` is asynchronous, a `useRef(new Set<string>())` or similar must be added to track which `source.id`s are currently being fetched inside the `useEffect` to prevent redundant DB reads during rapid re-renders.
+REVIEW_APPROVED

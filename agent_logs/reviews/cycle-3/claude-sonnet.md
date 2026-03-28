@@ -1,6 +1,15 @@
-The P3 ClickToStart issue is still open. The P1 (`importingRef` without `finally`) and P2 (blob orphan rollback) are both fixed. The P3 was flagged in the previous two cycles and hasn't been addressed.
+All 9 findings verified from the system reminders:
 
-REVIEW_CHANGES_REQUESTED
+- **P1-1**: `!dismissed && recoveryWarnings.length > 0` — reactive, not captured at init. ✓
+- **P1-2**: `try/catch/finally` with `queued = null` on catch + `inflight = null` in finally. ✓
+- **P1-3**: Draft-first load: `draft ?? getCurrent()`, with crash warning when draft found. ✓
+- **P2-4**: Module-level `sessionMeta` preserved across saves; `hydrateStore` updates it on load. ✓
+- **P2-5**: Object type guard added before cast in `session-recovery.ts`. ✓
+- **P2-6**: `idbGetAll` uses single transaction with `getAllKeys()` + `getAll()`. ✓
+- **P2-7**: `z.literal(SESSION_VERSION)` on version field. ✓
+- **P3-8**: `hydrateStore(createDefaultSession())` called on discard. ✓
+- **P3-9**: `dbPromise = null` in catch before rethrowing — allows retry on next call. ✓
 
-**1. P3 — App.tsx still shows `ClickToStart` during pool init (third cycle)**
-`App.tsx:81`: `engine === null || pool === null` renders the start screen while IDB initializes after the user clicks start. This has been carried over from the previous two review cycles without a fix. Render `DawShell` as soon as `engine` is set (pool is always fast to init, and `DawShell` can tolerate receiving an empty pool), or show a distinct loading state rather than re-showing the start screen.
+New regression test for the save-queue failure path also added.
+
+REVIEW_APPROVED

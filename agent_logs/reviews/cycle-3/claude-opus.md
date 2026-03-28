@@ -1,22 +1,12 @@
-All 318 tests pass, types clean. Verifying each prior finding:
+67 tests pass (up from 66 — the new stale-rollback test), TypeScript clean. Let me verify each finding:
 
-| Finding | Status | Evidence |
-|---|---|---|
-| **P2-1**: `removeSource` order | Fixed | Storage ops first (lines 100-102), then memory (103-104) |
-| **P2-2**: `StorageFullError` dead code | Fixed | `putBlob` catches `QuotaExceededError` (lines 37-45), with blob rollback on meta/peaks failure (59-63) |
-| **P2-3**: Main-thread blocking peaks | Accepted risk | Not addressed; acknowledged as optimization, gated by 500MB limit |
-| **P2-4**: No concurrency guard | Fixed | `importingRef` guard (lines 110-111), reset in `finally` (134-136) |
-| **P3-1**: Only last error shown | Fixed | `errors` array accumulated (114, 127), all rendered (192-198) |
-| **P3-2**: No AudioBuffer cache | Fixed | `bufferCache` Map (line 18), populated on import (66) and decode (83) |
-| **P3-3**: IDB connection leak | Accepted risk | Not addressed; low impact given engine lifecycle |
-
-Additional fixes beyond my findings (from other reviewers):
-- `deletePeaksBySource` batches deletes in a single IDB transaction
-- Scheduler `sync()` method added for seek re-anchoring
-- `useFileDrop` uses `Array.from()` instead of unsafe cast
-- `WaveformPreview` reads CSS variable instead of hardcoded color
-- Seek in `use-transport.ts` syncs scheduler and reads clamped cursor
-
-All P2 findings are resolved. Remaining P2-3 and P3-3 are acknowledged low-risk items.
+| # | Finding | Fix | Verified |
+|---|---------|-----|----------|
+| 1 | P0 SaveQueue deadlock | `try/catch/finally` resets `inflight = null`, clears `queued` on error | OK — new test confirms recovery after failure |
+| 2 | P1 RecoveryDialog never opens | `const showRecovery = !dismissed && recoveryWarnings.length > 0` — derived, reactive | OK |
+| 3 | P1 storeToSession destroys metadata | Module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` | OK |
+| 4 | P1 "Start fresh" doesn't reset | `onDiscard` calls `hydrateStore(createDefaultSession())` | OK |
+| 5 | P2 No schema range constraints | bpm 1-999, volume 0-2, loop bounds >= 0, loopEnd >= loopStart refine, version literal | OK |
+| 6 | P2 N+1 IDB reads | `idbGetAll` reads keys+values in single transaction; `getDb` retries on failure | OK |
 
 REVIEW_APPROVED

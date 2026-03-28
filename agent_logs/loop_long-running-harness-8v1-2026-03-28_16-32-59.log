@@ -1,0 +1,29 @@
+Now let me explore the existing codebase to understand the project structure and what's already been built.Good, I have a thorough understanding of the project. Let me read the key files I need to work with.Now I have full context. Let me now create the beads sub-tasks for this epic and begin implementation. Let me start by creating the plan as beads issues.All 385 tests pass. Now let me create the sub-tasks and implement.Now let me set up dependencies and claim the first task.Now let me implement T1: Track & Clip data models. Following TDD, I'll write tests first.
+
+## T1: Track & Clip Data ModelsNow let me write the tests first:All tests pass. Now let me create the index file for the track module and close T1.## T2: Track store & arrangement query
+
+Now I need to add tracks and clips to the DawStore. Let me write tests first.Now let me run the tests to verify they fail for the right reason (missing implementation):Tests fail for the right reason - the store actions don't exist yet. Now let me implement the Green phase by adding tracks/clips to the store:Now implement the store actions:All 418 tests pass. Let me verify no existing tests broke:All tests pass. Let me also check TypeScript compilation:Clean. Let me commit T1+T2 progress and close T2.Let me fix the lint errors:Now fix the `no-dynamic-delete` and `no-non-null-assertion` errors in the store. Let me use a clips-without approach:Now fix `removeClip` and `reorderTrack`:Now fix the test file's non-null assertions. I'll use safe access patterns:I need to rewrite the test file without non-null assertions. I'll use a helper that safely accesses and asserts:Now let me try committing again:T1+T2 committed. Now let me close T2 and work on T3 (undo commands), T4 (canvas renderer), and T6 (session persistence) in parallel since T3 and T6 both only depend on T2.## T3: Undo Commands + T6: Session Persistence (parallel implementation)
+
+Let me implement these in parallel using subagents:Both subagents completed. Let me verify everything works together:All 471 tests pass, TypeScript clean. Let me commit T3 and T6:T3 and T6 done. Let me close them and move to T4 (canvas renderer):## T4: Canvas Arrangement Renderer
+
+This is the most complex task - canvas-based timeline rendering. Let me read the existing arrangement panel and design tokens for reference, then implement.Now let me implement the canvas arrangement renderer. This is a large task, so I'll use a subagent:Let me verify and commit:Several lint errors. Let me fix them:Now fix the test file. Let me read it to understand the lint issues:The test file uses `vi.mocked(rc.ctx.fillRect).mock.calls` which triggers `@typescript-eslint/unbound-method`. The fix is to use function-scoped mock variables instead. Let me rewrite the test to avoid `vi.mocked()` on the context methods:Now let me try committing:T4 committed. Let me close it and move to T5 (clip interactions):## T5: Clip Interaction Handlers
+
+This involves mouse interaction on the canvas for clip operations. Let me implement it:Now I need to implement clip interaction handlers. Let me create the interaction module:Now write tests for hit-test and snap:All tests pass. Now let me create the interaction hooks that wire mouse events to store actions:Now write tests for the interaction hook:Now let me wire the interactions into the ArrangementPanel component:Now update the index to export new modules:All 509 tests pass. Let me commit and close T5:The React hooks linter catches that we're reading a ref during render. Let me fix this by using state instead of a ref for the cursor:Now replace all `cursorRef.current = ` with `setCursor(`:Now fix the return value:All tasks complete. Let me close T5 and verify the full suite one final time:All 509 tests pass (124 new tests added). Now let me run the review phase before closing the epic:All clean. Let me now close the epic and push:EPIC_COMPLETE
+
+## Summary
+
+**E6: Track System & Arrangement View** is complete. Here's what was delivered:
+
+### Sub-tasks completed (6/6)
+1. **T1: Track & Clip data models** -- `TrackModel`, `ClipModel` types with Zod schemas
+2. **T2: Track store & arrangement query** -- Full CRUD in Zustand store (add, remove, update, reorder tracks; add, remove, move, split, trim, duplicate clips). `queryClipsAtTime()` with mute/solo logic. Selection model.
+3. **T3: Undo commands** -- 10 UndoCommand classes for all track/clip operations
+4. **T4: Canvas arrangement renderer** -- Pure canvas renderer (NFR-13) with grid, track lanes, clip rectangles, playhead, time ruler, track headers
+5. **T5: Clip interaction handlers** -- Hit-testing, grid snapping (1/4, 1/8, 1/16, 1-bar), drag-move, trim, split, rubber-band selection
+6. **T6: Session persistence** -- Typed SessionSchema with track/clip round-trip serialization
+
+### Stats
+- **509 tests passing** (124 new)
+- **TypeScript strict**: clean
+- **ESLint**: clean
+- **5 commits** pushed to main

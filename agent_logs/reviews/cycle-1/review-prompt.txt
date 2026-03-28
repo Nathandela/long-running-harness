@@ -5,6 +5,8 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
 ✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
 ├── ✓ long-running-harness-8ew ● P0 epic E3: Transport & Scheduling Engine
+│   └── ✓ long-running-harness-3yf ● P1 epic E5: Session Persistence & Undo Framework
+├── ✓ long-running-harness-3yf ● P1 epic E5: Session Persistence & Undo Framework
 ├── ✓ long-running-harness-5he ● P1 epic E2: Neo-Brutalist Design System
 └── ✓ long-running-harness-dxr ● P1 epic E4: Media Pool & Audio Storage
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
@@ -16,14 +18,13 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-jpe ● P1 task E4.2: IndexedDB storage layer
 
 --------------------------------------------------------------------------------
-Total: 13 issues (0 open, 0 in progress)
+Total: 14 issues (0 open, 0 in progress)
 
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-4e28189 chore: auto-commit uncommitted changes from long-running-harness-dxr
-fc4bfcd Fix review issues: init race, memory pressure, MP3 detection, edge cases
-5a2aa82 E4: Add media pool with IndexedDB storage, decode pipeline, and waveform peaks
+85c9a45 chore: auto-commit uncommitted changes from long-running-harness-3yf
+ca597d5 E5: Add session persistence & undo framework
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

@@ -6,32 +6,34 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-REVIEW_CHANGES_REQUESTED
+All 9 findings verified:
 
-**1. P1 — `importingRef.current` never reset on exception; permanently locks import UI**
-`MediaPoolPanel.tsx:111-134`: `importingRef.current = true` is set with no `finally` block. If `pool.importFile` or `pool.getPeaks` throws (e.g. IDB error on `putMeta`/`putPeaks` in `media-pool-manager.ts:46-56`, which is unguarded), `importingRef.current` stays `true` forever and the import button and drag-drop both silently do nothing. Wrap the body in `try { ... } finally { importingRef.current = false; }`.
+- **P1-1 (recovery dialog)**: Fixed — `!dismissed && recoveryWarnings.length > 0` is reactive, not captured at init.
+- **P1-2 (save queue broken on error)**: Fixed — `try/finally { inflight = null }` in the IIFE.
+- **P1-3 (draft recovery)**: Fixed — loads draft first: `draft ?? getCurrent()`, with crash-recovery warning.
+- **P2-4 (createdAt overwritten)**: Fixed — module-level `sessionMeta` preserved across saves, updated in `hydrateStore`.
+- **P2-5 (unsafe cast)**: Fixed — object type guard added before the cast.
+- **P2-6 (IDB N+1)**: Fixed — `idbGetAll` uses a single transaction with `getAllKeys()` + `getAll()`.
+- **P2-7 (version unconstrained)**: Fixed — `z.literal(SESSION_VERSION)`.
+- **P3-8 (discard doesn't reset)**: Fixed — `hydrateStore(createDefaultSession())` on discard.
+- **P3-9 (dbPromise cached on rejection)**: Fixed — `dbPromise = null` in catch before rethrowing.
 
-**2. P2 — Partial write atomicity still unaddressed in `importFile`**
-`media-pool-manager.ts:36-56`: `putBlob` is now guarded for `QuotaExceededError`, but `putMeta` (line 46) and `putPeaks` (line 54) are unguarded. If either throws, a blob with no metadata is left orphaned in IDB permanently (since `init()` loads from meta only, the blob is invisible but consuming quota). The same exception also triggers finding #1. Fix: roll back by deleting the blob if `putMeta`/`putPeaks` fail, or move `sources.set`/`bufferCache.set` after all three writes and document the orphan risk.
-
-**3. P3 — App.tsx still shows `ClickToStart` during pool init**
-`App.tsx:81-82`: `engine === null || pool === null` renders the start screen while IDB initializes, which typically takes < 50ms but is perceptible. Not a regression from last review — still open.
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 318 tests pass, types check clean. Let me verify each prior finding against the fixes:
+All 66 tests pass, TypeScript clean, ESLint clean. Let me verify each original finding against the fixes:
 
-| Finding | Status |
-|---|---|
-| **P2-1**: `removeSource` deletes memory before storage | Fixed - storage ops now run first (lines 94-97), then `sources.delete`/`bufferCache.delete` |
-| **P2-2**: `StorageFullError` dead code | Fixed - `putBlob` now catches `QuotaExceededError` and returns `storage-full` error (lines 37-45) |
-| **P2-4**: No concurrency guard on import | Fixed - `importingRef` gate added (lines 90, 110-111, 133) |
-| **P3-1**: Only last error shown in batch | Fixed - `errors` is now an array, all errors accumulated and rendered (lines 89, 113, 126, 129-131, 192-198) |
-| **P3-2**: `getAudioBuffer` re-decodes every call | Fixed - `bufferCache` Map added, populated on import and decode (lines 18, 60, 69-70, 77) |
-| **P2-3**: `computeWaveformPeaks` blocks main thread | Not addressed (P2) |
-| **P3-3**: IDB connection never closed | Not addressed (P3) |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P0 - SaveQueue deadlock on error | Fixed: `try/finally` resets `inflight = null` |
+| 2 | P1 - RecoveryDialog never opens | Fixed: derived `showRecovery = !dismissed && recoveryWarnings.length > 0` reacts to async state |
+| 3 | P1 - storeToSession destroys metadata | Fixed: module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` |
+| 4 | P1 - "Start fresh" doesn't reset | Fixed: `onDiscard` calls `hydrateStore(createDefaultSession())` |
+| 5 | P2 - No schema range constraints | Fixed: bpm 1-999, volume 0-2, loopStart/End >= 0, loopEnd >= loopStart refinement, version literal |
+| 6 | P2 - N+1 IDB reads in listSessions | Fixed: new `idbGetAll` reads keys+values in single transaction |
 
-The remaining P2-3 (main-thread blocking waveform computation) is a real concern for large files but is an optimization, not a correctness bug -- and the 500MB gate limits the blast radius. P3-3 is low-impact given the engine lifecycle. The critical correctness and usability fixes are all resolved.
+Bonus improvements in the fix commit: non-object JSON guard in recovery, draft-first loading for crash safety, IDB open retry on failure (`dbPromise = null` in catch).
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -53,16 +55,14 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-1. [P3] Redundant `getPeaks` calls during component mount (Unresolved)
-The fix for preventing redundant `getPeaks` calls was not correctly applied. The new `importingRef` prevents concurrent file imports, but the `useEffect` that loads cached peaks on mount remains unchanged. Because `setPeaksMap` is asynchronous and multiple renders can occur while it resolves, checking `if (peaksMap.has(source.id))` is insufficient. A ref (e.g., `loadingPeaksRef: MutableRefObject<Set<string>>`) must be used inside the `useEffect` to track in-flight requests and prevent redundant database reads.
+REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Negative seeks still desynchronize the UI store from the transport clock** ([use-transport.ts:136](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:136), [transport-clock.ts:116](/Users/Nathan/Documents/Code/long-running-harness/src/audio/transport-clock.ts:116))  
-  The clock still clamps `seek()` to `0`, but `useTransport.seek()` continues to write the raw `seconds` value into Zustand after calling `clock.seek(seconds)`. So `seek(-5)` leaves the audio clock and SAB at `0` while the UI store shows `-5`. The added `schedulerRef.current?.sync()` fixes beat phase, not this state split. Write the clamped value back to the store, or read back `clock.getCursorSeconds()` after seeking, and add a hook-level regression test for negative seeks.</codex-review>
+- **[P1] The save queue can still write an older queued snapshot after a failed save** ([save-queue.ts:23](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:23), [save-queue.ts:37](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:37), [save-queue.test.ts:28](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.test.ts:28))  
+  The deadlock is fixed, but the failure path is still unsafe. If save `A` is inflight, `enqueue(B)` stores `queued = B`, and `doSave(A)` rejects, `inflight` is cleared in `finally` while `queued` survives. The next `enqueue(C)` will save `C` and then `processQueue()` will persist stale `B`, rolling storage backward to an older session. Clear or explicitly handle `queued` on failure before accepting new work, and add a regression test that forces a failing save with a queued follow-up.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

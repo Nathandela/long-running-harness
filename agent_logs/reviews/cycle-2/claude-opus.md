@@ -1,15 +1,14 @@
-All 318 tests pass, types check clean. Let me verify each prior finding against the fixes:
+All 66 tests pass, TypeScript clean, ESLint clean. Let me verify each original finding against the fixes:
 
-| Finding | Status |
-|---|---|
-| **P2-1**: `removeSource` deletes memory before storage | Fixed - storage ops now run first (lines 94-97), then `sources.delete`/`bufferCache.delete` |
-| **P2-2**: `StorageFullError` dead code | Fixed - `putBlob` now catches `QuotaExceededError` and returns `storage-full` error (lines 37-45) |
-| **P2-4**: No concurrency guard on import | Fixed - `importingRef` gate added (lines 90, 110-111, 133) |
-| **P3-1**: Only last error shown in batch | Fixed - `errors` is now an array, all errors accumulated and rendered (lines 89, 113, 126, 129-131, 192-198) |
-| **P3-2**: `getAudioBuffer` re-decodes every call | Fixed - `bufferCache` Map added, populated on import and decode (lines 18, 60, 69-70, 77) |
-| **P2-3**: `computeWaveformPeaks` blocks main thread | Not addressed (P2) |
-| **P3-3**: IDB connection never closed | Not addressed (P3) |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P0 - SaveQueue deadlock on error | Fixed: `try/finally` resets `inflight = null` |
+| 2 | P1 - RecoveryDialog never opens | Fixed: derived `showRecovery = !dismissed && recoveryWarnings.length > 0` reacts to async state |
+| 3 | P1 - storeToSession destroys metadata | Fixed: module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` |
+| 4 | P1 - "Start fresh" doesn't reset | Fixed: `onDiscard` calls `hydrateStore(createDefaultSession())` |
+| 5 | P2 - No schema range constraints | Fixed: bpm 1-999, volume 0-2, loopStart/End >= 0, loopEnd >= loopStart refinement, version literal |
+| 6 | P2 - N+1 IDB reads in listSessions | Fixed: new `idbGetAll` reads keys+values in single transaction |
 
-The remaining P2-3 (main-thread blocking waveform computation) is a real concern for large files but is an optimization, not a correctness bug -- and the 500MB gate limits the blast radius. P3-3 is low-impact given the engine lifecycle. The critical correctness and usability fixes are all resolved.
+Bonus improvements in the fix commit: non-object JSON guard in recovery, draft-first loading for crash safety, IDB open retry on failure (`dbPromise = null` in catch).
 
 REVIEW_APPROVED
