@@ -1,0 +1,38 @@
+Now let me understand the project structure and any existing specs.Good. I have full context on the epic. This is a foundation epic for a browser-based DAW called BRUTALWAV. Let me plan and implement.
+
+## Phase 1: Plan
+
+The epic requires:
+1. **Vite COOP/COEP headers** for SharedArrayBuffer support
+2. **crossOriginIsolated startup check** with hard error UI
+3. **AudioContext lifecycle** with click-to-start overlay
+4. **AudioWorklet module loading** infrastructure
+5. **SharedArrayBuffer layout** conventions (metering, cursor)
+6. **MessagePort protocol** patterns
+7. **Top-level layout shell** (toolbar, arrangement, mixer, instrument)
+8. **Zustand store skeleton**
+9. **Interface exports** (AudioEngineContext, SharedArrayBufferLayout, MessagePortProtocol)
+
+Let me create sub-tasks and install zustand.Fine, epic dependencies are managed separately. Let me claim the tasks and start implementing.## Phase 2: Implementation (TDD)
+
+Now I'll implement everything following TDD. Let me write tests first, then implementation.
+
+### Task 1: Vite COOP/COEP headers + crossOriginIsolated checkFirst, write the COOP/COEP Vite config update and the crossOriginIsolated check with tests.Now the CrossOriginError UI component:### Task 2: SharedArrayBuffer layout + MessagePort protocol types### Task 3: AudioContext lifecycle + AudioWorklet loading### Task 4: Zustand store skeleton### Task 5: Click-to-start overlay + Layout shellNow the layout shell:### Barrel exports and update App.tsxNow update App.tsx to wire everything together:Update App.test.tsx:Now update the Vite config with COOP/COEP headers:Now let's run the tests:The mock needs to use a class constructor, not `vi.fn()`. Let me fix both test files:All 44 tests pass. Now let's run lint and type check:Let me fix the lint errors:Now fix the unbound-method errors in engine-context.test.ts (line 64 - the `addModule` check):The `addModule` is a `vi.fn()` mock so ESLint sees it as a method that could have `this` issues. I need to use `expect` more carefully or use `vi.mocked`:Now fix the message-protocol test - the unbound-method warnings on `port.postMessage`:The `unbound-method` error is on every `expect(port.postMessage)` line because `postMessage` is a method. Since these are test mocks, I'll add a file-level disable for this rule in the test:Lint passes. Let's run tests once more to confirm everything is green:All 44 tests pass, lint passes. Let me also run the full check:All checks pass. Let me close the sub-tasks and commit.Now let me commit:Now let me push and close the epic:## Summary
+
+Epic E1 complete. All deliverables implemented with 44 tests passing and clean lint:
+
+| Deliverable | Files |
+|---|---|
+| COOP/COEP headers | `vite.config.ts` (server + preview) |
+| crossOriginIsolated check | `src/audio/cross-origin-check.ts` |
+| Hard error UI | `src/ui/CrossOriginError.tsx` |
+| AudioContext lifecycle | `src/audio/engine-context.ts` |
+| AudioWorklet loading | `engine-context.ts` (`loadWorkletModule`) |
+| SharedArrayBuffer layout | `src/audio/shared-buffer-layout.ts` |
+| MessagePort protocol | `src/audio/message-protocol.ts` |
+| Click-to-start overlay | `src/ui/ClickToStart.tsx` |
+| Layout shell | `src/ui/DawShell.tsx`, `Toolbar.tsx`, `panels.tsx` |
+| Zustand store | `src/state/store.ts` |
+| Barrel exports | `src/audio/index.ts`, `src/ui/index.ts`, `src/state/index.ts` |
+
+EPIC_COMPLETE
