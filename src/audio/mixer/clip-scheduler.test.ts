@@ -75,6 +75,9 @@ describe("ClipScheduler", () => {
     ctx = mockAudioContext();
   });
 
+  // timeOffset=0 means arrangement time == AudioContext time (for test simplicity)
+  const TIME_OFFSET = 0;
+
   it("schedules a clip that falls in the look-ahead window", () => {
     const scheduler = createClipScheduler(ctx);
     const clip = makeClip({ startTime: 10.05, duration: 5 });
@@ -85,6 +88,7 @@ describe("ClipScheduler", () => {
       [clip],
       10,
       10.1,
+      TIME_OFFSET,
       (id) => (id === "source-1" ? buffer : undefined),
       destination,
     );
@@ -98,7 +102,14 @@ describe("ClipScheduler", () => {
     const buffer = makeAudioBuffer();
     const destination = ctx.createGain() as unknown as AudioNode;
 
-    scheduler.scheduleClips([clip], 10, 10.1, () => buffer, destination);
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
 
     expect(ctx.createBufferSource).not.toHaveBeenCalled();
   });
@@ -110,10 +121,65 @@ describe("ClipScheduler", () => {
     const destination = ctx.createGain() as unknown as AudioNode;
     const getBuffer = (): AudioBuffer | undefined => buffer;
 
-    scheduler.scheduleClips([clip], 10, 10.1, getBuffer, destination);
-    scheduler.scheduleClips([clip], 10, 10.1, getBuffer, destination);
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      getBuffer,
+      destination,
+    );
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      getBuffer,
+      destination,
+    );
 
     expect(ctx.createBufferSource).toHaveBeenCalledTimes(1);
+  });
+
+  it("schedules mid-clip when seeking into it", () => {
+    const scheduler = createClipScheduler(ctx);
+    // Clip starts at 5, duration 10 -> ends at 15. Window is 10..10.1
+    const clip = makeClip({ startTime: 5, duration: 10, sourceOffset: 0 });
+    const buffer = makeAudioBuffer();
+    const destination = ctx.createGain() as unknown as AudioNode;
+
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
+
+    expect(ctx.createBufferSource).toHaveBeenCalled();
+    const source = ctx.createBufferSource.mock.results[0]?.value as {
+      start: MockFn;
+    };
+    // Should start at windowStart (10), with sourceOffset adjusted by seek (5s into clip)
+    expect(source.start).toHaveBeenCalledWith(10, 5, 5);
+  });
+
+  it("converts arrangement time using timeOffset", () => {
+    const scheduler = createClipScheduler(ctx);
+    // Clip at arrangement time 2s, with timeOffset=10 -> audioCtx time 12s
+    const clip = makeClip({ startTime: 2, duration: 5 });
+    const buffer = makeAudioBuffer();
+    const destination = ctx.createGain() as unknown as AudioNode;
+
+    scheduler.scheduleClips([clip], 11.9, 12.1, 10, () => buffer, destination);
+
+    expect(ctx.createBufferSource).toHaveBeenCalled();
+    const source = ctx.createBufferSource.mock.results[0]?.value as {
+      start: MockFn;
+    };
+    // Scheduled at audioCtx time 12 (2 + 10)
+    expect(source.start).toHaveBeenCalledWith(12, 0, 5);
   });
 
   it("applies source offset when scheduling", () => {
@@ -122,7 +188,14 @@ describe("ClipScheduler", () => {
     const buffer = makeAudioBuffer();
     const destination = ctx.createGain() as unknown as AudioNode;
 
-    scheduler.scheduleClips([clip], 10, 10.1, () => buffer, destination);
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
 
     const source = ctx.createBufferSource.mock.results[0]?.value as {
       start: MockFn;
@@ -140,7 +213,14 @@ describe("ClipScheduler", () => {
     const buffer = makeAudioBuffer();
     const destination = ctx.createGain() as unknown as AudioNode;
 
-    scheduler.scheduleClips([clip], 10, 10.1, () => buffer, destination);
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
     scheduler.stopAll();
 
     const source = ctx.createBufferSource.mock.results[0]?.value as {
@@ -155,8 +235,40 @@ describe("ClipScheduler", () => {
     const buffer = makeAudioBuffer();
     const destination = ctx.createGain() as unknown as AudioNode;
 
-    scheduler.scheduleClips([clip], 10, 10.1, () => buffer, destination);
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
 
     expect(ctx.createGain).toHaveBeenCalled();
+  });
+
+  it("clamps overlapping fade-in and fade-out", () => {
+    const scheduler = createClipScheduler(ctx);
+    // fadeIn + fadeOut > duration
+    const clip = makeClip({
+      startTime: 10.05,
+      duration: 2,
+      fadeIn: 1.5,
+      fadeOut: 1.5,
+      gain: 1,
+    });
+    const buffer = makeAudioBuffer();
+    const destination = ctx.createGain() as unknown as AudioNode;
+
+    // Should not throw
+    scheduler.scheduleClips(
+      [clip],
+      10,
+      10.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
+    expect(ctx.createBufferSource).toHaveBeenCalled();
   });
 });

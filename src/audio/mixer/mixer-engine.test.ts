@@ -221,13 +221,12 @@ describe("MixerEngine", () => {
   });
 
   describe("solo-in-place (R-STA-04)", () => {
-    it("solos a track and mutes others", () => {
+    it("solos a track and mutes others automatically", () => {
       mixer.getOrCreateStrip("track-1");
       mixer.getOrCreateStrip("track-2");
       mixer.getOrCreateStrip("track-3");
 
       mixer.setSolo("track-1", true);
-      mixer.updateSoloState();
 
       expect(mixer.getStrip("track-1")?.muteGain.gain.value).toBe(1);
       expect(mixer.getStrip("track-2")?.muteGain.gain.value).toBe(0);
@@ -241,7 +240,6 @@ describe("MixerEngine", () => {
 
       mixer.setSolo("track-1", true);
       mixer.setSolo("track-2", true);
-      mixer.updateSoloState();
 
       expect(mixer.getStrip("track-1")?.muteGain.gain.value).toBe(1);
       expect(mixer.getStrip("track-2")?.muteGain.gain.value).toBe(1);
@@ -255,7 +253,6 @@ describe("MixerEngine", () => {
 
       mixer.setSoloIsolate("track-3", true);
       mixer.setSolo("track-1", true);
-      mixer.updateSoloState();
 
       expect(mixer.getStrip("track-1")?.muteGain.gain.value).toBe(1);
       expect(mixer.getStrip("track-2")?.muteGain.gain.value).toBe(0);
@@ -266,7 +263,6 @@ describe("MixerEngine", () => {
       mixer.getOrCreateStrip("track-1");
       mixer.setMute("track-1", true);
       mixer.setSolo("track-1", true);
-      mixer.updateSoloState();
 
       expect(mixer.getStrip("track-1")?.muteGain.gain.value).toBe(0);
     });
@@ -276,11 +272,9 @@ describe("MixerEngine", () => {
       mixer.getOrCreateStrip("track-2");
 
       mixer.setSolo("track-1", true);
-      mixer.updateSoloState();
       expect(mixer.getStrip("track-2")?.muteGain.gain.value).toBe(0);
 
       mixer.setSolo("track-1", false);
-      mixer.updateSoloState();
       expect(mixer.getStrip("track-2")?.muteGain.gain.value).toBe(1);
     });
   });

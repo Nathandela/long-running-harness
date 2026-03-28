@@ -33,18 +33,18 @@ export function MixerPanel(): React.JSX.Element {
 
   const handleMuteToggle = useCallback(
     (trackId: string) => {
-      const track = tracks.find((t) => t.id === trackId);
+      const track = useDawStore.getState().tracks.find((t) => t.id === trackId);
       if (track) updateTrack(trackId, { muted: !track.muted });
     },
-    [tracks, updateTrack],
+    [updateTrack],
   );
 
   const handleSoloToggle = useCallback(
     (trackId: string) => {
-      const track = tracks.find((t) => t.id === trackId);
+      const track = useDawStore.getState().tracks.find((t) => t.id === trackId);
       if (track) updateTrack(trackId, { solo: !track.solo });
     },
-    [tracks, updateTrack],
+    [updateTrack],
   );
 
   return (

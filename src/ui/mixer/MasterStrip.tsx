@@ -6,6 +6,7 @@
 import { useCallback } from "react";
 import { Fader } from "@ui/controls/Fader";
 import { VuMeter } from "@ui/controls/VuMeter";
+import { volumeToDb } from "./format";
 import styles from "./MixerPanel.module.css";
 
 type MasterStripProps = {
@@ -15,12 +16,6 @@ type MasterStripProps = {
   clipping: boolean;
   onVolumeChange: (volume: number) => void;
 };
-
-function volumeToDb(v: number): string {
-  if (v <= 0) return "-inf";
-  const db = 20 * Math.log10(v);
-  return db >= 0 ? `+${db.toFixed(1)}` : db.toFixed(1);
-}
 
 export function MasterStrip({
   volume,

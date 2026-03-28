@@ -7,6 +7,7 @@ import { useCallback } from "react";
 import { Fader } from "@ui/controls/Fader";
 import { RotaryKnob } from "@ui/controls/RotaryKnob";
 import { VuMeter } from "@ui/controls/VuMeter";
+import { volumeToDb } from "./format";
 import styles from "./MixerPanel.module.css";
 
 type ChannelStripProps = {
@@ -25,13 +26,6 @@ type ChannelStripProps = {
   onMuteToggle: (trackId: string) => void;
   onSoloToggle: (trackId: string) => void;
 };
-
-/** Convert linear 0..2 to dB display string */
-function volumeToDb(v: number): string {
-  if (v <= 0) return "-inf";
-  const db = 20 * Math.log10(v);
-  return db >= 0 ? `+${db.toFixed(1)}` : db.toFixed(1);
-}
 
 export function ChannelStrip({
   trackId,

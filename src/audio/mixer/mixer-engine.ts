@@ -13,11 +13,11 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 /**
- * Logarithmic fader taper: attempt to model a real mixing console fader.
- * Maps linear 0..2 -> exponential gain curve.
+ * Quadratic fader taper: attempt to model a real mixing console fader.
+ * Maps linear 0..2 -> gain curve.
  * 0 -> 0 (silence), 1 -> 1 (unity), 2 -> 2 (boost)
  */
-function logarithmicTaper(linear: number): number {
+function faderTaper(linear: number): number {
   if (linear <= 0) return 0;
   if (linear <= 1) {
     // Attempt log curve: x^2 gives reasonable taper for 0..1
@@ -143,7 +143,7 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       const strip = strips.get(trackId);
       if (!strip) return;
       const clamped = clamp(level, 0, 2);
-      strip.faderGain.gain.value = logarithmicTaper(clamped);
+      strip.faderGain.gain.value = faderTaper(clamped);
     },
 
     setPan(trackId: string, pan: number): void {
@@ -163,12 +163,14 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       const strip = strips.get(trackId);
       if (!strip) return;
       strip.solo = solo;
+      engine.updateSoloState();
     },
 
     setSoloIsolate(trackId: string, enabled: boolean): void {
       const strip = strips.get(trackId);
       if (!strip) return;
       strip.soloIsolate = enabled;
+      engine.updateSoloState();
     },
 
     updateSoloState(): void {
