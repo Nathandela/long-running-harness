@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { trackSchema, clipSchema } from "@state/track/index";
 import { effectsSectionSchema } from "@state/effects/index";
 import { modulationSectionSchema } from "@state/synth/modulation-schema";
+import { arpeggiatorSectionSchema } from "@state/arpeggiator/index";
 
 export const SESSION_VERSION = 1;
 
@@ -35,6 +36,7 @@ export const sessionSchema = z.object({
   mixer: mixerSectionSchema,
   effects: effectsSectionSchema.optional(),
   modulation: modulationSectionSchema.optional(),
+  arpeggiator: arpeggiatorSectionSchema.optional(),
 });
 
 export type SessionSchema = z.infer<typeof sessionSchema>;
