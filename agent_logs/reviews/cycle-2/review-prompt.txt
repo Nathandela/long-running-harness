@@ -32,9 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-703dbf2 Fix review findings: cycle detection, bus cleanup, store guards
-75607ff chore: auto-commit uncommitted changes from long-running-harness-wv9
-dd88818 E13: Add advanced mixer routing (sends, buses, sidechains)
+099d8c5 Remove width param from shared effects test suite
+05f6fc3 Fix review findings: allpass topology, damping, types, insert-chain
+108f757 chore: auto-commit uncommitted changes from long-running-harness-3yo
+9596d0f E14: Add algorithmic reverb (Freeverb) with A/B comparison
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

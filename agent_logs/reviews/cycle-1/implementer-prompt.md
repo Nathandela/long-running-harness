@@ -8,61 +8,56 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
----
+**1. P2 — Hardcoded sample rate in `freeverb.ts:132,154`**
 
-**1. [P1] `addSend` has no cycle guard — audio feedback loop possible**
+```ts
+const delayTime = delaySamples / 44100;  // wrong on 48kHz systems
+```
 
-`routing.ts:232-233` — `addSend` adds a graph edge without calling `wouldCauseCycle`. Since buses are valid send sources (proven by the render-order test at line 229: `engine.addSend("bus-1", "bus-2")`), calling `engine.addSend("bus-2", "bus-1")` after the above would silently create a cycle and produce an audio feedback loop. `setBusOutput` guards cycles but `addSend` does not.
-
----
-
-**2. [P1] Pre-fader routing is unimplemented — `preFader` flag is decorative**
-
-`routing.ts:219` — `addSend` always connects `sendGain` to `bus.inputGain` regardless of `preFader`. A real pre-fader send must tap the signal before the source channel's fader gain. The `RoutingEngine` has no reference to channel strips, so it cannot connect to the correct tap point. The `preFader` property is stored and tested but has zero effect on audio routing.
+`ctx.sampleRate` should be used instead of the literal `44100`. On 48kHz contexts (common on Windows, some Linux setups) all delay times are 8% shorter than intended, noticeably shifting the reverb character. `reverb.ts:43` uses `ctx.sampleRate` correctly.
 
 ---
 
-**3. [P1] UI actions are not bridged to the audio engine**
+**2. P2 — `width` parameter is a no-op but exposed in UI**
 
-`RoutingMatrix.tsx:71` (EmptyCell `addSend`) and `RoutingMatrix.tsx:43` (`togglePreFader`) — these call Zustand store methods only. There is no code path that calls `routingEngine.addSend()` or `routingEngine.setSendLevel()`. Sends added through the UI are visually present but produce no audio. The `RoutingStore` and `RoutingEngine` are parallel but never synchronized.
-
----
-
-**4. [P2] `setBusOutput` disconnects bus audio silently on unknown target**
-
-`routing.ts:107-115` — `connectBusOutput` calls `bus.analyser.disconnect()` unconditionally, then only reconnects if the target exists. If `setBusOutput("bus-1", "nonexistent")` is called, bus-1's output is disconnected and goes silent with no error. Should either validate the target exists before disconnecting, or throw the cycle-check error path sooner.
+`freeverb.ts:217-219` — the `width` case in `applyParam` is an empty stub with a "potential future use" comment. The UI renders a fully interactive Width knob that controls nothing. Either implement it or remove the parameter so the UI doesn't mislead users.
 
 ---
 
-**5. [P2] Source nodes are not pruned from graph after `removeSend`**
+**3. P3 — A/B swap silently resets all parameters to defaults**
 
-`routing.ts:254` — `removeSend` removes the edge but never removes the source node when it has no remaining sends. `getRenderOrder()` then returns orphaned source IDs (tracks/buses with no active routing), producing an incorrect topological order. The node should be removed when its send list empties.
-
----
-
-**6. [P2] `dispose()` does not clear the routing graph**
-
-`routing.ts:308-329` — `dispose()` clears buses, sends, and sidechains but not the `graph`. Nodes and edges from the pre-dispose state remain. Any post-dispose call to `getRenderOrder()` or `wouldCauseCycle()` returns stale results. Add `graph.clear()` (or reset via a new `RoutingGraph()`) in `dispose()`.
+`EffectsRack.tsx:handleSwapReverb` resets to `p.default` for every parameter on swap. If the user has dialed in a convolution reverb's mix/decay and hits A/B, those settings are discarded. The feature is called "A/B comparison" which implies preserving comparable settings. At minimum the `mix` value should be carried over.
 
 ---
 
-**7. [P3] `updateSendLevel` in Zustand store does not clamp**
+**4. P3 — `replaceInsert` fallback-to-append is a silent error path**
 
-`routing-store.ts:97-109` — `updateSendLevel` writes the raw level value without clamping to `[0, 1]`. The engine's `setSendLevel` clamps, but if the store is updated directly (e.g., from persisted state or tests), the store can hold values the engine would reject, causing state divergence.
+`insert-chain.ts:83-86` — when the insert ID is not found, `replaceInsert` falls back to appending. This is the only caller path that could hit this (a type-swap on a slot already in the chain), so a missing ID indicates a logic error in the bridge. The fallback masks the bug; it should throw or at least warn, consistent with how `at()` is used elsewhere in the same file.
 </claude-sonnet-review>
 
 <claude-opus-review>
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 — `addSend` skips cycle detection** (`src/audio/mixer/routing.ts:200-235`): `addSend` adds a graph edge `sourceId -> busId` without calling `wouldCauseCycle` first. Only `setBusOutput` checks for cycles. This means `engine.addSend("bus-2", "bus-1")` after `engine.addSend("bus-1", "bus-2")` will silently create a cycle (bus-1 -> bus-2 -> bus-1), corrupting the topological sort and potentially causing infinite audio feedback. Add a `wouldCauseCycle` check before the `graph.addEdge` on line 233, and throw on cycle.
+**1. P1 — Allpass filter topology is incorrect, causes up to 5x gain boost**
+`src/audio/effects/freeverb.ts:156` — The feedforward path connects `prevNode` (raw input `x[n]`) instead of the delay line's input sum (`v[n]`). This makes the 4 "allpass" stages NOT true allpass filters. The magnitude response ranges from 1.17x to 1.5x per stage (with g=0.5), meaning 4 cascaded stages produce between ~1.85x and **~5x gain** depending on frequency. This will cause audible frequency coloring and potential clipping.
 
-2. **P1 — `removeBus` leaves orphaned `outputTarget` references** (`src/audio/mixer/routing.ts:146-171`): When bus-1 is removed, any other bus whose `outputTarget === "bus-1"` keeps that stale reference. The graph edge is cleaned up via `removeNode`, but the audio connection (via `connectBusOutput`) silently drops to nowhere — the dependent bus is disconnected with no error or fallback to master. Re-route dependent buses to `"master"` on removal.
+Fix: Add an explicit sum node for the allpass and connect feedforward to it:
+```typescript
+const sum = ctx.createGain();
+prevNode.connect(sum);           // x[n] -> sum
+sum.connect(delay);              // sum -> delay (creates v[n-M])
+delay.connect(feedback);         // v[n-M] * g
+feedback.connect(sum);           // g*v[n-M] -> sum (now sum = v[n])
+sum.connect(feedforward);        // -g * v[n] (correct!)
+feedforward.connect(apOutput);
+delay.connect(apOutput);         // + v[n-M]
+```
 
-3. **P2 — Store `addSend` allows duplicate sends** (`src/state/routing/routing-store.ts:71-78`): The audio engine deduplicates sends to the same bus (line 208-209 of routing.ts), but the Zustand store's `addSend` blindly appends. If the store and engine get out of sync, or if `addSend` is called twice from the UI, duplicate state entries accumulate. Add a duplicate check before pushing.
+**2. P2 — `width` parameter is a no-op exposed as UI control**
+`src/audio/effects/freeverb.ts:204-205` — The "Width" parameter (0-100%) is defined in the schema and visible in the UI, but the `applyParam` handler does nothing with it (`break` with a comment about "potential stereo processing"). Users see a knob that has zero effect. Either implement stereo width or remove the parameter until implemented.
 
-4. **P2 — Store `setBusOutput` has no cycle guard** (`src/state/routing/routing-store.ts:61-69`): The store updates `outputTarget` with no validation. If store updates can be triggered independently of the audio engine (e.g., undo/redo, deserialization), cycles can be created in state. At minimum, document the invariant that the engine must be called first, or add a `wouldCauseCycle` parameter/callback.
-
-5. **P3 — Store `updateSendLevel` missing clamp** (`src/state/routing/routing-store.ts:96-108`): The audio engine clamps levels to [0, 1] but the store accepts any number. The UI slider prevents bad values, but direct store manipulation (tests, deserialization) could set levels > 1 or < 0.
+**3. P3 — `replaceInsert` disconnects output but not input of old insert**
+`src/audio/mixer/insert-chain.ts:87-89` — Only `old.output.disconnect()` is called; `old.input.disconnect()` is skipped. Currently safe because the bridge calls `dispose()` on the effect first, but the chain should be self-contained. Minor since `rewire()` re-routes all connections anyway.
 </claude-opus-review>
 
 <gemini-review>
@@ -84,17 +79,9 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] `RoutingEngine.addSend` does not check for or prevent cycles:**
-   The `addSend` method in `src/audio/mixer/routing.ts` lacks the `graph.wouldCauseCycle(sourceId, busId)` check that `setBusOutput` correctly performs. Because `sourceId` can be any string (including another bus), this allows the creation of feedback loops in the routing graph (e.g., `busA` sends to `busB`, and `busB` outputs to `busA`), which defeats the stated "cycle-safe output routing" requirement.
-
-2. **[P1] Dangling output targets and disconnected audio on bus removal:**
-   In `src/audio/mixer/routing.ts`, `removeBus` removes sends that target the bus, but it fails to reset the `outputTarget` of other buses that route to it. If `busA.outputTarget === busB.id` and `busB` is removed, `busA`'s output remains pointed at the deleted bus and is permanently disconnected from the master mix. The same issue exists in `src/state/routing/routing-store.ts` where the Zustand state retains the deleted `outputTarget`.
-
-3. **[P1] Dangling sidechains on bus removal:**
-   In both `src/audio/mixer/routing.ts` and `src/state/routing/routing-store.ts`, `removeBus(id)` does not clean up sidechain assignments where the `sourceId` or `targetId` matches the removed bus `id`. This leaves disconnected `AnalyserNode` instances in memory and stale sidechain badges in the UI.
-
-4. **[P2] `addSend` allows duplicate entries in Zustand store:**
-   In `src/state/routing/routing-store.ts`, the `addSend` action blindly appends the incoming send to the `sends[trackId]` array without checking if a send for that `busId` already exists. While the audio engine correctly guards against duplicates, the store state can become polluted with redundant send objects.
+1. **[P0] Build Failure (TypeScript):** The `onSwapType` and `swapLabel` props added to `EffectPanelProps` in `src/ui/effects/EffectPanel.tsx` are defined as optional (e.g., `onSwapType?: () => void;`), but in `src/ui/effects/EffectsRack.tsx` they are explicitly passed as `undefined`. Due to `exactOptionalPropertyTypes: true` in `tsconfig.json`, this causes a compilation error (`error TS2375`). You must explicitly allow `undefined` in the prop definitions (e.g., `onSwapType?: (() => void) | undefined;` and `swapLabel?: string | undefined;`).
+2. **[P2] Dead Parameter (Freeverb `width`):** The `width` parameter is defined, commented as controlling stereo spread, and wired to `applyParam` in `src/audio/effects/freeverb.ts`, but it does absolutely nothing to the audio signal. The effect is entirely mono/summed. The intended stereo spread implementation (like right-channel delay offsets) is missing.
+3. **[P2] Incorrect Damping Implementation:** The `damping` parameter is implemented by globally reducing the comb filter feedback gain (`dampToCoeff`). True Schroeder damping requires a one-pole low-pass filter (a `BiquadFilterNode` with `type = "lowpass"`) inside the feedback loop of each comb filter so that high frequencies decay faster than low frequencies over time. The current implementation just incorrectly reduces the overall reverb tail length identically for all frequencies.
 </gemini-review>
 
 

@@ -1,11 +1,22 @@
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 — `addSend` skips cycle detection** (`src/audio/mixer/routing.ts:200-235`): `addSend` adds a graph edge `sourceId -> busId` without calling `wouldCauseCycle` first. Only `setBusOutput` checks for cycles. This means `engine.addSend("bus-2", "bus-1")` after `engine.addSend("bus-1", "bus-2")` will silently create a cycle (bus-1 -> bus-2 -> bus-1), corrupting the topological sort and potentially causing infinite audio feedback. Add a `wouldCauseCycle` check before the `graph.addEdge` on line 233, and throw on cycle.
+**1. P1 — Allpass filter topology is incorrect, causes up to 5x gain boost**
+`src/audio/effects/freeverb.ts:156` — The feedforward path connects `prevNode` (raw input `x[n]`) instead of the delay line's input sum (`v[n]`). This makes the 4 "allpass" stages NOT true allpass filters. The magnitude response ranges from 1.17x to 1.5x per stage (with g=0.5), meaning 4 cascaded stages produce between ~1.85x and **~5x gain** depending on frequency. This will cause audible frequency coloring and potential clipping.
 
-2. **P1 — `removeBus` leaves orphaned `outputTarget` references** (`src/audio/mixer/routing.ts:146-171`): When bus-1 is removed, any other bus whose `outputTarget === "bus-1"` keeps that stale reference. The graph edge is cleaned up via `removeNode`, but the audio connection (via `connectBusOutput`) silently drops to nowhere — the dependent bus is disconnected with no error or fallback to master. Re-route dependent buses to `"master"` on removal.
+Fix: Add an explicit sum node for the allpass and connect feedforward to it:
+```typescript
+const sum = ctx.createGain();
+prevNode.connect(sum);           // x[n] -> sum
+sum.connect(delay);              // sum -> delay (creates v[n-M])
+delay.connect(feedback);         // v[n-M] * g
+feedback.connect(sum);           // g*v[n-M] -> sum (now sum = v[n])
+sum.connect(feedforward);        // -g * v[n] (correct!)
+feedforward.connect(apOutput);
+delay.connect(apOutput);         // + v[n-M]
+```
 
-3. **P2 — Store `addSend` allows duplicate sends** (`src/state/routing/routing-store.ts:71-78`): The audio engine deduplicates sends to the same bus (line 208-209 of routing.ts), but the Zustand store's `addSend` blindly appends. If the store and engine get out of sync, or if `addSend` is called twice from the UI, duplicate state entries accumulate. Add a duplicate check before pushing.
+**2. P2 — `width` parameter is a no-op exposed as UI control**
+`src/audio/effects/freeverb.ts:204-205` — The "Width" parameter (0-100%) is defined in the schema and visible in the UI, but the `applyParam` handler does nothing with it (`break` with a comment about "potential stereo processing"). Users see a knob that has zero effect. Either implement stereo width or remove the parameter until implemented.
 
-4. **P2 — Store `setBusOutput` has no cycle guard** (`src/state/routing/routing-store.ts:61-69`): The store updates `outputTarget` with no validation. If store updates can be triggered independently of the audio engine (e.g., undo/redo, deserialization), cycles can be created in state. At minimum, document the invariant that the engine must be called first, or add a `wouldCauseCycle` parameter/callback.
-
-5. **P3 — Store `updateSendLevel` missing clamp** (`src/state/routing/routing-store.ts:96-108`): The audio engine clamps levels to [0, 1] but the store accepts any number. The UI slider prevents bad values, but direct store manipulation (tests, deserialization) could set levels > 1 or < 0.
+**3. P3 — `replaceInsert` disconnects output but not input of old insert**
+`src/audio/mixer/insert-chain.ts:87-89` — Only `old.output.disconnect()` is called; `old.input.disconnect()` is skipped. Currently safe because the bridge calls `dispose()` on the effect first, but the chain should be self-contained. Minor since `rewire()` re-routes all connections anyway.

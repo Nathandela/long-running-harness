@@ -1,4 +1,1 @@
-REVIEW_CHANGES_REQUESTED
-
-- **[P1] Removing a bus still leaves sends sourced from that bus behind** ([routing.ts:160](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.ts:160), [routing-store.ts:52](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.ts:52), [routing.test.ts:183](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.test.ts:183), [routing-store.test.ts:61](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.test.ts:61))  
-  Both the engine and the Zustand store only clean up sends whose `busId` matches the removed bus. If the removed bus itself was a send source, its outgoing sends survive under the `sourceId === removedBusId` entry. That leaves orphaned send routes in state and leaked `sendGain` nodes in the engine. Add explicit cleanup for sends sourced from the removed bus in both layers, and cover the `bus-1 -> bus-2`, then `removeBus("bus-1")` case with regression tests.
+REVIEW_APPROVED

@@ -16,14 +16,6 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] `RoutingEngine.addSend` does not check for or prevent cycles:**
-   The `addSend` method in `src/audio/mixer/routing.ts` lacks the `graph.wouldCauseCycle(sourceId, busId)` check that `setBusOutput` correctly performs. Because `sourceId` can be any string (including another bus), this allows the creation of feedback loops in the routing graph (e.g., `busA` sends to `busB`, and `busB` outputs to `busA`), which defeats the stated "cycle-safe output routing" requirement.
-
-2. **[P1] Dangling output targets and disconnected audio on bus removal:**
-   In `src/audio/mixer/routing.ts`, `removeBus` removes sends that target the bus, but it fails to reset the `outputTarget` of other buses that route to it. If `busA.outputTarget === busB.id` and `busB` is removed, `busA`'s output remains pointed at the deleted bus and is permanently disconnected from the master mix. The same issue exists in `src/state/routing/routing-store.ts` where the Zustand state retains the deleted `outputTarget`.
-
-3. **[P1] Dangling sidechains on bus removal:**
-   In both `src/audio/mixer/routing.ts` and `src/state/routing/routing-store.ts`, `removeBus(id)` does not clean up sidechain assignments where the `sourceId` or `targetId` matches the removed bus `id`. This leaves disconnected `AnalyserNode` instances in memory and stale sidechain badges in the UI.
-
-4. **[P2] `addSend` allows duplicate entries in Zustand store:**
-   In `src/state/routing/routing-store.ts`, the `addSend` action blindly appends the incoming send to the `sends[trackId]` array without checking if a send for that `busId` already exists. While the audio engine correctly guards against duplicates, the store state can become polluted with redundant send objects.
+1. **[P0] Build Failure (TypeScript):** The `onSwapType` and `swapLabel` props added to `EffectPanelProps` in `src/ui/effects/EffectPanel.tsx` are defined as optional (e.g., `onSwapType?: () => void;`), but in `src/ui/effects/EffectsRack.tsx` they are explicitly passed as `undefined`. Due to `exactOptionalPropertyTypes: true` in `tsconfig.json`, this causes a compilation error (`error TS2375`). You must explicitly allow `undefined` in the prop definitions (e.g., `onSwapType?: (() => void) | undefined;` and `swapLabel?: string | undefined;`).
+2. **[P2] Dead Parameter (Freeverb `width`):** The `width` parameter is defined, commented as controlling stereo spread, and wired to `applyParam` in `src/audio/effects/freeverb.ts`, but it does absolutely nothing to the audio signal. The effect is entirely mono/summed. The intended stereo spread implementation (like right-channel delay offsets) is missing.
+3. **[P2] Incorrect Damping Implementation:** The `damping` parameter is implemented by globally reducing the comb filter feedback gain (`dampToCoeff`). True Schroeder damping requires a one-pole low-pass filter (a `BiquadFilterNode` with `type = "lowpass"`) inside the feedback loop of each comb filter so that high frequencies decay faster than low frequencies over time. The current implementation just incorrectly reduces the overall reverb tail length identically for all frequencies.

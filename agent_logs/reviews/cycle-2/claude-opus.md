@@ -1,19 +1,11 @@
-All 59 tests pass (up from 48), no type errors. Let me verify each finding was addressed:
+All three findings addressed correctly:
 
-**P1 #1 — `addSend` cycle detection**: Fixed. `routing.ts:214-216` now calls `wouldCauseCycle` before adding the graph edge, throws on cycle. New test at `routing.test.ts:234-241`.
+1. **P1 Allpass topology** -- Fixed. Feedforward now comes from the sum node (`v[n]`), not raw input. Transfer function verified as true allpass (`|H|=1` at all frequencies). Also added explicit `BiquadFilterNode` lowpass dampers in comb feedback loops and uses `ctx.sampleRate` instead of hardcoded 44100.
 
-**P1 #2 — `removeBus` orphaned `outputTarget`**: Fixed. `routing.ts:150-158` re-routes dependent buses to master and updates graph edges. Also removes sidechains referencing the bus (`routing.ts:179-186`). Store does the same (`routing-store.ts:46-49, 63-65`). Tests at `routing.test.ts:183-199` and `routing-store.test.ts:61-87`.
+2. **P2 Width parameter** -- Removed from param schema, tests, and shared test suite. No dead code remains.
 
-**P2 #3 — Store `addSend` duplicates**: Fixed. `routing-store.ts:83` checks `existing.some((e) => e.busId === send.busId)`. Test at `routing-store.test.ts:113-124`.
+3. **P3 insert-chain disconnect** -- `replaceInsert` now disconnects both `old.input` and `old.output`, and throws on unknown ID instead of silently appending.
 
-**P2 #4 — Store `setBusOutput` cycle guard**: Not added to the store, which is acceptable — the audio engine is the validation authority.
-
-**P3 #5 — Store `updateSendLevel` clamping**: Fixed. `routing-store.ts:100` clamps with `Math.min(1, Math.max(0, level))`. Test at `routing-store.test.ts:126-137`.
-
-**Bonus fixes** beyond what was requested:
-- `setBusOutput` validates target exists (`routing.ts:185-187`)
-- `removeSend` prunes orphaned source nodes from graph (`routing.ts:252-256`)
-- `dispose` calls `graph.clear()` (`routing.ts:328`)
-- `RoutingGraph.clear()` method added (`cycle-detection.ts:43-45`)
+Additional improvements in the fix commits: mix level preserved during A/B swap, `exactOptionalPropertyTypes` compliance in `EffectPanel` props. All 91 tests pass, TypeScript compiles clean.
 
 REVIEW_APPROVED
