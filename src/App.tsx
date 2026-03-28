@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isCrossOriginIsolated,
   createAudioEngine,
@@ -14,13 +14,35 @@ export function App(): React.JSX.Element {
   const setEngineStatus = useDawStore((s) => s.setEngineStatus);
 
   const handleStart = useCallback((): void => {
-    const engine = createAudioEngine();
+    if (engineRef.current) return;
+
+    let engine: AudioEngineContext;
+    try {
+      engine = createAudioEngine();
+    } catch {
+      setEngineStatus("error");
+      return;
+    }
+
     engineRef.current = engine;
-    void engine.resume().then(() => {
-      setEngineStatus("running");
-    });
-    setAudioStarted(true);
+    engine.resume().then(
+      () => {
+        setEngineStatus("running");
+        setAudioStarted(true);
+      },
+      () => {
+        setEngineStatus("error");
+        engineRef.current = null;
+      },
+    );
   }, [setEngineStatus]);
+
+  useEffect(() => {
+    return () => {
+      void engineRef.current?.close();
+      engineRef.current = null;
+    };
+  }, []);
 
   if (!crossOriginOk) {
     return <CrossOriginError />;

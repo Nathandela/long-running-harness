@@ -47,6 +47,21 @@ describe("DawStore", () => {
       expect(useDawStore.getState().bpm).toBe(140);
     });
 
+    it("clamps BPM to minimum of 20", () => {
+      useDawStore.getState().setBpm(0);
+      expect(useDawStore.getState().bpm).toBe(20);
+    });
+
+    it("clamps BPM to maximum of 999", () => {
+      useDawStore.getState().setBpm(2000);
+      expect(useDawStore.getState().bpm).toBe(999);
+    });
+
+    it("ignores NaN BPM", () => {
+      useDawStore.getState().setBpm(NaN);
+      expect(useDawStore.getState().bpm).toBe(120);
+    });
+
     it("sets cursor position", () => {
       useDawStore.getState().setCursor(3.5);
       expect(useDawStore.getState().cursorSeconds).toBe(3.5);

@@ -22,13 +22,21 @@ export const MeteringLayout = {
   BYTES_PER_TRACK: 16,
 } as const;
 
-/** Byte offsets into the shared transport/cursor buffer */
+/**
+ * Byte offsets into the shared transport/cursor buffer.
+ *
+ * Note on atomics: Float32/Float64 views cannot use Atomics directly.
+ * CURSOR_SECONDS and BPM must be read/written via integer-typed views
+ * (e.g., Int32Array for BPM, BigInt64Array for CURSOR_SECONDS) or
+ * accept non-atomic access with appropriate fencing.
+ */
 export const TransportLayout = {
   /** Playback cursor position in seconds (Float64, 8 bytes) */
   CURSOR_SECONDS: 0,
   /** Transport state: 0=stopped, 1=playing, 2=paused (Uint8) */
   STATE: 8,
-  /** Current BPM (Float32) */
+  // Bytes 9-11: alignment padding (reserved, do not use)
+  /** Current BPM (Float32, 4-byte aligned) */
   BPM: 12,
   /** Total size of the transport buffer */
   TOTAL_BYTES: 16,

@@ -12,6 +12,7 @@ export function ClickToStart({
       onClick={onStart}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
           onStart();
         }
       }}

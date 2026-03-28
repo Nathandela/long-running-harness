@@ -55,7 +55,9 @@ export const useDawStore = create<DawStore>()((set) => ({
     set({ transportState: "stopped", cursorSeconds: 0 });
   },
   setBpm: (bpm: number) => {
-    set({ bpm });
+    const clamped = Math.min(999, Math.max(20, bpm));
+    if (!Number.isFinite(clamped)) return;
+    set({ bpm: clamped });
   },
   setCursor: (seconds: number) => {
     set({ cursorSeconds: seconds });
