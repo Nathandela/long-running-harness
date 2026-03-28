@@ -41,6 +41,9 @@ export function createMetronome(ctx: AudioContext): Metronome {
       osc.connect(gainNode);
       osc.start(time);
       osc.stop(time + TICK_DURATION);
+      osc.onended = () => {
+        osc.disconnect();
+      };
     },
 
     silence(): void {
@@ -48,7 +51,11 @@ export function createMetronome(ctx: AudioContext): Metronome {
     },
 
     dispose(): void {
-      gainNode.disconnect();
+      // Fade out to avoid pop, then disconnect
+      gainNode.gain.setTargetAtTime(0, ctx.currentTime, 0.01);
+      setTimeout(() => {
+        gainNode.disconnect();
+      }, 50);
     },
   };
 }

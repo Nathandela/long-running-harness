@@ -15,7 +15,7 @@ function createMockOscillator(): OscillatorNode {
 
 function createMockGain(): GainNode {
   return {
-    gain: { value: 1, setValueAtTime: vi.fn() },
+    gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
   } as unknown as GainNode;
@@ -84,11 +84,11 @@ describe("createMetronome", () => {
     met.dispose();
   });
 
-  it("silences immediately on dispose", () => {
+  it("fades out on dispose", () => {
     const met = createMetronome(ctx);
     const mockGain = (ctx.createGain as ReturnType<typeof vi.fn>).mock
       .results[0]?.value as ReturnType<typeof createMockGain>;
     met.dispose();
-    expect(mockGain.disconnect).toHaveBeenCalled();
+    expect(mockGain.gain.setTargetAtTime).toHaveBeenCalledWith(0, 0, 0.01);
   });
 });

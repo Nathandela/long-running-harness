@@ -2,7 +2,7 @@
  * Registers transport keyboard shortcuts (Space = play/stop toggle).
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTransport } from "@audio/use-transport";
 import { useDawStore } from "@state/index";
 import type { CommandRegistry } from "@ui/keyboard/command-registry";
@@ -14,13 +14,18 @@ export function useTransportShortcuts(
 ): void {
   const transport = useTransport();
   const transportState = useDawStore((s) => s.transportState);
+  const stateRef = useRef(transportState);
+
+  useEffect(() => {
+    stateRef.current = transportState;
+  }, [transportState]);
 
   useEffect(() => {
     registry.register({
       id: "transport.playStop",
       label: "Play / Stop",
       execute: () => {
-        if (transportState === "playing") {
+        if (stateRef.current === "playing") {
           transport.stop();
         } else {
           transport.play();
@@ -34,5 +39,5 @@ export function useTransportShortcuts(
       registry.unregister("transport.playStop");
       shortcuts.unbind("transport.playStop");
     };
-  }, [registry, shortcuts, transport, transportState]);
+  }, [registry, shortcuts, transport]);
 }
