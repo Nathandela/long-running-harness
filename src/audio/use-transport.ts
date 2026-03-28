@@ -139,6 +139,7 @@ export function useTransportInit(): UseTransportReturn {
       if (clock === null) return;
 
       clock.seek(seconds);
+      schedulerRef.current?.sync();
       storeSetCursor(seconds);
     },
     [storeSetCursor],

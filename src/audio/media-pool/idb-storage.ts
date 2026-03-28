@@ -219,11 +219,23 @@ export function createIndexedDBStorage(): MediaPoolStorage {
     async deletePeaksBySource(sourceId): Promise<void> {
       const db = await getDb();
       const keys = await idbGetAllKeys(db, STORE_PEAKS);
-      for (const key of keys) {
-        if (key.startsWith(`${sourceId}:`)) {
-          await idbDelete(db, STORE_PEAKS, key);
+      const toDelete = keys.filter((k) => k.startsWith(`${sourceId}:`));
+      if (toDelete.length === 0) return;
+
+      // Batch all deletes in a single transaction
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_PEAKS, "readwrite");
+        const store = tx.objectStore(STORE_PEAKS);
+        for (const key of toDelete) {
+          store.delete(key);
         }
-      }
+        tx.oncomplete = (): void => {
+          resolve();
+        };
+        tx.onerror = (): void => {
+          reject(tx.error ?? new Error("IndexedDB batch delete failed"));
+        };
+      });
     },
   };
 }

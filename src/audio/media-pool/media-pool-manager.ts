@@ -15,6 +15,7 @@ export function createMediaPool(
   storage: MediaPoolStorage,
 ): MediaPool {
   const sources = new Map<string, AudioSourceHandle>();
+  const bufferCache = new Map<string, AudioBuffer>();
 
   const pool: MediaPool = {
     async init(): Promise<void> {
@@ -31,7 +32,17 @@ export function createMediaPool(
       const { handle, buffer } = result;
 
       // Store blob and metadata (File extends Blob, no extra copy needed)
-      await storage.putBlob(handle.id, file);
+      try {
+        await storage.putBlob(handle.id, file);
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "QuotaExceededError") {
+          return {
+            ok: false,
+            error: { kind: "storage-full", fileName: file.name },
+          };
+        }
+        throw e;
+      }
       await storage.putMeta(handle.id, handle);
 
       // Compute and cache peaks at default resolution
@@ -46,6 +57,7 @@ export function createMediaPool(
       );
 
       sources.set(handle.id, handle);
+      bufferCache.set(handle.id, buffer);
       return result;
     },
 
@@ -54,11 +66,16 @@ export function createMediaPool(
     },
 
     async getAudioBuffer(id: string): Promise<AudioBuffer | undefined> {
+      const cached = bufferCache.get(id);
+      if (cached !== undefined) return cached;
+
       const blob = await storage.getBlob(id);
       if (blob === undefined) return undefined;
 
       const arrayBuffer = await blob.arrayBuffer();
-      return ctx.decodeAudioData(arrayBuffer);
+      const decoded = await ctx.decodeAudioData(arrayBuffer);
+      bufferCache.set(id, decoded);
+      return decoded;
     },
 
     async getPeaks(
@@ -74,10 +91,11 @@ export function createMediaPool(
     },
 
     async removeSource(id: string): Promise<void> {
-      sources.delete(id);
       await storage.deleteBlob(id);
       await storage.deleteMeta(id);
       await storage.deletePeaksBySource(id);
+      sources.delete(id);
+      bufferCache.delete(id);
     },
 
     get count(): number {

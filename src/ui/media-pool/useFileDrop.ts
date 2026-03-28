@@ -43,7 +43,7 @@ export function useFileDrop(
       e.stopPropagation();
       dragCounter.current = 0;
       setIsDragging(false);
-      const files = [...(e.dataTransfer.files as unknown as File[])];
+      const files = Array.from(e.dataTransfer.files);
       onFiles(files);
     },
     [onFiles],

@@ -133,14 +133,14 @@ describe("createMediaPool", () => {
     expect(pool.getSource(result.handle.id)).toBeUndefined();
   });
 
-  it("getAudioBuffer re-decodes from stored blob", async () => {
+  it("getAudioBuffer returns cached buffer without re-decoding", async () => {
     const result = await pool.importFile(makeWavFile("re.wav"));
     if (!result.ok) throw new Error("unexpected");
 
     const buf = await pool.getAudioBuffer(result.handle.id);
     expect(buf).toBeDefined();
-    // decodeAudioData called twice: once on import, once on getAudioBuffer
-    expect(ctx.decodeAudioData).toHaveBeenCalledTimes(2);
+    // decodeAudioData called only once (during import); getAudioBuffer uses cache
+    expect(ctx.decodeAudioData).toHaveBeenCalledTimes(1);
   });
 
   it("getAudioBuffer returns undefined for unknown ID", async () => {

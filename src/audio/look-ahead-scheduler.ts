@@ -17,6 +17,8 @@ export type SchedulerConfig = {
 export type LookAheadScheduler = {
   start(): void;
   stop(): void;
+  /** Re-sync beat phase to the current clock position (e.g. after seek). */
+  sync(): void;
   readonly isRunning: boolean;
 };
 
@@ -69,7 +71,21 @@ export function createLookAheadScheduler(
     const scheduleUntil = ctx.currentTime + lookAheadSec;
     const spb = clock.getTempoMap().secondsPerBeat();
 
-    while (nextBeatTime < scheduleUntil) {
+    // Constrain scheduling window to the loop end boundary
+    const loop = clock.getLoop();
+    let effectiveUntil = scheduleUntil;
+    if (loop.enabled && loop.end > loop.start) {
+      const cursorNow = clock.getCursorSeconds();
+      const timeToLoopEnd = loop.end - cursorNow;
+      if (timeToLoopEnd > 0) {
+        effectiveUntil = Math.min(
+          scheduleUntil,
+          ctx.currentTime + timeToLoopEnd,
+        );
+      }
+    }
+
+    while (nextBeatTime < effectiveUntil) {
       onTick?.(nextBeatTime, currentBeat);
       currentBeat++;
       nextBeatTime += spb;
@@ -98,6 +114,10 @@ export function createLookAheadScheduler(
       }
       nextBeatTime = 0;
       currentBeat = 0;
+    },
+
+    sync(): void {
+      syncToPosition(clock.getCursorSeconds());
     },
   };
 

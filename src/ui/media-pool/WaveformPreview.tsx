@@ -28,7 +28,9 @@ export function WaveformPreview({
     const mid = height / 2;
     const barWidth = width / numPeaks;
 
-    ctx.fillStyle = "#0066ff"; // --color-blue
+    ctx.fillStyle =
+      getComputedStyle(canvas).getPropertyValue("--color-blue").trim() ||
+      "#0066ff";
 
     for (let i = 0; i < numPeaks; i++) {
       const min = peaks.peaks[i * 2] ?? 0;

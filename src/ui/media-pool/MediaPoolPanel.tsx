@@ -86,7 +86,8 @@ export function MediaPoolPanel({
   const [version, setVersion] = useState(0);
   const sources = useMemo(() => pool.listSources(), [pool, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const [peaksMap, setPeaksMap] = useState(new Map<string, WaveformPeaks>());
-  const [error, setError] = useState<MediaPoolError | null>(null);
+  const [errors, setErrors] = useState<MediaPoolError[]>([]);
+  const importingRef = useRef(false);
 
   useEffect(() => {
     // Load cached peaks for persisted sources
@@ -107,7 +108,10 @@ export function MediaPoolPanel({
 
   const handleImport = useCallback(
     async (files: File[]) => {
-      setError(null);
+      if (importingRef.current) return;
+      importingRef.current = true;
+      setErrors([]);
+      const importErrors: MediaPoolError[] = [];
       for (const file of files) {
         const result = await pool.importFile(file);
         if (result.ok) {
@@ -120,10 +124,14 @@ export function MediaPoolPanel({
             });
           }
         } else {
-          setError(result.error);
+          importErrors.push(result.error);
         }
       }
+      if (importErrors.length > 0) {
+        setErrors(importErrors);
+      }
       setVersion((v) => v + 1);
+      importingRef.current = false;
     },
     [pool],
   );
@@ -189,7 +197,13 @@ export function MediaPoolPanel({
         />
       </div>
 
-      {error !== null && <div style={errorStyle}>{formatError(error)}</div>}
+      {errors.length > 0 && (
+        <div style={errorStyle}>
+          {errors.map((err, i) => (
+            <div key={i}>{formatError(err)}</div>
+          ))}
+        </div>
+      )}
 
       {sources.length === 0 ? (
         <div style={emptyStyle}>Drop audio files here or click IMPORT</div>
