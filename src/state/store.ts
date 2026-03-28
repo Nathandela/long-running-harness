@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { TrackModel, ClipModel } from "./track/types";
 
 export type TransportState = "stopped" | "playing" | "paused";
 
@@ -20,6 +21,12 @@ export type DawStore = {
   // Audio engine
   engineStatus: AudioEngineStatus;
 
+  // Tracks & clips
+  tracks: readonly TrackModel[];
+  clips: Record<string, ClipModel>;
+  selectedTrackIds: readonly string[];
+  selectedClipIds: readonly string[];
+
   // Transport actions
   play: () => void;
   pause: () => void;
@@ -30,9 +37,35 @@ export type DawStore = {
 
   // Engine actions
   setEngineStatus: (status: AudioEngineStatus) => void;
+
+  // Track actions
+  addTrack: (track: TrackModel, index?: number) => void;
+  removeTrack: (id: string) => void;
+  updateTrack: (id: string, patch: Partial<Omit<TrackModel, "id">>) => void;
+  reorderTrack: (id: string, toIndex: number) => void;
+
+  // Clip actions
+  addClip: (clip: ClipModel) => void;
+  removeClip: (id: string) => void;
+  moveClip: (id: string, startTime: number, toTrackId?: string) => void;
+  splitClip: (id: string, atTime: number) => string | undefined;
+  trimClip: (id: string, newStart?: number, newEnd?: number) => void;
+  duplicateClip: (id: string) => string | undefined;
+
+  // Selection actions
+  setSelectedTrackIds: (ids: readonly string[]) => void;
+  setSelectedClipIds: (ids: readonly string[]) => void;
+
+  // Query
+  queryClipsAtTime: (time: number) => readonly ClipModel[];
 };
 
-export const useDawStore = create<DawStore>()((set) => ({
+let clipIdCounter = 0;
+function nextClipId(): string {
+  return "clip-gen-" + String(++clipIdCounter);
+}
+
+export const useDawStore = create<DawStore>()((set, get) => ({
   // Transport defaults
   transportState: "stopped",
   bpm: 120,
@@ -43,6 +76,12 @@ export const useDawStore = create<DawStore>()((set) => ({
 
   // Engine defaults
   engineStatus: "uninitialized",
+
+  // Track & clip defaults
+  tracks: [],
+  clips: {},
+  selectedTrackIds: [],
+  selectedClipIds: [],
 
   // Transport actions
   play: () => {
@@ -73,5 +112,219 @@ export const useDawStore = create<DawStore>()((set) => ({
   // Engine actions
   setEngineStatus: (status: AudioEngineStatus) => {
     set({ engineStatus: status });
+  },
+
+  // Track actions
+  addTrack: (track: TrackModel, index?: number) => {
+    set((state) => {
+      const next = [...state.tracks];
+      if (index !== undefined) {
+        next.splice(index, 0, track);
+      } else {
+        next.push(track);
+      }
+      return { tracks: next };
+    });
+  },
+
+  removeTrack: (id: string) => {
+    set((state) => {
+      const track = state.tracks.find((t) => t.id === id);
+      if (!track) return state;
+      const removeSet = new Set(track.clipIds);
+      const nextClips = Object.fromEntries(
+        Object.entries(state.clips).filter(([k]) => !removeSet.has(k)),
+      );
+      return {
+        tracks: state.tracks.filter((t) => t.id !== id),
+        clips: nextClips,
+      };
+    });
+  },
+
+  updateTrack: (id: string, patch: Partial<Omit<TrackModel, "id">>) => {
+    set((state) => ({
+      tracks: state.tracks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+  },
+
+  reorderTrack: (id: string, toIndex: number) => {
+    set((state) => {
+      const fromIndex = state.tracks.findIndex((t) => t.id === id);
+      if (fromIndex === -1) return state;
+      const next = [...state.tracks];
+      const moved = next.splice(fromIndex, 1)[0];
+      if (moved === undefined) return state;
+      next.splice(toIndex, 0, moved);
+      return { tracks: next };
+    });
+  },
+
+  // Clip actions
+  addClip: (clip: ClipModel) => {
+    set((state) => {
+      const nextClips = { ...state.clips, [clip.id]: clip };
+      const tracks = state.tracks.map((t) =>
+        t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, clip.id] } : t,
+      );
+      return { clips: nextClips, tracks };
+    });
+  },
+
+  removeClip: (id: string) => {
+    set((state) => {
+      const clip = state.clips[id];
+      if (!clip) return state;
+      const nextClips = Object.fromEntries(
+        Object.entries(state.clips).filter(([k]) => k !== id),
+      );
+      const tracks = state.tracks.map((t) =>
+        t.id === clip.trackId
+          ? { ...t, clipIds: t.clipIds.filter((cid) => cid !== id) }
+          : t,
+      );
+      return { clips: nextClips, tracks };
+    });
+  },
+
+  moveClip: (id: string, startTime: number, toTrackId?: string) => {
+    set((state) => {
+      const clip = state.clips[id];
+      if (!clip) return state;
+      const updatedClip = {
+        ...clip,
+        startTime,
+        trackId: toTrackId ?? clip.trackId,
+      };
+      const nextClips = { ...state.clips, [id]: updatedClip };
+
+      let tracks = state.tracks;
+      if (toTrackId !== undefined && toTrackId !== clip.trackId) {
+        tracks = tracks.map((t) => {
+          if (t.id === clip.trackId) {
+            return { ...t, clipIds: t.clipIds.filter((cid) => cid !== id) };
+          }
+          if (t.id === toTrackId) {
+            return { ...t, clipIds: [...t.clipIds, id] };
+          }
+          return t;
+        });
+      }
+      return { clips: nextClips, tracks };
+    });
+  },
+
+  splitClip: (id: string, atTime: number): string | undefined => {
+    const state = get();
+    const clip = state.clips[id];
+    if (!clip) return undefined;
+
+    const clipEnd = clip.startTime + clip.duration;
+    if (atTime <= clip.startTime || atTime >= clipEnd) return undefined;
+
+    const leftDuration = atTime - clip.startTime;
+    const rightDuration = clip.duration - leftDuration;
+    const rightSourceOffset = clip.sourceOffset + leftDuration;
+
+    const newId = nextClipId();
+
+    const leftClip: ClipModel = { ...clip, duration: leftDuration };
+    const rightClip: ClipModel = {
+      ...clip,
+      id: newId,
+      startTime: atTime,
+      sourceOffset: rightSourceOffset,
+      duration: rightDuration,
+    };
+
+    set((s) => {
+      const nextClips = { ...s.clips, [id]: leftClip, [newId]: rightClip };
+      const tracks = s.tracks.map((t) =>
+        t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, newId] } : t,
+      );
+      return { clips: nextClips, tracks };
+    });
+
+    return newId;
+  },
+
+  trimClip: (id: string, newStart?: number, newEnd?: number) => {
+    set((state) => {
+      const clip = state.clips[id];
+      if (!clip) return state;
+
+      let { startTime, sourceOffset, duration } = clip;
+      const clipEnd = startTime + duration;
+
+      if (newStart !== undefined) {
+        const delta = newStart - startTime;
+        startTime = newStart;
+        sourceOffset = sourceOffset + delta;
+        duration = clipEnd - newStart;
+      }
+
+      if (newEnd !== undefined) {
+        duration = newEnd - startTime;
+      }
+
+      return {
+        clips: {
+          ...state.clips,
+          [id]: { ...clip, startTime, sourceOffset, duration },
+        },
+      };
+    });
+  },
+
+  duplicateClip: (id: string): string | undefined => {
+    const state = get();
+    const clip = state.clips[id];
+    if (!clip) return undefined;
+
+    const newId = nextClipId();
+    const duplicate: ClipModel = {
+      ...clip,
+      id: newId,
+      startTime: clip.startTime + clip.duration,
+    };
+
+    set((s) => {
+      const nextClips = { ...s.clips, [newId]: duplicate };
+      const tracks = s.tracks.map((t) =>
+        t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, newId] } : t,
+      );
+      return { clips: { ...s.clips, ...nextClips }, tracks };
+    });
+
+    return newId;
+  },
+
+  // Selection
+  setSelectedTrackIds: (ids: readonly string[]) => {
+    set({ selectedTrackIds: ids });
+  },
+  setSelectedClipIds: (ids: readonly string[]) => {
+    set({ selectedClipIds: ids });
+  },
+
+  // Query
+  queryClipsAtTime: (time: number): readonly ClipModel[] => {
+    const state = get();
+    const hasSolo = state.tracks.some((t) => t.solo);
+    const activeTracks = new Set(
+      state.tracks
+        .filter((t) => {
+          if (t.muted) return false;
+          if (hasSolo && !t.solo) return false;
+          return true;
+        })
+        .map((t) => t.id),
+    );
+
+    return Object.values(state.clips).filter((clip) => {
+      if (!activeTracks.has(clip.trackId)) return false;
+      const clipEnd = clip.startTime + clip.duration;
+      return time >= clip.startTime && time < clipEnd;
+    });
   },
 }));
