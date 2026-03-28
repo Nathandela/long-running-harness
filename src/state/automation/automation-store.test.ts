@@ -28,11 +28,18 @@ describe("AutomationStore", () => {
       expect(lanes[0]?.armed).toBe(true);
     });
 
-    it("allows multiple lanes per track", () => {
+    it("allows different targets per track", () => {
       const { addLane, getLanes } = useAutomationStore.getState();
       addLane("track-1", volumeTarget);
       addLane("track-1", panTarget);
       expect(getLanes("track-1")).toHaveLength(2);
+    });
+
+    it("rejects duplicate target on same track", () => {
+      const { addLane, getLanes } = useAutomationStore.getState();
+      addLane("track-1", volumeTarget);
+      addLane("track-1", volumeTarget);
+      expect(getLanes("track-1")).toHaveLength(1);
     });
   });
 

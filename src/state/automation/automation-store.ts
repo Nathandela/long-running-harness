@@ -14,6 +14,7 @@ import {
   insertPoint as insertPt,
   removePoint as removePt,
   movePoint as movePt,
+  targetsEqual,
 } from "@audio/automation";
 import { nextLaneId } from "@audio/automation/automation-types";
 
@@ -53,6 +54,8 @@ export const useAutomationStore = create<AutomationStore>()((set, get) => ({
   addLane(trackId, target) {
     set((s) => {
       const existing = s.lanes[trackId] ?? [];
+      // Reject duplicate: one lane per target per track
+      if (existing.some((l) => targetsEqual(l.target, target))) return s;
       const lane: AutomationLane = {
         id: nextLaneId(),
         trackId,

@@ -86,14 +86,23 @@ export function normalize(value: number, range: ParameterRange): number {
   return Math.max(0, Math.min(1, (value - range.min) / span));
 }
 
+/** Clamp a point's time and value to valid ranges */
+function clampPoint(point: AutomationPoint): AutomationPoint {
+  const time = Math.max(0, point.time);
+  const value = Math.max(0, Math.min(1, point.value));
+  if (time === point.time && value === point.value) return point;
+  return { ...point, time, value };
+}
+
 /** Insert a point maintaining time-sorted order (immutable) */
 export function insertPoint(
   points: readonly AutomationPoint[],
   point: AutomationPoint,
 ): readonly AutomationPoint[] {
-  const idx = points.findIndex((p) => p.time > point.time);
-  if (idx === -1) return [...points, point];
-  return [...points.slice(0, idx), point, ...points.slice(idx)];
+  const clamped = clampPoint(point);
+  const idx = points.findIndex((p) => p.time > clamped.time);
+  if (idx === -1) return [...points, clamped];
+  return [...points.slice(0, idx), clamped, ...points.slice(idx)];
 }
 
 /** Remove a point by id (immutable) */
@@ -118,9 +127,34 @@ export function movePoint(
   if (!existing) return points;
   const updated: AutomationPoint = {
     ...existing,
-    time: newTime,
-    value: newValue,
+    time: Math.max(0, newTime),
+    value: Math.max(0, Math.min(1, newValue)),
   };
   const without = [...points.slice(0, idx), ...points.slice(idx + 1)];
   return insertPoint(without, updated);
+}
+
+/** Find all points with time in (start, end) exclusive, using binary search */
+export function findPointsInRange(
+  points: readonly AutomationPoint[],
+  start: number,
+  end: number,
+): readonly AutomationPoint[] {
+  if (points.length === 0) return [];
+  // Binary search for first point with time > start
+  let lo = 0;
+  let hi = points.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    const pt = points[mid];
+    if (pt && pt.time <= start) lo = mid + 1;
+    else hi = mid;
+  }
+  const result: AutomationPoint[] = [];
+  for (let i = lo; i < points.length; i++) {
+    const pt = points[i];
+    if (!pt || pt.time >= end) break;
+    result.push(pt);
+  }
+  return result;
 }

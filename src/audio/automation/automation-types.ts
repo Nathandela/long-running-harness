@@ -52,6 +52,17 @@ export type ParameterRange = {
   readonly max: number;
 };
 
+/** Check structural equality of two ParameterTargets */
+export function targetsEqual(a: ParameterTarget, b: ParameterTarget): boolean {
+  if (a.type !== b.type) return false;
+  if (a.type === "mixer" && b.type === "mixer") return a.param === b.param;
+  if (a.type === "effect" && b.type === "effect")
+    return a.effectId === b.effectId && a.paramKey === b.paramKey;
+  if (a.type === "synth" && b.type === "synth")
+    return a.paramKey === b.paramKey;
+  return false;
+}
+
 /** Default automation mode */
 export const DEFAULT_AUTOMATION_MODE: AutomationMode = "read";
 

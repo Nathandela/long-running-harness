@@ -32,6 +32,11 @@ export function createLookAheadScheduler(
   clock: TransportClock,
   config?: Partial<SchedulerConfig>,
   onTick?: (beatTime: number, beatNumber: number) => void,
+  onAdvance?: (
+    windowStart: number,
+    windowEnd: number,
+    timeOffset: number,
+  ) => void,
 ): LookAheadScheduler {
   const intervalMs = config?.intervalMs ?? DEFAULT_CONFIG.intervalMs;
   const lookAheadSec =
@@ -84,6 +89,10 @@ export function createLookAheadScheduler(
         );
       }
     }
+
+    // Fire window-level callback for continuous schedulers (automation, clips)
+    const timeOffset = ctx.currentTime - clock.getCursorSeconds();
+    onAdvance?.(ctx.currentTime, effectiveUntil, timeOffset);
 
     while (nextBeatTime < effectiveUntil) {
       onTick?.(nextBeatTime, currentBeat);

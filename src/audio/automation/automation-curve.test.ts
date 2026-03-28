@@ -6,6 +6,7 @@ import {
   insertPoint,
   removePoint,
   movePoint,
+  findPointsInRange,
 } from "./automation-curve";
 import type { AutomationPoint } from "./automation-types";
 
@@ -155,6 +156,23 @@ describe("removePoint", () => {
   });
 });
 
+describe("insertPoint - clamping", () => {
+  it("clamps negative time to 0", () => {
+    const result = insertPoint([], pt(-5, 0.5));
+    expect(result[0]?.time).toBe(0);
+  });
+
+  it("clamps value below 0 to 0", () => {
+    const result = insertPoint([], pt(1, -0.3));
+    expect(result[0]?.value).toBe(0);
+  });
+
+  it("clamps value above 1 to 1", () => {
+    const result = insertPoint([], pt(1, 1.5));
+    expect(result[0]?.value).toBe(1);
+  });
+});
+
 describe("movePoint", () => {
   it("updates time and value and re-sorts", () => {
     const points = [pt(1, 0.1), pt(5, 0.5), pt(10, 1)];
@@ -171,5 +189,37 @@ describe("movePoint", () => {
     const moved = result.find((p) => p.id === "p-0");
     expect(moved?.interpolation).toBe("curved");
     expect(moved?.curve).toBe(0.5);
+  });
+
+  it("clamps negative time and out-of-range value", () => {
+    const points = [pt(5, 0.5)];
+    const result = movePoint(points, "p-5", -2, 1.5);
+    const moved = result.find((p) => p.id === "p-5");
+    expect(moved?.time).toBe(0);
+    expect(moved?.value).toBe(1);
+  });
+});
+
+describe("findPointsInRange", () => {
+  it("returns empty for empty array", () => {
+    expect(findPointsInRange([], 0, 10)).toEqual([]);
+  });
+
+  it("returns points strictly within range (exclusive boundaries)", () => {
+    const points = [pt(1, 0.1), pt(3, 0.3), pt(5, 0.5), pt(7, 0.7)];
+    const result = findPointsInRange(points, 2, 6);
+    expect(result.map((p) => p.time)).toEqual([3, 5]);
+  });
+
+  it("excludes points at exact boundaries", () => {
+    const points = [pt(2, 0.2), pt(5, 0.5), pt(8, 0.8)];
+    const result = findPointsInRange(points, 2, 8);
+    expect(result.map((p) => p.time)).toEqual([5]);
+  });
+
+  it("returns empty when no points in range", () => {
+    const points = [pt(1, 0.1), pt(10, 1)];
+    const result = findPointsInRange(points, 3, 7);
+    expect(result).toEqual([]);
   });
 });

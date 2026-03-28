@@ -1,6 +1,7 @@
 /**
  * Controller hook that bridges the transport audio layer to the Zustand store.
- * Creates and manages TransportClock, LookAheadScheduler, and Metronome.
+ * Creates and manages TransportClock, LookAheadScheduler, Metronome,
+ * and AutomationScheduler.
  *
  * useTransportInit() — initialization (used only by TransportProvider)
  * useTransport()     — context consumer (used by all other components)
@@ -15,10 +16,16 @@ import {
 } from "./look-ahead-scheduler";
 import { createMetronome, type Metronome } from "./metronome";
 import {
+  createAutomationScheduler,
+  type AutomationScheduler,
+  type ParamResolver,
+} from "./automation/automation-scheduler";
+import {
   createSharedBuffers,
   type SharedArrayBufferLayout,
 } from "./shared-buffer-layout";
 import { useDawStore } from "@state/index";
+import { useAutomationStore } from "@state/automation";
 import { TransportCtx } from "./transport-ctx";
 
 export type UseTransportReturn = {
@@ -30,6 +37,8 @@ export type UseTransportReturn = {
   setMetronomeEnabled(on: boolean): void;
   getTransportSAB(): SharedArrayBuffer | null;
   getClock(): TransportClock | null;
+  /** Set the param resolver for automation playback (call from mixer provider) */
+  setParamResolver(resolver: ParamResolver): void;
 };
 
 /**
@@ -40,6 +49,8 @@ export function useTransportInit(): UseTransportReturn {
   const clockRef = useRef<TransportClock | null>(null);
   const schedulerRef = useRef<LookAheadScheduler | null>(null);
   const metronomeRef = useRef<Metronome | null>(null);
+  const autoSchedulerRef = useRef<AutomationScheduler | null>(null);
+  const paramResolverRef = useRef<ParamResolver>(() => undefined);
   const sabRef = useRef<SharedArrayBufferLayout | null>(null);
 
   const storePlay = useDawStore((s) => s.play);
@@ -72,6 +83,12 @@ export function useTransportInit(): UseTransportReturn {
     const met = createMetronome(engine.ctx);
     metronomeRef.current = met;
 
+    // Automation scheduler: resolver is ref-based so it can be set later by mixer
+    const autoSched = createAutomationScheduler((lane) =>
+      paramResolverRef.current(lane),
+    );
+    autoSchedulerRef.current = autoSched;
+
     const scheduler = createLookAheadScheduler(
       engine.ctx,
       clock,
@@ -81,16 +98,24 @@ export function useTransportInit(): UseTransportReturn {
         const isDownbeat = beatNumber % beatsPerBar === 0;
         met.scheduleTick(beatTime, isDownbeat);
       },
+      (windowStart: number, windowEnd: number, timeOffset: number) => {
+        // Gather all armed lanes from the automation store
+        const allLanes = useAutomationStore.getState().lanes;
+        const lanes = Object.values(allLanes).flat();
+        autoSched.scheduleWindow(lanes, windowStart, windowEnd, timeOffset);
+      },
     );
     schedulerRef.current = scheduler;
 
     return () => {
       scheduler.stop();
+      autoSched.cancelAll();
       met.dispose();
       clock.dispose();
       clockRef.current = null;
       schedulerRef.current = null;
       metronomeRef.current = null;
+      autoSchedulerRef.current = null;
       sabRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once
@@ -115,6 +140,7 @@ export function useTransportInit(): UseTransportReturn {
 
     clock.pause();
     scheduler.stop();
+    autoSchedulerRef.current?.cancelAll();
     storeSetCursor(clock.getCursorSeconds());
     storePause();
   }, [storePause, storeSetCursor]);
@@ -129,6 +155,7 @@ export function useTransportInit(): UseTransportReturn {
     met?.silence();
     clock.stop();
     scheduler.stop();
+    autoSchedulerRef.current?.cancelAll();
     storeSetCursor(0);
     storeStop();
   }, [storeStop, storeSetCursor]);
@@ -168,6 +195,10 @@ export function useTransportInit(): UseTransportReturn {
     return clockRef.current;
   }, []);
 
+  const setParamResolver = useCallback((resolver: ParamResolver): void => {
+    paramResolverRef.current = resolver;
+  }, []);
+
   return {
     play,
     pause,
@@ -177,6 +208,7 @@ export function useTransportInit(): UseTransportReturn {
     setMetronomeEnabled,
     getTransportSAB,
     getClock,
+    setParamResolver,
   };
 }
 

@@ -9,8 +9,7 @@ export type {
 export {
   DEFAULT_AUTOMATION_MODE,
   nextLaneId,
-  _seedLaneCounter,
-  _resetLaneCounter,
+  targetsEqual,
 } from "./automation-types";
 export {
   evaluateCurve,
@@ -19,6 +18,7 @@ export {
   insertPoint,
   removePoint,
   movePoint,
+  findPointsInRange,
 } from "./automation-curve";
 export { createAutomationScheduler } from "./automation-scheduler";
 export type {
