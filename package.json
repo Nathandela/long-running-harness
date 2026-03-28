@@ -18,7 +18,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "compound-agent": "^2.5.0",
+    "compound-agent": "^2.5.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

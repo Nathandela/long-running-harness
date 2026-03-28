@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       compound-agent:
-        specifier: ^2.5.0
-        version: 2.5.0
+        specifier: ^2.5.1
+        version: 2.5.1
       react:
         specifier: ^19.2.4
         version: 19.2.4
@@ -409,26 +409,26 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@syottos/darwin-arm64@2.5.0':
-    resolution: {integrity: sha512-56dtNFQeTly7CfoZ2gr//SXdkOCUJOaqHWICyBfv4g/EE6gOfZ6FmJhGy+7Dj/9VdWnOQdPTiybKZcvrNIv8Lw==}
+  '@syottos/darwin-arm64@2.5.1':
+    resolution: {integrity: sha512-jWQ3bhHRI74pqDCZhgO+5+7/gEglalMRar+8J52213ZoQ042an6PlBIdx5znzbzzhYM8bCaqX/A4Ncn7Pmw/YQ==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [darwin]
 
-  '@syottos/darwin-x64@2.5.0':
-    resolution: {integrity: sha512-a+xskXMTolNH2haLIJ6cc3UVULYqwNsbEYwnpbBFQJ6riOk5H4nmApabhfnurFKGMryKW17gpCmy8oKFp5ngIw==}
+  '@syottos/darwin-x64@2.5.1':
+    resolution: {integrity: sha512-w9Uqw12s2uVlWavUw2hIcGil5XPkhucIO5vmp50jpKzRO62VIAFnYqwh2Dg2fcF87zMbd8+s3G1p32lLoVM28A==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [darwin]
 
-  '@syottos/linux-arm64@2.5.0':
-    resolution: {integrity: sha512-I9wYAKjTx7xtYrjkdlonRupzgchk9BlsqMsYlaXep9Bi/n2eQJj1B745+ZHxqT7gx2qFIZSQ1o/VVvZ1K2LkJg==}
+  '@syottos/linux-arm64@2.5.1':
+    resolution: {integrity: sha512-xuLSAnlM4z+1MPwZq4tJy1uggAD9PqqFCAqwd4KaaZePdUEUr61jqeHMjK31nwT7RErzxClvC2Glyj77E9y/9A==}
     engines: {node: '>=18'}
     cpu: [arm64]
     os: [linux]
 
-  '@syottos/linux-x64@2.5.0':
-    resolution: {integrity: sha512-4uUhfaO5t4WIFodx3X0JjGf+13dWoADjmQcWQG6s/81dt8loQ49TIElrEP6V5G1wk7ZdJFkVtjRfV35uakgBpA==}
+  '@syottos/linux-x64@2.5.1':
+    resolution: {integrity: sha512-IHV5WQalbvCj4OwS3z4Q4qbNofdgVeYsTMUR3K/bx46aXxoSrVUyBiXfE1uJL7LeGuoHha5bdm38CGuULygDOg==}
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
@@ -661,8 +661,8 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
-  compound-agent@2.5.0:
-    resolution: {integrity: sha512-j6PLexEaTdmBSsyFFu9NFwgWbYxf3mDPRxP3sUoCKIVtReQydOjLPh5LNws5yH7o3Z3Q64DAa/58XUmbRlq1wA==}
+  compound-agent@2.5.1:
+    resolution: {integrity: sha512-JLYCXUpMZqbXy8aSBWnObT/CVOp0DVomnnnDqUIOrZeRwFf39MKlX+nKy30zbLiK4ZW/TLhsFUQcbqJN8Y+9qQ==}
     engines: {node: '>=18'}
     cpu: [x64, arm64]
     os: [darwin, linux]
@@ -1709,16 +1709,16 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@syottos/darwin-arm64@2.5.0':
+  '@syottos/darwin-arm64@2.5.1':
     optional: true
 
-  '@syottos/darwin-x64@2.5.0':
+  '@syottos/darwin-x64@2.5.1':
     optional: true
 
-  '@syottos/linux-arm64@2.5.0':
+  '@syottos/linux-arm64@2.5.1':
     optional: true
 
-  '@syottos/linux-x64@2.5.0':
+  '@syottos/linux-x64@2.5.1':
     optional: true
 
   '@testing-library/dom@10.4.1':
@@ -1989,12 +1989,12 @@ snapshots:
 
   chai@6.2.2: {}
 
-  compound-agent@2.5.0:
+  compound-agent@2.5.1:
     optionalDependencies:
-      '@syottos/darwin-arm64': 2.5.0
-      '@syottos/darwin-x64': 2.5.0
-      '@syottos/linux-arm64': 2.5.0
-      '@syottos/linux-x64': 2.5.0
+      '@syottos/darwin-arm64': 2.5.1
+      '@syottos/darwin-x64': 2.5.1
+      '@syottos/linux-arm64': 2.5.1
+      '@syottos/linux-x64': 2.5.1
 
   convert-source-map@2.0.0: {}
 
