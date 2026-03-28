@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { Toolbar } from "./Toolbar";
 import { ArrangementPanel } from "@ui/arrangement";
-import { MixerPanel, InstrumentPanel } from "./panels";
+import { InstrumentPanel } from "./panels";
+import { MixerPanel } from "./mixer";
 import { MediaPoolPanel } from "./media-pool/MediaPoolPanel";
 import { CommandRegistry } from "./keyboard/command-registry";
 import { ShortcutMap } from "./keyboard/shortcut-map";
@@ -11,7 +12,7 @@ import { useSessionShortcuts } from "./session/useSessionShortcuts";
 import { RecoveryDialog } from "./session/RecoveryDialog";
 import { TransportProvider } from "@audio/transport-provider";
 import { useMediaPool } from "@audio/media-pool/use-media-pool";
-import { createUndoManager } from "@state/undo/index";
+import { sharedUndoManager } from "@state/undo/shared-undo-manager";
 import { useSessionPersistence } from "@state/session/use-session-persistence";
 import { createInMemorySessionStorage } from "@state/session/index";
 import { createDefaultSession } from "@state/session/session-schema";
@@ -24,7 +25,7 @@ function DawShellInner(): React.JSX.Element {
   const registry = useMemo(() => new CommandRegistry(), []);
   const shortcuts = useMemo(() => new ShortcutMap(), []);
   const pool = useMediaPool();
-  const undoManager = useMemo(() => createUndoManager(), []);
+  const undoManager = sharedUndoManager;
   const { saveNow, recoveryWarnings } = useSessionPersistence(defaultStorage);
   const [dismissed, setDismissed] = useState(false);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;

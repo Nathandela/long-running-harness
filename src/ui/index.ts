@@ -4,7 +4,8 @@ export { CrossOriginError } from "./CrossOriginError";
 export { DawShell } from "./DawShell";
 export { Toolbar } from "./Toolbar";
 export { ArrangementPanel } from "./arrangement";
-export { MixerPanel, InstrumentPanel } from "./panels";
+export { InstrumentPanel } from "./panels";
+export { MixerPanel, ChannelStrip, MasterStrip } from "./mixer";
 
 // Design tokens
 export { tokens } from "./tokens/tokens";

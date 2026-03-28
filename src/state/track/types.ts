@@ -13,6 +13,7 @@ export type TrackModel = {
   readonly muted: boolean;
   readonly solo: boolean;
   readonly armed: boolean;
+  readonly soloIsolate: boolean;
   readonly volume: number; // 0..2
   readonly pan: number; // -1..1
   readonly clipIds: readonly string[];

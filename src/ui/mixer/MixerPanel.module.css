@@ -1,0 +1,89 @@
+.mixer {
+  display: flex;
+  border-top: var(--border);
+  background-color: var(--color-gray-900);
+  overflow-x: auto;
+  min-height: 200px;
+  max-height: 280px;
+}
+
+.strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-right: var(--border);
+  min-width: 64px;
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.strip-master {
+  composes: strip;
+  background-color: var(--color-black);
+  border-left: var(--border);
+}
+
+.name {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-gray-300);
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  text-align: center;
+  user-select: none;
+}
+
+.controls-row {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.meter-fader-row {
+  display: flex;
+  gap: var(--space-1);
+  align-items: flex-end;
+  flex: 1;
+}
+
+.btn {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border: var(--border);
+  background: transparent;
+  color: var(--color-gray-300);
+  cursor: pointer;
+  padding: 2px 4px;
+  min-width: 20px;
+  text-align: center;
+  user-select: none;
+}
+
+.btn:hover {
+  background-color: var(--color-gray-700);
+}
+
+.btn-mute-active {
+  composes: btn;
+  background-color: var(--color-red);
+  color: var(--color-white);
+}
+
+.btn-solo-active {
+  composes: btn;
+  background-color: var(--color-amber);
+  color: var(--color-black);
+}
+
+.db-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  text-align: center;
+  user-select: none;
+}

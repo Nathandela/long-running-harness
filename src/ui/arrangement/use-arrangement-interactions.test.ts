@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useDawStore } from "@state/store";
 import type { TrackModel, ClipModel } from "@state/track/types";
+import { sharedUndoManager } from "@state/undo";
 import { useArrangementInteractions } from "./use-arrangement-interactions";
 import type { ArrangementViewState } from "./arrangement-renderer";
 
@@ -22,6 +23,7 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
     muted: false,
     solo: false,
     armed: false,
+    soloIsolate: false,
     volume: 1,
     pan: 0,
     clipIds: [],
@@ -45,6 +47,40 @@ function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
   };
 }
 
+function mockCanvasTarget(): HTMLCanvasElement {
+  return {
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 400,
+      right: 800,
+      bottom: 400,
+      x: 0,
+      y: 0,
+      toJSON: (): void => {},
+    }),
+    setPointerCapture: (): void => {},
+    releasePointerCapture: (): void => {},
+  } as unknown as HTMLCanvasElement;
+}
+
+function mockPointerEvent(
+  overrides: Partial<React.PointerEvent<HTMLCanvasElement>> = {},
+): React.PointerEvent<HTMLCanvasElement> {
+  return {
+    clientX: 0,
+    clientY: 0,
+    shiftKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    pointerId: 1,
+    currentTarget: mockCanvasTarget(),
+    preventDefault: (): void => {},
+    ...overrides,
+  } as unknown as React.PointerEvent<HTMLCanvasElement>;
+}
+
 function mockMouseEvent(
   overrides: Partial<React.MouseEvent<HTMLCanvasElement>> = {},
 ): React.MouseEvent<HTMLCanvasElement> {
@@ -54,19 +90,7 @@ function mockMouseEvent(
     shiftKey: false,
     ctrlKey: false,
     metaKey: false,
-    currentTarget: {
-      getBoundingClientRect: () => ({
-        left: 0,
-        top: 0,
-        width: 800,
-        height: 400,
-        right: 800,
-        bottom: 400,
-        x: 0,
-        y: 0,
-        toJSON: (): void => {},
-      }),
-    } as HTMLCanvasElement,
+    currentTarget: mockCanvasTarget(),
     preventDefault: (): void => {},
     ...overrides,
   } as unknown as React.MouseEvent<HTMLCanvasElement>;
@@ -80,10 +104,12 @@ describe("useArrangementInteractions", () => {
       selectedTrackIds: [],
       selectedClipIds: [],
       cursorSeconds: 0,
+      bpm: 120,
     });
+    sharedUndoManager.clear();
   });
 
-  it("selects clip on mouseDown on clip body", () => {
+  it("selects clip on pointerDown on clip body", () => {
     const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
     const clips: Record<string, ClipModel> = {
       c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 2 }),
@@ -94,9 +120,10 @@ describe("useArrangementInteractions", () => {
       useArrangementInteractions(defaultView, "1/4"),
     );
 
-    // Click at center of clip: x = 160 + 1*100 + 100 = 360, y = 50
     act(() => {
-      result.current.onMouseDown(mockMouseEvent({ clientX: 360, clientY: 50 }));
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 360, clientY: 50 }),
+      );
     });
 
     expect(useDawStore.getState().selectedClipIds).toContain("c1");
@@ -112,9 +139,10 @@ describe("useArrangementInteractions", () => {
       useArrangementInteractions(defaultView, "1/4"),
     );
 
-    // Click on empty lane area
     act(() => {
-      result.current.onMouseDown(mockMouseEvent({ clientX: 500, clientY: 50 }));
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 500, clientY: 50 }),
+      );
     });
 
     expect(useDawStore.getState().selectedClipIds).toEqual([]);
@@ -128,7 +156,9 @@ describe("useArrangementInteractions", () => {
     // Click in ruler area: y < 24, x = 260
     // Time = (260 - 160) / 100 = 1.0
     act(() => {
-      result.current.onMouseDown(mockMouseEvent({ clientX: 260, clientY: 10 }));
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 260, clientY: 10 }),
+      );
     });
 
     expect(useDawStore.getState().cursorSeconds).toBeCloseTo(1.0);
@@ -143,15 +173,16 @@ describe("useArrangementInteractions", () => {
       useArrangementInteractions(defaultView, "1/4"),
     );
 
-    // Click in track header area: x < 160, y in first track
     act(() => {
-      result.current.onMouseDown(mockMouseEvent({ clientX: 80, clientY: 50 }));
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 80, clientY: 50 }),
+      );
     });
 
     expect(useDawStore.getState().selectedTrackIds).toContain("t1");
   });
 
-  it("splits clip on double-click", () => {
+  it("splits clip on double-click and pushes undo", () => {
     const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
     const clips: Record<string, ClipModel> = {
       c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 4 }),
@@ -169,14 +200,13 @@ describe("useArrangementInteractions", () => {
       );
     });
 
-    // Original clip should be trimmed, and a new clip should exist
     const clip = useDawStore.getState().clips["c1"];
     expect(clip).toBeDefined();
     if (clip !== undefined) {
       expect(clip.duration).toBe(1); // 2.0 - 1.0
     }
-    // Check that there are now 2 clips total
     expect(Object.keys(useDawStore.getState().clips)).toHaveLength(2);
+    expect(sharedUndoManager.canUndo).toBe(true);
   });
 
   it("shift-click toggles clip selection", () => {
@@ -193,13 +223,107 @@ describe("useArrangementInteractions", () => {
 
     // Shift-click on c2 (x = 160 + 2*100 + 50 = 410, y = 50)
     act(() => {
-      result.current.onMouseDown(
-        mockMouseEvent({ clientX: 410, clientY: 50, shiftKey: true }),
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 410, clientY: 50, shiftKey: true }),
       );
     });
 
     const selected = useDawStore.getState().selectedClipIds;
     expect(selected).toContain("c1");
     expect(selected).toContain("c2");
+  });
+
+  it("pushes undo command after move-clip drag", () => {
+    const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+    const clips: Record<string, ClipModel> = {
+      c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 2 }),
+    };
+    useDawStore.setState({ tracks, clips });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    // Click center of clip
+    act(() => {
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 360, clientY: 50 }),
+      );
+    });
+
+    // Drag 100px right (= 1 second at 100 pps)
+    act(() => {
+      result.current.onPointerMove(
+        mockPointerEvent({ clientX: 460, clientY: 50 }),
+      );
+    });
+
+    // Release
+    act(() => {
+      result.current.onPointerUp(
+        mockPointerEvent({ clientX: 460, clientY: 50 }),
+      );
+    });
+
+    const clip = useDawStore.getState().clips["c1"];
+    expect(clip?.startTime).toBeGreaterThan(1);
+    expect(sharedUndoManager.canUndo).toBe(true);
+
+    // Undo should restore original position
+    sharedUndoManager.undo();
+    expect(useDawStore.getState().clips["c1"]?.startTime).toBe(1);
+  });
+
+  it("split undo restores original clip", () => {
+    const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+    const clips: Record<string, ClipModel> = {
+      c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 4 }),
+    };
+    useDawStore.setState({ tracks, clips });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    act(() => {
+      result.current.onDoubleClick(
+        mockMouseEvent({ clientX: 360, clientY: 50 }),
+      );
+    });
+
+    expect(Object.keys(useDawStore.getState().clips)).toHaveLength(2);
+
+    sharedUndoManager.undo();
+
+    const restored = useDawStore.getState().clips["c1"];
+    expect(restored?.startTime).toBe(1);
+    expect(restored?.duration).toBe(4);
+    expect(Object.keys(useDawStore.getState().clips)).toHaveLength(1);
+  });
+
+  it("does not push undo when drag results in no change", () => {
+    const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+    const clips: Record<string, ClipModel> = {
+      c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 2 }),
+    };
+    useDawStore.setState({ tracks, clips });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    // Click and immediately release (no move)
+    act(() => {
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 360, clientY: 50 }),
+      );
+    });
+    act(() => {
+      result.current.onPointerUp(
+        mockPointerEvent({ clientX: 360, clientY: 50 }),
+      );
+    });
+
+    expect(sharedUndoManager.canUndo).toBe(false);
   });
 });

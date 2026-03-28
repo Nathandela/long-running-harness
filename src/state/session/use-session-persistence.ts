@@ -30,7 +30,7 @@ function storeToSession(): SessionSchema {
     },
     tracks: state.tracks.map((t) => ({ ...t })),
     clips: Object.values(state.clips),
-    mixer: { masterVolume: 1 },
+    mixer: { masterVolume: state.masterVolume },
   };
 }
 
@@ -51,6 +51,7 @@ export function hydrateStore(session: SessionSchema): void {
     loopEnd: session.transport.loopEnd,
     tracks: session.tracks,
     clips,
+    masterVolume: session.mixer.masterVolume,
   });
 }
 

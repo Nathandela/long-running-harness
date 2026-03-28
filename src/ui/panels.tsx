@@ -10,17 +10,6 @@ const panelStyle: React.CSSProperties = {
   minHeight: "120px",
 };
 
-export function MixerPanel(): React.JSX.Element {
-  return (
-    <section
-      data-testid="mixer-panel"
-      style={{ ...panelStyle, height: "200px" }}
-    >
-      MIXER
-    </section>
-  );
-}
-
 export function InstrumentPanel(): React.JSX.Element {
   return (
     <section

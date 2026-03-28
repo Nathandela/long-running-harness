@@ -21,6 +21,9 @@ export type DawStore = {
   // Audio engine
   engineStatus: AudioEngineStatus;
 
+  // Mixer
+  masterVolume: number;
+
   // Tracks & clips
   tracks: readonly TrackModel[];
   clips: Record<string, ClipModel>;
@@ -38,6 +41,9 @@ export type DawStore = {
   // Engine actions
   setEngineStatus: (status: AudioEngineStatus) => void;
 
+  // Mixer actions
+  setMasterVolume: (volume: number) => void;
+
   // Track actions
   addTrack: (track: TrackModel, index?: number) => void;
   removeTrack: (id: string) => void;
@@ -48,9 +54,13 @@ export type DawStore = {
   addClip: (clip: ClipModel) => void;
   removeClip: (id: string) => void;
   moveClip: (id: string, startTime: number, toTrackId?: string) => void;
-  splitClip: (id: string, atTime: number) => string | undefined;
+  splitClip: (
+    id: string,
+    atTime: number,
+    providedId?: string,
+  ) => string | undefined;
   trimClip: (id: string, newStart?: number, newEnd?: number) => void;
-  duplicateClip: (id: string) => string | undefined;
+  duplicateClip: (id: string, providedId?: string) => string | undefined;
 
   // Selection actions
   setSelectedTrackIds: (ids: readonly string[]) => void;
@@ -60,9 +70,8 @@ export type DawStore = {
   queryClipsAtTime: (time: number) => readonly ClipModel[];
 };
 
-let clipIdCounter = 0;
 function nextClipId(): string {
-  return "clip-gen-" + String(++clipIdCounter);
+  return "clip-" + crypto.randomUUID();
 }
 
 export const useDawStore = create<DawStore>()((set, get) => ({
@@ -76,6 +85,9 @@ export const useDawStore = create<DawStore>()((set, get) => ({
 
   // Engine defaults
   engineStatus: "uninitialized",
+
+  // Mixer defaults
+  masterVolume: 1,
 
   // Track & clip defaults
   tracks: [],
@@ -112,6 +124,12 @@ export const useDawStore = create<DawStore>()((set, get) => ({
   // Engine actions
   setEngineStatus: (status: AudioEngineStatus) => {
     set({ engineStatus: status });
+  },
+
+  // Mixer actions
+  setMasterVolume: (volume: number) => {
+    const clamped = Math.min(2, Math.max(0, volume));
+    set({ masterVolume: clamped });
   },
 
   // Track actions
@@ -214,7 +232,11 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     });
   },
 
-  splitClip: (id: string, atTime: number): string | undefined => {
+  splitClip: (
+    id: string,
+    atTime: number,
+    providedId?: string,
+  ): string | undefined => {
     const state = get();
     const clip = state.clips[id];
     if (!clip) return undefined;
@@ -226,7 +248,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     const rightDuration = clip.duration - leftDuration;
     const rightSourceOffset = clip.sourceOffset + leftDuration;
 
-    const newId = nextClipId();
+    const newId = providedId ?? nextClipId();
 
     const leftClip: ClipModel = { ...clip, duration: leftDuration };
     const rightClip: ClipModel = {
@@ -267,6 +289,9 @@ export const useDawStore = create<DawStore>()((set, get) => ({
         duration = newEnd - startTime;
       }
 
+      // Guard against invalid state
+      if (duration <= 0 || sourceOffset < 0) return state;
+
       return {
         clips: {
           ...state.clips,
@@ -276,12 +301,12 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     });
   },
 
-  duplicateClip: (id: string): string | undefined => {
+  duplicateClip: (id: string, providedId?: string): string | undefined => {
     const state = get();
     const clip = state.clips[id];
     if (!clip) return undefined;
 
-    const newId = nextClipId();
+    const newId = providedId ?? nextClipId();
     const duplicate: ClipModel = {
       ...clip,
       id: newId,
@@ -293,7 +318,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
       const tracks = s.tracks.map((t) =>
         t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, newId] } : t,
       );
-      return { clips: { ...s.clips, ...nextClips }, tracks };
+      return { clips: nextClips, tracks };
     });
 
     return newId;
@@ -315,7 +340,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
       state.tracks
         .filter((t) => {
           if (t.muted) return false;
-          if (hasSolo && !t.solo) return false;
+          if (hasSolo && !t.solo && !t.soloIsolate) return false;
           return true;
         })
         .map((t) => t.id),

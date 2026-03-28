@@ -1,0 +1,137 @@
+/**
+ * Individual channel strip for the mixer panel.
+ * Fader, pan knob, mute/solo buttons, VU meter, track name.
+ */
+
+import { useCallback } from "react";
+import { Fader } from "@ui/controls/Fader";
+import { RotaryKnob } from "@ui/controls/RotaryKnob";
+import { VuMeter } from "@ui/controls/VuMeter";
+import styles from "./MixerPanel.module.css";
+
+type ChannelStripProps = {
+  trackId: string;
+  name: string;
+  color: string;
+  volume: number;
+  pan: number;
+  muted: boolean;
+  solo: boolean;
+  meterLevel: number;
+  meterPeak: number;
+  clipping: boolean;
+  onVolumeChange: (trackId: string, volume: number) => void;
+  onPanChange: (trackId: string, pan: number) => void;
+  onMuteToggle: (trackId: string) => void;
+  onSoloToggle: (trackId: string) => void;
+};
+
+/** Convert linear 0..2 to dB display string */
+function volumeToDb(v: number): string {
+  if (v <= 0) return "-inf";
+  const db = 20 * Math.log10(v);
+  return db >= 0 ? `+${db.toFixed(1)}` : db.toFixed(1);
+}
+
+export function ChannelStrip({
+  trackId,
+  name,
+  color,
+  volume,
+  pan,
+  muted,
+  solo,
+  meterLevel,
+  meterPeak,
+  clipping,
+  onVolumeChange,
+  onPanChange,
+  onMuteToggle,
+  onSoloToggle,
+}: ChannelStripProps): React.JSX.Element {
+  const handleVolume = useCallback(
+    (v: number) => {
+      onVolumeChange(trackId, v / 100);
+    },
+    [trackId, onVolumeChange],
+  );
+  const handlePan = useCallback(
+    (v: number) => {
+      onPanChange(trackId, v / 100);
+    },
+    [trackId, onPanChange],
+  );
+  const handleMute = useCallback(() => {
+    onMuteToggle(trackId);
+  }, [trackId, onMuteToggle]);
+  const handleSolo = useCallback(() => {
+    onSoloToggle(trackId);
+  }, [trackId, onSoloToggle]);
+
+  return (
+    <div className={styles["strip"]} data-testid={`channel-strip-${trackId}`}>
+      <div
+        style={{
+          width: "100%",
+          height: 3,
+          backgroundColor: color,
+        }}
+      />
+      <div className={styles["name"]}>{name}</div>
+
+      <RotaryKnob
+        value={Math.round(pan * 100)}
+        min={-100}
+        max={100}
+        step={1}
+        onChange={handlePan}
+        label="PAN"
+        size={32}
+      />
+
+      <div className={styles["meter-fader-row"]}>
+        <VuMeter
+          level={meterLevel}
+          peak={meterPeak}
+          clip={clipping}
+          width={8}
+          height={96}
+        />
+        <Fader
+          value={Math.round(volume * 100)}
+          min={0}
+          max={200}
+          step={1}
+          onChange={handleVolume}
+          label=""
+          height={96}
+        />
+      </div>
+
+      <div className={styles["db-label"]}>{volumeToDb(volume)}</div>
+
+      <div className={styles["controls-row"]}>
+        <button
+          className={
+            muted ? (styles["btn-mute-active"] ?? "") : (styles["btn"] ?? "")
+          }
+          onClick={handleMute}
+          aria-label={muted ? "Unmute" : "Mute"}
+          type="button"
+        >
+          M
+        </button>
+        <button
+          className={
+            solo ? (styles["btn-solo-active"] ?? "") : (styles["btn"] ?? "")
+          }
+          onClick={handleSolo}
+          aria-label={solo ? "Unsolo" : "Solo"}
+          type="button"
+        >
+          S
+        </button>
+      </div>
+    </div>
+  );
+}

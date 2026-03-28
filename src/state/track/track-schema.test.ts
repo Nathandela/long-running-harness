@@ -59,6 +59,7 @@ describe("trackSchema", () => {
     muted: false,
     solo: false,
     armed: false,
+    soloIsolate: false,
     volume: 1.0,
     pan: 0,
     clipIds: ["clip-1", "clip-2"],

@@ -23,6 +23,7 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
     muted: false,
     solo: false,
     armed: false,
+    soloIsolate: false,
     volume: 1,
     pan: 0,
     clipIds: [],
