@@ -388,9 +388,16 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
+      const clamped: MIDINoteEvent = {
+        ...note,
+        pitch: Math.max(0, Math.min(127, Math.round(note.pitch))),
+        velocity: Math.max(0, Math.min(127, Math.round(note.velocity))),
+        startTime: Math.max(0, note.startTime),
+        duration: Math.max(0.01, note.duration),
+      };
       const updated: MidiClipModel = {
         ...clip,
-        noteEvents: [...clip.noteEvents, note],
+        noteEvents: [...clip.noteEvents, clamped],
       };
       return { clips: { ...state.clips, [clipId]: updated } };
     });
@@ -417,11 +424,13 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
+      const clampedPitch = Math.max(0, Math.min(127, Math.round(newPitch)));
+      const clampedStartTime = Math.max(0, newStartTime);
       const updated: MidiClipModel = {
         ...clip,
         noteEvents: clip.noteEvents.map((n) =>
           n.id === noteId
-            ? { ...n, startTime: newStartTime, pitch: newPitch }
+            ? { ...n, startTime: clampedStartTime, pitch: clampedPitch }
             : n,
         ),
       };
@@ -433,10 +442,11 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
+      const clampedDuration = Math.max(0.01, newDuration);
       const updated: MidiClipModel = {
         ...clip,
         noteEvents: clip.noteEvents.map((n) =>
-          n.id === noteId ? { ...n, duration: newDuration } : n,
+          n.id === noteId ? { ...n, duration: clampedDuration } : n,
         ),
       };
       return { clips: { ...state.clips, [clipId]: updated } };
@@ -447,10 +457,11 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
+      const clampedVelocity = Math.max(0, Math.min(127, Math.round(velocity)));
       const updated: MidiClipModel = {
         ...clip,
         noteEvents: clip.noteEvents.map((n) =>
-          n.id === noteId ? { ...n, velocity } : n,
+          n.id === noteId ? { ...n, velocity: clampedVelocity } : n,
         ),
       };
       return { clips: { ...state.clips, [clipId]: updated } };

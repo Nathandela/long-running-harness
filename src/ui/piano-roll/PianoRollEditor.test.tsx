@@ -81,4 +81,94 @@ describe("PianoRollEditor", () => {
     render(<PianoRollEditor clipId="clip1" />);
     expect(screen.getByTestId("piano-roll-editor")).toBeDefined();
   });
+
+  // P0-2: Keyboard shortcuts for tool switching (AC-3)
+  it("pressing P switches to pencil tool", async () => {
+    const user = userEvent.setup();
+    render(<PianoRollEditor clipId={null} />);
+
+    // First switch away from pencil
+    await user.click(screen.getByTestId("tool-select"));
+    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+      "true",
+    );
+
+    // Press P to switch back to pencil
+    await user.keyboard("{p}");
+    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+      "true",
+    );
+    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+      "false",
+    );
+  });
+
+  it("pressing S switches to select tool", async () => {
+    const user = userEvent.setup();
+    render(<PianoRollEditor clipId={null} />);
+
+    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+      "true",
+    );
+
+    await user.keyboard("{s}");
+    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+      "true",
+    );
+    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+      "false",
+    );
+  });
+
+  it("pressing E switches to erase tool", async () => {
+    const user = userEvent.setup();
+    render(<PianoRollEditor clipId={null} />);
+
+    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+      "true",
+    );
+
+    await user.keyboard("{e}");
+    expect(screen.getByTestId("tool-erase").getAttribute("data-active")).toBe(
+      "true",
+    );
+    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+      "false",
+    );
+  });
+
+  // P0-3: Delete key binding exists (AC-4)
+  // Full delete behavior is tested in use-piano-roll-interactions.test.ts
+  // ("deletes all selected notes" test). The keyboard binding is verified
+  // here by checking the ShortcutMap wiring in PianoRollEditor.tsx (lines 117-118).
+  // Integration test below confirms the key event reaches the command.
+  it("pressing Delete key triggers delete-selected command", async () => {
+    const user = userEvent.setup();
+    const clip = makeMidiClip({
+      id: "clip1",
+      noteEvents: [
+        {
+          id: "n1",
+          pitch: 60,
+          velocity: 100,
+          startTime: 0,
+          duration: 0.25,
+        },
+      ],
+    });
+    useDawStore.setState({
+      clips: { clip1: clip },
+      selectedNoteIds: ["n1"],
+    });
+
+    render(<PianoRollEditor clipId="clip1" />);
+
+    await user.keyboard("{Delete}");
+
+    const updatedClip = useDawStore.getState().clips["clip1"];
+    if (updatedClip && updatedClip.type === "midi") {
+      expect(updatedClip.noteEvents.length).toBe(0);
+    }
+    expect(useDawStore.getState().selectedNoteIds).toEqual([]);
+  });
 });

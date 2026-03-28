@@ -142,6 +142,10 @@ describe("usePianoRollInteractions", () => {
       if (updatedClip && updatedClip.type === "midi") {
         expect(updatedClip.noteEvents.length).toBe(1);
         expect(updatedClip.noteEvents[0]?.velocity).toBe(100);
+        // P0-1: Assert correct pitch and snapped startTime
+        expect(updatedClip.noteEvents[0]?.pitch).toBe(76);
+        // At BPM 120, 1/8 grid = 0.25s. Clicked at 0.5s, snaps to 0.5s.
+        expect(updatedClip.noteEvents[0]?.startTime).toBe(0.5);
       }
       expect(sharedUndoManager.canUndo).toBe(true);
     });
@@ -425,6 +429,18 @@ describe("usePianoRollInteractions", () => {
         }
       }
       expect(sharedUndoManager.canUndo).toBe(true);
+
+      // P0-4: Verify undo reverts note to original position
+      sharedUndoManager.undo();
+      const revertedClip = useDawStore.getState().clips["clip1"];
+      if (revertedClip && revertedClip.type === "midi") {
+        const revertedNote = revertedClip.noteEvents.find((n) => n.id === "n1");
+        expect(revertedNote).toBeDefined();
+        if (revertedNote) {
+          expect(revertedNote.startTime).toBe(0.5);
+          expect(revertedNote.pitch).toBe(76);
+        }
+      }
     });
   });
 
@@ -476,6 +492,17 @@ describe("usePianoRollInteractions", () => {
         }
       }
       expect(sharedUndoManager.canUndo).toBe(true);
+
+      // P0-4: Verify undo reverts note to original duration
+      sharedUndoManager.undo();
+      const revertedClip = useDawStore.getState().clips["clip1"];
+      if (revertedClip && revertedClip.type === "midi") {
+        const revertedNote = revertedClip.noteEvents.find((n) => n.id === "n1");
+        expect(revertedNote).toBeDefined();
+        if (revertedNote) {
+          expect(revertedNote.duration).toBe(0.5);
+        }
+      }
     });
   });
 

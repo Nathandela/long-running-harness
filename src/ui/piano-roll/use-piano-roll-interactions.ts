@@ -349,18 +349,10 @@ export function usePianoRollInteractions(
             drag.noteId,
             note.startTime,
             note.pitch,
+            drag.origStartTime,
+            drag.origPitch,
           );
-          // Already moved in store -- record for undo
-          cmd.execute = (): void => {
-            useDawStore
-              .getState()
-              .moveNoteEvent(
-                drag.clipId,
-                drag.noteId,
-                note.startTime,
-                note.pitch,
-              );
-          };
+          // Store is already updated during drag -- just record for undo
           sharedUndoManager.push(cmd);
         }
       } else if (drag.kind === "resize-note") {
@@ -371,12 +363,9 @@ export function usePianoRollInteractions(
             drag.clipId,
             drag.noteId,
             note.duration,
+            drag.origDuration,
           );
-          cmd.execute = (): void => {
-            useDawStore
-              .getState()
-              .resizeNoteEvent(drag.clipId, drag.noteId, note.duration);
-          };
+          // Store is already updated during drag -- just record for undo
           sharedUndoManager.push(cmd);
         }
       }

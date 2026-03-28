@@ -58,21 +58,26 @@ export class RemoveNoteCommand implements UndoCommand {
 export class MoveNoteCommand implements UndoCommand {
   readonly type = "move-note";
 
-  private oldStartTime = 0;
-  private oldPitch = 0;
+  private oldStartTime: number;
+  private oldPitch: number;
 
   constructor(
     private readonly clipId: string,
     private readonly noteId: string,
     private readonly newStartTime: number,
     private readonly newPitch: number,
-  ) {}
+    oldStartTime?: number,
+    oldPitch?: number,
+  ) {
+    this.oldStartTime = oldStartTime ?? 0;
+    this.oldPitch = oldPitch ?? 0;
+  }
 
   execute(): void {
     const clip = getStore().clips[this.clipId];
     if (clip && isMidiClip(clip)) {
       const note = clip.noteEvents.find((n) => n.id === this.noteId);
-      if (note) {
+      if (note && this.oldStartTime === 0 && this.oldPitch === 0) {
         this.oldStartTime = note.startTime;
         this.oldPitch = note.pitch;
       }
@@ -109,19 +114,22 @@ export class MoveNoteCommand implements UndoCommand {
 export class ResizeNoteCommand implements UndoCommand {
   readonly type = "resize-note";
 
-  private oldDuration = 0;
+  private oldDuration: number;
 
   constructor(
     private readonly clipId: string,
     private readonly noteId: string,
     private readonly newDuration: number,
-  ) {}
+    oldDuration?: number,
+  ) {
+    this.oldDuration = oldDuration ?? 0;
+  }
 
   execute(): void {
     const clip = getStore().clips[this.clipId];
     if (clip && isMidiClip(clip)) {
       const note = clip.noteEvents.find((n) => n.id === this.noteId);
-      if (note) {
+      if (note && this.oldDuration === 0) {
         this.oldDuration = note.duration;
       }
     }

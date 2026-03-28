@@ -37,7 +37,7 @@ export function createMidiRecorder(): MidiRecorder {
   let currentState: MidiRecorderState = "idle";
   let recordingStartTime = 0;
   let lastMessageTime = 0;
-  const openNotes = new Map<number, OpenNote>(); // keyed by pitch
+  const openNotes = new Map<number, OpenNote>(); // keyed by channel * 128 + note
   const completedNotes: MIDINoteEvent[] = [];
 
   function reset(): void {
@@ -72,7 +72,8 @@ export function createMidiRecorder(): MidiRecorder {
       lastMessageTime = transportTimeSeconds;
 
       if (message.type === "note-on") {
-        openNotes.set(message.note, {
+        const key = message.channel * 128 + message.note;
+        openNotes.set(key, {
           id: generateNoteId(),
           pitch: message.note,
           velocity: message.velocity,
@@ -80,16 +81,17 @@ export function createMidiRecorder(): MidiRecorder {
           startAbsolute: transportTimeSeconds,
         });
       } else if (message.type === "note-off") {
-        const open = openNotes.get(message.note);
+        const key = message.channel * 128 + message.note;
+        const open = openNotes.get(key);
         if (open) {
           completedNotes.push({
             id: open.id,
             pitch: open.pitch,
             velocity: open.velocity,
             startTime: open.startTime,
-            duration: transportTimeSeconds - open.startAbsolute,
+            duration: Math.max(0.01, transportTimeSeconds - open.startAbsolute),
           });
-          openNotes.delete(message.note);
+          openNotes.delete(key);
         }
       }
       // CC and pitch-bend are ignored for note recording
@@ -105,7 +107,7 @@ export function createMidiRecorder(): MidiRecorder {
           pitch: open.pitch,
           velocity: open.velocity,
           startTime: open.startTime,
-          duration: lastMessageTime - open.startAbsolute,
+          duration: Math.max(0.01, lastMessageTime - open.startAbsolute),
         });
       }
       openNotes.clear();
