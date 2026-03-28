@@ -367,8 +367,8 @@ class SynthProcessor extends AudioWorkletProcessor {
       const completed = this.allocator.processStealFade(sr);
 
       // S1-3: Apply pending notes for voices that completed steal crossfade
-      for (let ci = 0; ci < completed.length; ci++) {
-        const completedIdx = completed[ci];
+      for (let ci = 0; ci < completed.count; ci++) {
+        const completedIdx = completed.data[ci];
         if (completedIdx !== undefined) {
           const voice = at(
             this.allocator.voices as unknown[],

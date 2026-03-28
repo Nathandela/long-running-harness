@@ -36,8 +36,9 @@ export function createDrumKit(
     params.set(id as DrumInstrumentId, { ...defaults });
   }
 
-  // Track active open hi-hat voice for mutual exclusivity
+  // Track active open hi-hat voices for mutual exclusivity (primary + flam)
   let activeOH: ActiveVoice | null = null;
+  let activeOHFlam: ActiveVoice | null = null;
 
   function triggerOnce(
     instrumentId: DrumInstrumentId,
@@ -62,7 +63,8 @@ export function createDrumKit(
 
     // GainNode — volume envelope with decay
     const gain = ctx.createGain();
-    const peakGain = p.volume * velocity;
+    // Clamp velocity to [0,1] and ensure peakGain > 0 for exponentialRamp
+    const peakGain = Math.max(0.001, p.volume * Math.min(1, velocity));
     gain.gain.setValueAtTime(peakGain, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.decay);
 
@@ -79,6 +81,11 @@ export function createDrumKit(
       source.disconnect();
       filter.disconnect();
       gain.disconnect();
+      // Clear stale OH reference when voice decays naturally
+      if (instrumentId === "oh") {
+        if (activeOH?.source === source) activeOH = null;
+        if (activeOHFlam?.source === source) activeOHFlam = null;
+      }
     });
 
     return { source, gain };
@@ -91,16 +98,21 @@ export function createDrumKit(
       velocity: number,
       flamMs?: number,
     ): void {
-      // Hi-hat mutual exclusivity: CH cuts OH
-      if (instrumentId === "ch" && activeOH) {
-        try {
-          activeOH.gain.gain.cancelScheduledValues(time);
-          activeOH.gain.gain.setValueAtTime(0, time);
-          activeOH.source.stop(time + 0.001);
-        } catch {
-          // Source may already be stopped
+      // Hi-hat mutual exclusivity: CH cuts OH (primary + flam)
+      if (instrumentId === "ch") {
+        for (const voice of [activeOH, activeOHFlam]) {
+          if (voice) {
+            try {
+              voice.gain.gain.cancelScheduledValues(time);
+              voice.gain.gain.setValueAtTime(0, time);
+              voice.source.stop(time + 0.001);
+            } catch {
+              // Source may already be stopped
+            }
+          }
         }
         activeOH = null;
+        activeOHFlam = null;
       }
 
       const voice = triggerOnce(instrumentId, time, velocity);
@@ -112,7 +124,14 @@ export function createDrumKit(
 
       // Flam: trigger a second quieter hit offset by flamMs
       if (flamMs !== undefined && flamMs > 0) {
-        triggerOnce(instrumentId, time + flamMs / 1000, velocity * 0.7);
+        const flamVoice = triggerOnce(
+          instrumentId,
+          time + flamMs / 1000,
+          velocity * 0.7,
+        );
+        if (instrumentId === "oh" && flamVoice) {
+          activeOHFlam = flamVoice;
+        }
       }
     },
 
@@ -131,8 +150,9 @@ export function createDrumKit(
       output.connect(strip.inputGain);
     },
 
-    disconnectFromMixer(_mixer: MixerEngine, _trackId: string): void {
-      output.disconnect();
+    disconnectFromMixer(mixer: MixerEngine, trackId: string): void {
+      const strip = mixer.getOrCreateStrip(trackId);
+      output.disconnect(strip.inputGain);
     },
 
     dispose(): void {

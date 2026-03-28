@@ -7,7 +7,7 @@
 import { tokens } from "@ui/tokens/tokens";
 import { StepButton } from "@ui/controls/StepButton";
 import { DrumPad } from "@ui/controls/DrumPad";
-import { DRUM_INSTRUMENTS } from "@audio/drum-machine/drum-types";
+import { DRUM_INSTRUMENTS, PARAM_RANGES } from "@audio/drum-machine/drum-types";
 import type {
   DrumInstrumentId,
   DrumInstrumentParams,
@@ -20,7 +20,6 @@ type DrumMachinePanelProps = {
   activePatternName: string;
   onToggleStep: (instrumentId: DrumInstrumentId, stepIndex: number) => void;
   onSetAccent: (stepIndex: number, accent: boolean) => void;
-  onSetFlam: (stepIndex: number, flamMs: number) => void;
   onTriggerPad: (instrumentId: DrumInstrumentId) => void;
   onParamChange: (
     instrumentId: DrumInstrumentId,
@@ -143,8 +142,8 @@ function InstrumentRow({
         <ParamKnob
           label="Tone"
           value={params.tone}
-          min={200}
-          max={20000}
+          min={PARAM_RANGES.tone.min}
+          max={PARAM_RANGES.tone.max}
           step={100}
           onChange={(v) => {
             onParamChange("tone", v);
@@ -153,8 +152,8 @@ function InstrumentRow({
         <ParamKnob
           label="Decay"
           value={params.decay}
-          min={0.01}
-          max={2}
+          min={PARAM_RANGES.decay.min}
+          max={PARAM_RANGES.decay.max}
           step={0.01}
           onChange={(v) => {
             onParamChange("decay", v);
@@ -163,8 +162,8 @@ function InstrumentRow({
         <ParamKnob
           label="Tune"
           value={params.tune}
-          min={0.5}
-          max={2}
+          min={PARAM_RANGES.tune.min}
+          max={PARAM_RANGES.tune.max}
           step={0.01}
           onChange={(v) => {
             onParamChange("tune", v);
@@ -173,8 +172,8 @@ function InstrumentRow({
         <ParamKnob
           label="Vol"
           value={params.volume}
-          min={0}
-          max={1}
+          min={PARAM_RANGES.volume.min}
+          max={PARAM_RANGES.volume.max}
           step={0.01}
           onChange={(v) => {
             onParamChange("volume", v);

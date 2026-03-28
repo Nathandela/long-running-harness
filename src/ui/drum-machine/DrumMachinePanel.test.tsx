@@ -23,7 +23,6 @@ function buildProps(): {
   activePatternName: string;
   onToggleStep: ReturnType<typeof vi.fn>;
   onSetAccent: ReturnType<typeof vi.fn>;
-  onSetFlam: ReturnType<typeof vi.fn>;
   onTriggerPad: ReturnType<typeof vi.fn>;
   onParamChange: ReturnType<typeof vi.fn>;
   onSwitchPattern: ReturnType<typeof vi.fn>;
@@ -55,7 +54,6 @@ function buildProps(): {
     activePatternName: "A",
     onToggleStep: vi.fn(),
     onSetAccent: vi.fn(),
-    onSetFlam: vi.fn(),
     onTriggerPad: vi.fn(),
     onParamChange: vi.fn(),
     onSwitchPattern: vi.fn(),

@@ -138,7 +138,7 @@ describe("Voice Allocator", () => {
     let anyCompleted = false;
     for (let i = 0; i < crossfadeSamples + 10; i++) {
       const completed = alloc.processStealFade(SR);
-      if (completed.length > 0) anyCompleted = true;
+      if (completed.count > 0) anyCompleted = true;
     }
 
     // Voice should now be active with the new note

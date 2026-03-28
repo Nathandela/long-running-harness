@@ -31,12 +31,17 @@ export type Voice = {
   pendingVelocity: number;
 };
 
+export type StealResult = {
+  readonly data: readonly number[];
+  readonly count: number;
+};
+
 export type VoiceAllocator = {
   readonly voices: readonly Voice[];
   noteOn(note: number, velocity: number, legato: boolean): number;
   noteOff(note: number): number;
-  /** Advance steal crossfades. Returns indices of voices that completed steal. */
-  processStealFade(sampleRate: number): readonly number[];
+  /** Advance steal crossfades. Returns {data, count} — iterate data[0..count). */
+  processStealFade(sampleRate: number): StealResult;
   markIdle(index: number): void;
   reset(): void;
 };
@@ -51,9 +56,13 @@ function v(voices: Voice[], i: number): Voice {
 export function createVoiceAllocator(): VoiceAllocator {
   let ageCounter = 0;
 
-  // Pre-allocated fixed-size array + counter for zero-allocation processStealFade
+  // Pre-allocated fixed-size array + result object for zero-allocation processStealFade
   const completedSteals: number[] = new Array<number>(MAX_VOICES).fill(0);
   let completedCount = 0;
+  const stealResult: { readonly data: readonly number[]; count: number } = {
+    data: completedSteals,
+    count: 0,
+  };
 
   // Cached crossfade length (computed on first processStealFade call)
   let cachedCrossfadeSamples = 0;
@@ -197,7 +206,7 @@ export function createVoiceAllocator(): VoiceAllocator {
       return idx;
     },
 
-    processStealFade(sampleRate: number): readonly number[] {
+    processStealFade(sampleRate: number): StealResult {
       if (cachedCrossfadeSamples === 0) {
         cachedCrossfadeSamples = Math.floor(STEAL_CROSSFADE_S * sampleRate);
       }
@@ -225,9 +234,8 @@ export function createVoiceAllocator(): VoiceAllocator {
         }
       }
 
-      // Return a view of just the completed indices
-      completedSteals.length = completedCount;
-      return completedSteals;
+      stealResult.count = completedCount;
+      return stealResult;
     },
 
     markIdle(index: number): void {
