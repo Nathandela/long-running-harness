@@ -77,6 +77,16 @@ export type MixerEngine = {
   /** Get the output node to connect sources to for a track */
   getTrackInput(trackId: string): AudioNode;
 
+  /** Add an effect insert to a track's insert chain */
+  addInsert(
+    trackId: string,
+    id: string,
+    input: AudioNode,
+    output: AudioNode,
+  ): void;
+  /** Remove an effect insert from a track's insert chain */
+  removeInsert(trackId: string, insertId: string): void;
+
   /** Emergency mute master */
   emergencyMute(): void;
   /** Release emergency mute */

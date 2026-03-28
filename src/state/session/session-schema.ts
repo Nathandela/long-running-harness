@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { trackSchema, clipSchema } from "@state/track/index";
+import { effectsSectionSchema } from "@state/effects/index";
 
 export const SESSION_VERSION = 1;
 
@@ -31,6 +32,7 @@ export const sessionSchema = z.object({
   tracks: z.array(trackSchema),
   clips: z.array(clipSchema),
   mixer: mixerSectionSchema,
+  effects: effectsSectionSchema.optional(),
 });
 
 export type SessionSchema = z.infer<typeof sessionSchema>;

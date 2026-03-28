@@ -7,6 +7,7 @@
  */
 
 import type { ChannelStrip, MasterBus, MixerEngine } from "./types";
+import { createInsertChain, type InsertChain } from "./insert-chain";
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -60,8 +61,8 @@ function createChannelStrip(
   const muteGain = ctx.createGain();
   const analyser = ctx.createAnalyser();
 
-  // Chain: inputGain -> faderGain -> panner -> muteGain -> analyser -> master input
-  inputGain.connect(faderGain);
+  // Chain: inputGain -> [insert chain] -> faderGain -> panner -> muteGain -> analyser -> master input
+  // Note: inputGain -> faderGain connection is managed by the insert chain
   faderGain.connect(panner);
   panner.connect(muteGain);
   muteGain.connect(analyser);
@@ -84,6 +85,7 @@ function createChannelStrip(
 export function createMixerEngine(ctx: AudioContext): MixerEngine {
   const master = createMasterBus(ctx);
   const strips = new Map<string, ChannelStrip>();
+  const insertChains = new Map<string, InsertChain>();
   let savedMasterLevel = 1;
 
   function applyMuteState(strip: ChannelStrip): void {
@@ -112,12 +114,19 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
 
       const strip = createChannelStrip(ctx, trackId, master.inputGain);
       strips.set(trackId, strip);
+      // Insert chain between inputGain and faderGain
+      const chain = createInsertChain(strip.inputGain, strip.faderGain);
+      insertChains.set(trackId, chain);
       return strip;
     },
 
     removeStrip(trackId: string): void {
       const strip = strips.get(trackId);
       if (!strip) return;
+
+      const chain = insertChains.get(trackId);
+      chain?.dispose();
+      insertChains.delete(trackId);
 
       strip.inputGain.disconnect();
       strip.faderGain.disconnect();
@@ -188,6 +197,21 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       return engine.getOrCreateStrip(trackId).inputGain;
     },
 
+    addInsert(
+      trackId: string,
+      id: string,
+      input: AudioNode,
+      output: AudioNode,
+    ): void {
+      const chain = insertChains.get(trackId);
+      chain?.addInsert(id, input, output);
+    },
+
+    removeInsert(trackId: string, insertId: string): void {
+      const chain = insertChains.get(trackId);
+      chain?.removeInsert(insertId);
+    },
+
     emergencyMute(): void {
       master.faderGain.gain.value = 0;
     },
@@ -197,6 +221,10 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
     },
 
     dispose(): void {
+      for (const chain of insertChains.values()) {
+        chain.dispose();
+      }
+      insertChains.clear();
       for (const strip of strips.values()) {
         strip.inputGain.disconnect();
         strip.faderGain.disconnect();
