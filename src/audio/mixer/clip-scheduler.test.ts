@@ -247,6 +247,49 @@ describe("ClipScheduler", () => {
     expect(ctx.createGain).toHaveBeenCalled();
   });
 
+  it("applies correct fade-out gain when seeking into fade-out region", () => {
+    const scheduler = createClipScheduler(ctx);
+    // Clip: start=2, duration=10, fadeOut=4 -> fade-out starts at clip-local 6s
+    // Seeking at window 9..9.1 -> seekOffset = 7s, which is 1s into the 4s fade-out
+    const clip = makeClip({
+      startTime: 2,
+      duration: 10,
+      fadeOut: 4,
+      gain: 0.8,
+    });
+    const buffer = makeAudioBuffer();
+    const destination = ctx.createGain() as unknown as AudioNode;
+
+    scheduler.scheduleClips(
+      [clip],
+      9,
+      9.1,
+      TIME_OFFSET,
+      () => buffer,
+      destination,
+    );
+
+    // Index 1: index 0 is the destination gain node created above
+    expect(ctx.createGain).toHaveBeenCalledTimes(2);
+    const gainNode = ctx.createGain.mock.results[1]?.value as {
+      gain: {
+        value: number;
+        setValueAtTime: MockFn;
+        linearRampToValueAtTime: MockFn;
+      };
+    };
+    // seekOffset = 7, fadeOutStartInClip = 6, progress = 1/4 = 0.25
+    // Expected start gain = 0.8 * (1 - 0.25) = 0.6
+    expect(gainNode.gain.setValueAtTime).toHaveBeenCalledWith(
+      expect.closeTo(0.6, 5),
+      9, // playStartCtx = windowStart
+    );
+    expect(gainNode.gain.linearRampToValueAtTime).toHaveBeenCalledWith(
+      0,
+      12, // clipEndCtx = 2 + 10
+    );
+  });
+
   it("clamps overlapping fade-in and fade-out", () => {
     const scheduler = createClipScheduler(ctx);
     // fadeIn + fadeOut > duration

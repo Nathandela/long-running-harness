@@ -104,11 +104,22 @@ export function createClipScheduler(ctx: AudioContext): ClipScheduler {
           );
         }
 
-        // Apply fade-out
+        // Apply fade-out (mirror of fade-in: handle mid-fade seeking)
         if (maxFadeOut > 0) {
           const fadeOutStartCtx = clipEndCtx - maxFadeOut;
-          gainNode.gain.setValueAtTime(clip.gain, fadeOutStartCtx);
-          gainNode.gain.linearRampToValueAtTime(0, clipEndCtx);
+          const fadeOutStartInClip = clip.duration - maxFadeOut;
+
+          if (seekOffset >= fadeOutStartInClip) {
+            // Seeking into the fade-out region: compute partial gain
+            const fadeOutProgress =
+              (seekOffset - fadeOutStartInClip) / maxFadeOut;
+            const startGain = clip.gain * (1 - fadeOutProgress);
+            gainNode.gain.setValueAtTime(startGain, playStartCtx);
+            gainNode.gain.linearRampToValueAtTime(0, clipEndCtx);
+          } else {
+            gainNode.gain.setValueAtTime(clip.gain, fadeOutStartCtx);
+            gainNode.gain.linearRampToValueAtTime(0, clipEndCtx);
+          }
         }
 
         // Connect: source -> gainNode -> destination
