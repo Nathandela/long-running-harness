@@ -9,6 +9,8 @@ import { createMixerEngine, type MixerEngine } from "@audio/mixer";
 import type { EffectRegistry } from "./types";
 import { createDefaultRegistry } from "./default-registry";
 import { createEffectsBridge, type EffectsBridge } from "./effects-bridge";
+import { useTransport } from "@audio/use-transport";
+import { createParamResolver } from "@audio/automation/create-param-resolver";
 
 type EffectsBridgeContext = {
   readonly registry: EffectRegistry;
@@ -24,6 +26,7 @@ export function EffectsBridgeProvider({
   children: React.ReactNode;
 }): React.JSX.Element {
   const engine = useAudioEngine();
+  const transport = useTransport();
 
   const [value] = useState<EffectsBridgeContext>(() => {
     const registry = createDefaultRegistry();
@@ -31,6 +34,11 @@ export function EffectsBridgeProvider({
     const bridge = createEffectsBridge(engine.ctx, registry, mixer);
     return { registry, mixer, bridge };
   });
+
+  // Wire automation param resolver to live mixer AudioParams
+  useEffect(() => {
+    transport.setParamResolver(createParamResolver(value.mixer, value.bridge));
+  }, [value, transport]);
 
   // Guard against StrictMode double-mount: only dispose on true unmount.
   // useState initializers are called once and cached in React 18/19,
