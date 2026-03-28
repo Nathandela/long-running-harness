@@ -11,7 +11,10 @@ import { createAutoSave } from "./auto-save";
 import { recoverSession } from "./session-recovery";
 import { SESSION_VERSION } from "./session-schema";
 import type { SessionSchema } from "./session-schema";
-import { MAX_MOD_ROUTES } from "@audio/synth/modulation-types";
+import {
+  MAX_MOD_ROUTES,
+  _seedRouteCounter,
+} from "@audio/synth/modulation-types";
 
 // Stored meta from the loaded session, preserved across auto-saves
 let sessionMeta: { name: string; createdAt: number } = {
@@ -133,11 +136,23 @@ export function hydrateStore(session: SessionSchema): void {
 
   // Restore modulation state (Zod already validated source/destination as enums)
   const matrices: ModulationStore["matrices"] = {};
+  let maxRouteNum = 0;
   if (session.modulation) {
     for (const [trackId, routes] of Object.entries(session.modulation)) {
       // Enforce MAX_MOD_ROUTES on load (addRoute guard is bypassed by setState)
-      matrices[trackId] = { routes: routes.slice(0, MAX_MOD_ROUTES) };
+      const clamped = routes.slice(0, MAX_MOD_ROUTES);
+      matrices[trackId] = { routes: clamped };
+      // Track highest route counter to avoid ID collisions
+      for (const r of clamped) {
+        const match = /^mod-(\d+)$/.exec(r.id);
+        if (match) {
+          maxRouteNum = Math.max(maxRouteNum, Number(match[1]));
+        }
+      }
     }
+  }
+  if (maxRouteNum > 0) {
+    _seedRouteCounter(maxRouteNum);
   }
   useModulationStore.setState({ matrices });
 }

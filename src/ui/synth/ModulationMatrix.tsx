@@ -194,6 +194,8 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
         {/* SVG cable visualization area */}
         <div style={{ position: "relative", width: 60, minHeight: 200 }}>
           <svg
+            viewBox="0 0 60 200"
+            preserveAspectRatio="none"
             style={{
               position: "absolute",
               top: 0,
@@ -212,9 +214,9 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                 <line
                   key={route.id}
                   data-testid={`cable-${route.source}-${route.destination}`}
-                  x1="0"
+                  x1={0}
                   y1={srcY}
-                  x2="100%"
+                  x2={60}
                   y2={destY}
                   stroke={SOURCE_COLORS[route.source]}
                   strokeWidth={2}

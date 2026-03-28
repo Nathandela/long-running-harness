@@ -5,6 +5,7 @@
 
 export type { SynthInstrument } from "./synth-instrument";
 export { createSynthInstrument } from "./synth-instrument";
+export { subscribeModRoutes } from "./modulation-bridge";
 
 export type { SynthParameterMap, SynthVoiceCommand } from "./synth-types";
 export {

@@ -5,6 +5,10 @@ import { createDefaultSession } from "./session-schema";
 import { useSessionPersistence, hydrateStore } from "./use-session-persistence";
 import { useDawStore } from "@state/store";
 import { useModulationStore } from "@state/synth/modulation-store";
+import {
+  createModRoute,
+  _resetRouteCounter,
+} from "@audio/synth/modulation-types";
 
 describe("useSessionPersistence", () => {
   beforeEach(() => {
@@ -111,6 +115,28 @@ describe("useSessionPersistence", () => {
       expect(routes?.[0]?.source).toBe("lfo1");
       expect(routes?.[0]?.destination).toBe("filterCutoff");
       expect(routes?.[0]?.amount).toBe(0.5);
+    });
+
+    it("seeds route counter to avoid ID collision after hydration", () => {
+      _resetRouteCounter();
+      const session = createDefaultSession();
+      session.modulation = {
+        "track-1": [
+          {
+            id: "mod-5",
+            source: "lfo1",
+            destination: "filterCutoff",
+            amount: 0.5,
+            bipolar: true,
+          },
+        ],
+      };
+
+      hydrateStore(session);
+
+      // Next route created should not collide with hydrated mod-5
+      const newRoute = createModRoute("lfo2", "osc1Pitch");
+      expect(newRoute.id).toBe("mod-6");
     });
 
     it("enforces MAX_MOD_ROUTES on hydration", () => {

@@ -74,6 +74,13 @@ export function _resetRouteCounter(): void {
   routeCounter = 0;
 }
 
+/** Seed counter to avoid collisions with hydrated route IDs */
+export function _seedRouteCounter(minValue: number): void {
+  if (minValue > routeCounter) {
+    routeCounter = minValue;
+  }
+}
+
 // ─── Matrix (collection of routes) ───
 
 export type ModulationMatrix = {

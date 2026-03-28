@@ -8,6 +8,7 @@ import {
   createModRoute,
   PER_VOICE_SOURCES,
   _resetRouteCounter,
+  _seedRouteCounter,
 } from "./modulation-types";
 
 describe("Modulation Types", () => {
@@ -116,6 +117,23 @@ describe("Modulation Types", () => {
       _resetRouteCounter();
       const r2 = createModRoute("lfo1", "filterCutoff");
       expect(r1.id).toBe(r2.id);
+    });
+  });
+
+  describe("_seedRouteCounter", () => {
+    it("advances counter past seeded value", () => {
+      _resetRouteCounter();
+      _seedRouteCounter(5);
+      const r = createModRoute("lfo1", "filterCutoff");
+      expect(r.id).toBe("mod-6");
+    });
+
+    it("does not lower counter below current value", () => {
+      _resetRouteCounter();
+      _seedRouteCounter(10);
+      _seedRouteCounter(3);
+      const r = createModRoute("lfo1", "filterCutoff");
+      expect(r.id).toBe("mod-11");
     });
   });
 
