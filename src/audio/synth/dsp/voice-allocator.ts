@@ -17,31 +17,31 @@ export type VoiceState = "idle" | "active" | "releasing" | "stealing";
 
 export type Voice = {
   state: VoiceState;
-  note: number; // MIDI note number
+  note: number; // MIDI note number (current or old during steal)
   velocity: number; // 0..127
   /** Monotonically increasing counter set on each note-on for oldest-steal */
   age: number;
-  /** Samples remaining in steal crossfade */
+  /** Samples elapsed in steal crossfade */
   stealFadeSamples: number;
-  /** Crossfade gain multiplier for the old voice being stolen */
+  /** Crossfade gain for old voice being stolen (1 -> 0 over 5ms) */
   stealFadeGain: number;
+  /** Pending note to apply after steal crossfade completes */
+  pendingNote: number;
+  /** Pending velocity to apply after steal crossfade completes */
+  pendingVelocity: number;
 };
 
 export type VoiceAllocator = {
   readonly voices: readonly Voice[];
-  /** Allocate a voice for a note-on. Returns voice index. */
   noteOn(note: number, velocity: number, legato: boolean): number;
-  /** Release a voice for a note-off. Returns voice index or -1 if not found. */
   noteOff(note: number): number;
-  /** Advance steal crossfade for one sample. Call once per render sample. */
-  processStealFade(sampleRate: number): void;
-  /** Mark a voice as idle (called when envelope finishes release). */
+  /** Advance steal crossfades. Returns indices of voices that completed steal. */
+  processStealFade(sampleRate: number): readonly number[];
   markIdle(index: number): void;
-  /** Reset all voices to idle. */
   reset(): void;
 };
 
-/** Safe array access that throws on out-of-bounds (pool is fixed-size). */
+/** Safe array access (pool is fixed-size). */
 function v(voices: Voice[], i: number): Voice {
   const voice = voices[i];
   if (!voice) throw new Error("Voice index out of bounds");
@@ -51,7 +51,9 @@ function v(voices: Voice[], i: number): Voice {
 export function createVoiceAllocator(): VoiceAllocator {
   let ageCounter = 0;
 
-  // Pre-allocate voice pool (INV-5: fixed size)
+  // Pre-allocated result array for processStealFade (zero-allocation)
+  const completedSteals: number[] = [];
+
   const voices: Voice[] = Array.from({ length: MAX_VOICES }, () => ({
     state: "idle" as VoiceState,
     note: -1,
@@ -59,6 +61,8 @@ export function createVoiceAllocator(): VoiceAllocator {
     age: 0,
     stealFadeSamples: 0,
     stealFadeGain: 0,
+    pendingNote: -1,
+    pendingVelocity: 0,
   }));
 
   function findIdleVoice(): number {
@@ -72,6 +76,7 @@ export function createVoiceAllocator(): VoiceAllocator {
     let oldestIdx = -1;
     let oldestAge = Infinity;
 
+    // Prefer stealing releasing voices first
     for (let i = 0; i < MAX_VOICES; i++) {
       const voice = v(voices, i);
       if (voice.state === "releasing" && voice.age < oldestAge) {
@@ -125,26 +130,41 @@ export function createVoiceAllocator(): VoiceAllocator {
           voice.state = "active";
           return existing;
         }
+        // Find most recently played active voice (highest age)
+        let bestIdx = -1;
+        let bestAge = -1;
         for (let i = 0; i < MAX_VOICES; i++) {
           const voice = v(voices, i);
-          if (voice.state === "active") {
-            voice.note = note;
-            voice.velocity = velocity;
-            voice.age = ageCounter;
-            return i;
+          if (voice.state === "active" && voice.age > bestAge) {
+            bestAge = voice.age;
+            bestIdx = i;
           }
+        }
+        if (bestIdx !== -1) {
+          const voice = v(voices, bestIdx);
+          voice.note = note;
+          voice.velocity = velocity;
+          voice.age = ageCounter;
+          return bestIdx;
         }
       }
 
       let idx = findIdleVoice();
 
       if (idx === -1) {
+        // All voices busy — steal oldest (MIT-H4-5)
         idx = findOldestActive();
         if (idx !== -1) {
           const voice = v(voices, idx);
+          // Keep old note rendering during crossfade
           voice.state = "stealing";
           voice.stealFadeSamples = 0;
           voice.stealFadeGain = 1;
+          voice.pendingNote = note;
+          voice.pendingVelocity = velocity;
+          voice.age = ageCounter;
+          // DON'T overwrite note/velocity — old voice continues rendering
+          return idx;
         }
       }
 
@@ -159,6 +179,8 @@ export function createVoiceAllocator(): VoiceAllocator {
       voice.state = "active";
       voice.stealFadeSamples = 0;
       voice.stealFadeGain = 0;
+      voice.pendingNote = -1;
+      voice.pendingVelocity = 0;
 
       return idx;
     },
@@ -171,8 +193,9 @@ export function createVoiceAllocator(): VoiceAllocator {
       return idx;
     },
 
-    processStealFade(sampleRate: number): void {
+    processStealFade(sampleRate: number): readonly number[] {
       const crossfadeSamples = Math.floor(STEAL_CROSSFADE_S * sampleRate);
+      completedSteals.length = 0;
 
       for (let i = 0; i < MAX_VOICES; i++) {
         const voice = v(voices, i);
@@ -183,12 +206,20 @@ export function createVoiceAllocator(): VoiceAllocator {
             1 - voice.stealFadeSamples / crossfadeSamples,
           );
           if (voice.stealFadeSamples >= crossfadeSamples) {
+            // Crossfade complete — apply pending note
+            voice.note = voice.pendingNote;
+            voice.velocity = voice.pendingVelocity;
             voice.state = "active";
             voice.stealFadeGain = 0;
             voice.stealFadeSamples = 0;
+            voice.pendingNote = -1;
+            voice.pendingVelocity = 0;
+            completedSteals.push(i);
           }
         }
       }
+
+      return completedSteals;
     },
 
     markIdle(index: number): void {
@@ -199,6 +230,8 @@ export function createVoiceAllocator(): VoiceAllocator {
         voice.velocity = 0;
         voice.stealFadeSamples = 0;
         voice.stealFadeGain = 0;
+        voice.pendingNote = -1;
+        voice.pendingVelocity = 0;
       }
     },
 
@@ -212,6 +245,8 @@ export function createVoiceAllocator(): VoiceAllocator {
         voice.age = 0;
         voice.stealFadeSamples = 0;
         voice.stealFadeGain = 0;
+        voice.pendingNote = -1;
+        voice.pendingVelocity = 0;
       }
     },
   };

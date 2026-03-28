@@ -25,7 +25,6 @@ import {
   computeBiquadCoeffs,
   createBiquadFilter,
   type BiquadFilter,
-  type BiquadCoeffs,
 } from "./dsp/biquad-coeffs";
 import { createLFO, type LFO } from "./dsp/lfo";
 import {
@@ -43,7 +42,7 @@ import {
   DEFAULT_SYNTH_PARAMS,
 } from "./synth-types";
 
-// ─── AudioWorklet globals (not in TypeScript's lib by default) ───
+// ─── AudioWorklet globals ───
 declare const sampleRate: number;
 declare class AudioWorkletProcessor {
   readonly port: MessagePort;
@@ -98,7 +97,9 @@ class SynthProcessor extends AudioWorkletProcessor {
   private lfo1: LFO;
   private lfo2: LFO;
   private params: SynthParameterMap;
-  private coeffs: BiquadCoeffs;
+  // Pre-allocated ADSR params (S2-3: avoid per-quantum allocation)
+  private ampParams: ADSRParams;
+  private filterParams: ADSRParams;
   private alive = true;
 
   constructor() {
@@ -111,7 +112,8 @@ class SynthProcessor extends AudioWorkletProcessor {
     this.lfo1 = createLFO("sine");
     this.lfo2 = createLFO("sine");
     this.params = { ...DEFAULT_SYNTH_PARAMS };
-    this.coeffs = { b0: 0, b1: 0, b2: 0, a0: 1, a1: 0, a2: 0 };
+    this.ampParams = { attack: 0, decay: 0, sustain: 0, release: 0 };
+    this.filterParams = { attack: 0, decay: 0, sustain: 0, release: 0 };
 
     this.port.onmessage = (e: MessageEvent) => {
       this.handleMessage(e.data as SynthVoiceCommand);
@@ -123,28 +125,19 @@ class SynthProcessor extends AudioWorkletProcessor {
       case "noteOn": {
         const legato = cmd.legato;
         const idx = this.allocator.noteOn(cmd.note, cmd.velocity, legato);
-        const vd = at(this.voiceData, idx);
+        const voice = at(
+          this.allocator.voices as unknown[],
+          idx,
+        ) as (typeof this.allocator.voices)[number];
 
-        const baseFreq = midiToFreq(cmd.note);
-        vd.targetFreq = baseFreq;
-        vd.velocity = cmd.velocity / 127;
-
-        if (!legato || vd.currentFreq === 0) {
-          vd.currentFreq = baseFreq;
+        // If voice is stealing, don't touch oscillators/envelopes yet —
+        // the old voice continues rendering during the 5ms crossfade.
+        // The processor will apply the new note when steal completes.
+        if (voice.state === "stealing") {
+          return;
         }
 
-        if (!legato) {
-          vd.osc1.reset();
-          vd.osc2.reset();
-          vd.filter.reset();
-        }
-
-        vd.osc1.type = this.params.osc1Type;
-        vd.osc2.type = this.params.osc2Type;
-        vd.filter.type = this.params.filterType;
-
-        vd.ampEnv.gate(legato);
-        vd.filterEnv.gate(legato);
+        this.applyNoteOn(idx, cmd.note, cmd.velocity, legato);
         break;
       }
 
@@ -159,7 +152,15 @@ class SynthProcessor extends AudioWorkletProcessor {
       }
 
       case "allNotesOff":
+        // S1-4: Must also update allocator state
         for (let i = 0; i < MAX_VOICES; i++) {
+          const voice = at(
+            this.allocator.voices as unknown[],
+            i,
+          ) as (typeof this.allocator.voices)[number];
+          if (voice.state === "active") {
+            (voice as { state: string }).state = "releasing";
+          }
           at(this.voiceData, i).ampEnv.release();
           at(this.voiceData, i).filterEnv.release();
         }
@@ -169,6 +170,37 @@ class SynthProcessor extends AudioWorkletProcessor {
         this.setParamValue(cmd.key, cmd.value);
         break;
     }
+  }
+
+  /** Apply a note-on to voice oscillators and envelopes */
+  private applyNoteOn(
+    idx: number,
+    note: number,
+    velocity: number,
+    legato: boolean,
+  ): void {
+    const vd = at(this.voiceData, idx);
+
+    const baseFreq = midiToFreq(note);
+    vd.targetFreq = baseFreq;
+    vd.velocity = velocity / 127;
+
+    if (!legato || vd.currentFreq === 0) {
+      vd.currentFreq = baseFreq;
+    }
+
+    if (!legato) {
+      vd.osc1.reset();
+      vd.osc2.reset();
+      vd.filter.reset();
+    }
+
+    vd.osc1.type = this.params.osc1Type;
+    vd.osc2.type = this.params.osc2Type;
+    vd.filter.type = this.params.filterType;
+
+    vd.ampEnv.gate(legato);
+    vd.filterEnv.gate(legato);
   }
 
   private setParamValue(key: string, value: number): void {
@@ -217,19 +249,16 @@ class SynthProcessor extends AudioWorkletProcessor {
     const sr = sampleRate;
     const p = this.params;
 
-    const ampParams: ADSRParams = {
-      attack: p.ampAttack,
-      decay: p.ampDecay,
-      sustain: p.ampSustain,
-      release: p.ampRelease,
-    };
+    // Update pre-allocated ADSR params in-place (S2-3)
+    this.ampParams.attack = p.ampAttack;
+    this.ampParams.decay = p.ampDecay;
+    this.ampParams.sustain = p.ampSustain;
+    this.ampParams.release = p.ampRelease;
 
-    const filterParams: ADSRParams = {
-      attack: p.filterAttack,
-      decay: p.filterDecay,
-      sustain: p.filterSustain,
-      release: p.filterRelease,
-    };
+    this.filterParams.attack = p.filterAttack;
+    this.filterParams.decay = p.filterDecay;
+    this.filterParams.sustain = p.filterSustain;
+    this.filterParams.release = p.filterRelease;
 
     for (let s = 0; s < numSamples; s++) {
       const lfo1Val = this.lfo1.process(p.lfo1Rate, sr);
@@ -241,10 +270,19 @@ class SynthProcessor extends AudioWorkletProcessor {
       for (let vi = 0; vi < MAX_VOICES; vi++) {
         const voice = at(this.allocator.voices as unknown[], vi) as {
           state: string;
+          stealFadeGain: number;
         };
+
+        // S2-5: Early idle check before any DSP work
         if (voice.state === "idle") continue;
 
         const vd = at(this.voiceData, vi);
+
+        // Check if envelope finished release — mark idle before processing
+        if (vd.ampEnv.stage === "idle" && voice.state === "releasing") {
+          this.allocator.markIdle(vi);
+          continue;
+        }
 
         // Pitch glide (R-STA-05)
         if (p.glideTime > 0 && vd.currentFreq !== vd.targetFreq) {
@@ -276,7 +314,7 @@ class SynthProcessor extends AudioWorkletProcessor {
         let sample = osc1Out + osc2Out;
 
         // Filter envelope -> cutoff modulation
-        const filterEnvVal = vd.filterEnv.process(filterParams, sr);
+        const filterEnvVal = vd.filterEnv.process(this.filterParams, sr);
         const envCutoffMod = filterEnvVal * p.filterEnvDepth;
 
         // LFO1 -> cutoff modulation
@@ -293,23 +331,20 @@ class SynthProcessor extends AudioWorkletProcessor {
           sr / 2 - 100,
         );
 
-        const c = computeBiquadCoeffs(
+        // S1-1: Write coefficients directly into filter's pre-allocated struct
+        computeBiquadCoeffs(
           p.filterType,
           clampedCutoff,
           p.filterResonance,
           sr,
+          vd.filter.coeffs,
         );
-        this.coeffs.b0 = c.b0;
-        this.coeffs.b1 = c.b1;
-        this.coeffs.b2 = c.b2;
-        this.coeffs.a0 = c.a0;
-        this.coeffs.a1 = c.a1;
-        this.coeffs.a2 = c.a2;
 
-        sample = vd.filter.process(sample, this.coeffs);
+        // S2-6: No destructuring — filter reads from its own coeffs
+        sample = vd.filter.process(sample);
 
         // Amplitude envelope
-        const ampLevel = vd.ampEnv.process(ampParams, sr);
+        const ampLevel = vd.ampEnv.process(this.ampParams, sr);
 
         // LFO2 -> amplitude modulation (tremolo)
         const ampMod = 1 + lfo2Val * p.lfo2Depth * 0.5;
@@ -319,17 +354,32 @@ class SynthProcessor extends AudioWorkletProcessor {
 
         sample *= ampLevel * ampMod * velAmp * p.masterGain;
 
-        // Mark idle when envelope finishes
-        if (vd.ampEnv.stage === "idle" && voice.state === "releasing") {
-          this.allocator.markIdle(vi);
-          continue;
+        // S1-2: Apply steal crossfade gain to old voice audio
+        if (voice.state === "stealing") {
+          sample *= voice.stealFadeGain;
         }
 
         mixL += sample;
         mixR += sample;
       }
 
-      this.allocator.processStealFade(sr);
+      // Process steal fades and get completed steals
+      const completed = this.allocator.processStealFade(sr);
+
+      // S1-3: Apply pending notes for voices that completed steal crossfade
+      for (let ci = 0; ci < completed.length; ci++) {
+        const completedIdx = completed[ci];
+        if (completedIdx !== undefined) {
+          const voice = at(
+            this.allocator.voices as unknown[],
+            completedIdx,
+          ) as {
+            note: number;
+            velocity: number;
+          };
+          this.applyNoteOn(completedIdx, voice.note, voice.velocity, false);
+        }
+      }
 
       outL[s] = mixL;
       outR[s] = mixR;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeBiquadCoeffs,
+  createBiquadCoeffs,
   createBiquadFilter,
   type FilterType,
 } from "./biquad-coeffs";
@@ -19,7 +20,7 @@ function measureResponse(
   numCycles = 20,
 ): number {
   const filter = createBiquadFilter(filterType);
-  const coeffs = computeBiquadCoeffs(filterType, cutoff, q, SR);
+  computeBiquadCoeffs(filterType, cutoff, q, SR, filter.coeffs);
 
   const samplesPerCycle = SR / testFreq;
   const numSamples = Math.floor(samplesPerCycle * numCycles);
@@ -27,14 +28,14 @@ function measureResponse(
   // Run filter to settle transients
   for (let i = 0; i < numSamples; i++) {
     const input = Math.sin((2 * Math.PI * testFreq * i) / SR);
-    filter.process(input, coeffs);
+    filter.process(input);
   }
 
   // Measure output amplitude over one cycle
   let maxOutput = 0;
   for (let i = 0; i < Math.floor(samplesPerCycle * 2); i++) {
     const input = Math.sin((2 * Math.PI * testFreq * (numSamples + i)) / SR);
-    const output = Math.abs(filter.process(input, coeffs));
+    const output = Math.abs(filter.process(input));
     if (output > maxOutput) maxOutput = output;
   }
 
@@ -49,9 +50,7 @@ describe("Biquad Filter Coefficients", () => {
     const lowResponse = measureResponse("lowpass", cutoff, q, 100);
     const highResponse = measureResponse("lowpass", cutoff, q, 10000);
 
-    // Low freq should pass through (~1.0)
     expect(lowResponse).toBeGreaterThan(0.7);
-    // High freq should be attenuated
     expect(highResponse).toBeLessThan(lowResponse * 0.3);
   });
 
@@ -62,9 +61,7 @@ describe("Biquad Filter Coefficients", () => {
     const lowResponse = measureResponse("highpass", cutoff, q, 100);
     const highResponse = measureResponse("highpass", cutoff, q, 10000);
 
-    // High freq should pass through
     expect(highResponse).toBeGreaterThan(0.7);
-    // Low freq should be attenuated
     expect(lowResponse).toBeLessThan(highResponse * 0.3);
   });
 
@@ -76,54 +73,49 @@ describe("Biquad Filter Coefficients", () => {
     const lowResponse = measureResponse("bandpass", cutoff, q, 200);
     const highResponse = measureResponse("bandpass", cutoff, q, 15000);
 
-    // Center should be the strongest
     expect(centerResponse).toBeGreaterThan(lowResponse);
     expect(centerResponse).toBeGreaterThan(highResponse);
   });
 
   it("coefficients are finite for edge cases", () => {
-    // Very low cutoff
-    const low = computeBiquadCoeffs("lowpass", 20, 0.707, SR);
-    expect(Number.isFinite(low.b0)).toBe(true);
-    expect(Number.isFinite(low.a0)).toBe(true);
+    const out = createBiquadCoeffs();
 
-    // Near Nyquist
-    const high = computeBiquadCoeffs("lowpass", 23000, 0.707, SR);
-    expect(Number.isFinite(high.b0)).toBe(true);
-    expect(Number.isFinite(high.a0)).toBe(true);
+    computeBiquadCoeffs("lowpass", 20, 0.707, SR, out);
+    expect(Number.isFinite(out.b0)).toBe(true);
+    expect(Number.isFinite(out.a0)).toBe(true);
 
-    // Very low Q
-    const lowQ = computeBiquadCoeffs("lowpass", 1000, 0.1, SR);
-    expect(Number.isFinite(lowQ.b0)).toBe(true);
+    computeBiquadCoeffs("lowpass", 23000, 0.707, SR, out);
+    expect(Number.isFinite(out.b0)).toBe(true);
+    expect(Number.isFinite(out.a0)).toBe(true);
 
-    // Very high Q
-    const highQ = computeBiquadCoeffs("lowpass", 1000, 20, SR);
-    expect(Number.isFinite(highQ.b0)).toBe(true);
+    computeBiquadCoeffs("lowpass", 1000, 0.1, SR, out);
+    expect(Number.isFinite(out.b0)).toBe(true);
+
+    computeBiquadCoeffs("lowpass", 1000, 20, SR, out);
+    expect(Number.isFinite(out.b0)).toBe(true);
   });
 
   it("filter reset clears delay line", () => {
     const filter = createBiquadFilter("lowpass");
-    const coeffs = computeBiquadCoeffs("lowpass", 1000, 0.707, SR);
+    computeBiquadCoeffs("lowpass", 1000, 0.707, SR, filter.coeffs);
 
-    // Run some samples
     for (let i = 0; i < 100; i++) {
-      filter.process(Math.sin((2 * Math.PI * 440 * i) / SR), coeffs);
+      filter.process(Math.sin((2 * Math.PI * 440 * i) / SR));
     }
 
     filter.reset();
 
-    // After reset, processing zero input should give zero output
-    const output = filter.process(0, coeffs);
+    const output = filter.process(0);
     expect(output).toBe(0);
   });
 
   it("filter output values are finite", () => {
     const filter = createBiquadFilter("lowpass");
-    const coeffs = computeBiquadCoeffs("lowpass", 5000, 5, SR);
+    computeBiquadCoeffs("lowpass", 5000, 5, SR, filter.coeffs);
 
     for (let i = 0; i < 10000; i++) {
       const input = Math.sin((2 * Math.PI * 440 * i) / SR);
-      const output = filter.process(input, coeffs);
+      const output = filter.process(input);
       expect(Number.isFinite(output)).toBe(true);
     }
   });

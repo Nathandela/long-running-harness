@@ -18,10 +18,20 @@ export type LFO = {
   reset(): void;
 };
 
+/** Deterministic xorshift32 PRNG (zero-allocation, no Math.random). */
+function xorshift32(seed: number): number {
+  let x = seed;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+  return x;
+}
+
 export function createLFO(shape: LFOShape = "sine"): LFO {
   let phase = 0;
   let shValue = 0; // Sample-and-hold current value
   let prevPhase = 0; // For detecting S&H trigger
+  let prngState = 123456789; // PRNG seed
 
   const lfo: LFO = {
     shape,
@@ -45,9 +55,11 @@ export function createLFO(shape: LFOShape = "sine"): LFO {
           break;
 
         case "sample-and-hold":
-          // New random value each cycle
+          // New deterministic pseudo-random value each cycle
           if (phase < prevPhase) {
-            shValue = Math.random() * 2 - 1;
+            prngState = xorshift32(prngState);
+            // Map int32 to [-1, 1]
+            shValue = (prngState / 2147483647) * 2 - 1;
           }
           out = shValue;
           break;
@@ -67,6 +79,7 @@ export function createLFO(shape: LFOShape = "sine"): LFO {
       phase = 0;
       prevPhase = 0;
       shValue = 0;
+      prngState = 123456789;
     },
   };
 

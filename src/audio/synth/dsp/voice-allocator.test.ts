@@ -50,8 +50,13 @@ describe("Voice Allocator", () => {
       alloc.noteOn(60 + i, 100, false);
     }
 
+    // Stealing should keep old note, store new note as pending
     const stolenIdx = alloc.noteOn(90, 100, false);
-    expect(at(alloc.voices, stolenIdx).note).toBe(90);
+    const voice = at(alloc.voices, stolenIdx);
+    expect(voice.state).toBe("stealing");
+    expect(voice.pendingNote).toBe(90);
+    // Old note is preserved during crossfade
+    expect(voice.note).toBe(60); // oldest note
   });
 
   it("prefers stealing releasing voices over active", () => {
@@ -95,7 +100,7 @@ describe("Voice Allocator", () => {
     expect(expectedSamples).toBe(240);
   });
 
-  it("legato mode reuses active voice", () => {
+  it("legato mode reuses most recent active voice", () => {
     const alloc = createVoiceAllocator();
     const idx1 = alloc.noteOn(60, 100, false);
     const idx2 = alloc.noteOn(64, 100, true);
@@ -118,7 +123,36 @@ describe("Voice Allocator", () => {
     }
   });
 
-  it("processStealFade decrements crossfade gain", () => {
+  it("processStealFade completes crossfade and applies pending note", () => {
+    const alloc = createVoiceAllocator();
+
+    for (let i = 0; i < MAX_VOICES; i++) {
+      alloc.noteOn(60 + i, 100, false);
+    }
+
+    const stolenIdx = alloc.noteOn(90, 127, false);
+    expect(at(alloc.voices, stolenIdx).state).toBe("stealing");
+
+    // Run through full crossfade, collect all completions
+    const crossfadeSamples = Math.floor(STEAL_CROSSFADE_S * SR);
+    let anyCompleted = false;
+    for (let i = 0; i < crossfadeSamples + 10; i++) {
+      const completed = alloc.processStealFade(SR);
+      if (completed.length > 0) anyCompleted = true;
+    }
+
+    // Voice should now be active with the new note
+    const voice = at(alloc.voices, stolenIdx);
+    expect(voice.state).toBe("active");
+    expect(voice.note).toBe(90);
+    expect(voice.velocity).toBe(127);
+    expect(voice.pendingNote).toBe(-1);
+
+    // Should have reported the completion at some point
+    expect(anyCompleted).toBe(true);
+  });
+
+  it("steal fade gain decreases from 1 to 0", () => {
     const alloc = createVoiceAllocator();
 
     for (let i = 0; i < MAX_VOICES; i++) {
@@ -126,14 +160,16 @@ describe("Voice Allocator", () => {
     }
 
     alloc.noteOn(90, 100, false);
+    const voice = at(alloc.voices, 0); // oldest was index 0
+    expect(voice.stealFadeGain).toBe(1);
 
-    const crossfadeSamples = Math.floor(STEAL_CROSSFADE_S * SR);
-    for (let i = 0; i < crossfadeSamples + 10; i++) {
+    // After half the crossfade, gain should be around 0.5
+    const halfSamples = Math.floor((STEAL_CROSSFADE_S * SR) / 2);
+    for (let i = 0; i < halfSamples; i++) {
       alloc.processStealFade(SR);
     }
 
-    for (let i = 0; i < MAX_VOICES; i++) {
-      expect(at(alloc.voices, i).state).not.toBe("stealing");
-    }
+    expect(voice.stealFadeGain).toBeGreaterThan(0.3);
+    expect(voice.stealFadeGain).toBeLessThan(0.7);
   });
 });
