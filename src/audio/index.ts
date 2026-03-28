@@ -60,3 +60,21 @@ export {
 } from "./media-pool";
 export { MediaPoolProvider } from "./media-pool/media-pool-provider";
 export { useMediaPool } from "./media-pool/use-media-pool";
+export type {
+  DrumKit,
+  DrumPattern,
+  DrumTrigger,
+  DrumStep,
+  DrumInstrumentId,
+  DrumInstrumentParams,
+  DrumInstrumentInfo,
+  StepSequencer,
+} from "./drum-machine";
+export {
+  DRUM_INSTRUMENTS,
+  DEFAULT_INSTRUMENT_PARAMS,
+  PARAM_RANGES,
+  createEmptyPattern,
+  createDrumKit,
+  createStepSequencer,
+} from "./drum-machine";

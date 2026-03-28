@@ -37,6 +37,9 @@ export { useKeyboardShortcuts } from "./keyboard/useKeyboardShortcuts";
 // Transport
 export { TransportBar, BpmInput, CursorDisplay } from "./transport/index";
 
+// Drum Machine
+export { DrumMachinePanel } from "./drum-machine";
+
 // Hooks
 export { useReducedMotion } from "./hooks/useReducedMotion";
 export { useTransportCursor } from "./hooks/useTransportCursor";
