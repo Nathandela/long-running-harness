@@ -6,34 +6,32 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All five findings resolved:
+REVIEW_CHANGES_REQUESTED
 
-- **P0**: `TransportProvider` wraps `DawShellInner`, providing a single `useTransportInit()` instance via context. `useTransport()` is now a context consumer — no more double instantiation.
-- **P1**: `look-ahead-scheduler.ts::advance()` now calls `clock.updateCursor()` on every tick, driving continuous SAB writes during playback.
-- **P2 (shortcuts churn)**: `stateRef` pattern eliminates `transportState` from `useEffect` deps.
-- **P2 (getter side-effect)**: `getCursorSeconds()` is a pure read; `updateCursor()` owns SAB writes and loop-wrap state.
-- **P3**: `secondsToSamples` uses `Math.round`.
+**1. P1 — `importingRef.current` never reset on exception; permanently locks import UI**
+`MediaPoolPanel.tsx:111-134`: `importingRef.current = true` is set with no `finally` block. If `pool.importFile` or `pool.getPeaks` throws (e.g. IDB error on `putMeta`/`putPeaks` in `media-pool-manager.ts:46-56`, which is unguarded), `importingRef.current` stays `true` forever and the import button and drag-drop both silently do nothing. Wrap the body in `try { ... } finally { importingRef.current = false; }`.
 
-Bonus fixes also landed: `seek()` clamps negatives to 0, oscillator nodes self-disconnect via `onended`, `dispose()` fades out gracefully, `beatsPerBar` read dynamically per tick, and `syncToPosition()` provides phase-correct beat alignment on play/resume.
+**2. P2 — Partial write atomicity still unaddressed in `importFile`**
+`media-pool-manager.ts:36-56`: `putBlob` is now guarded for `QuotaExceededError`, but `putMeta` (line 46) and `putPeaks` (line 54) are unguarded. If either throws, a blob with no metadata is left orphaned in IDB permanently (since `init()` loads from meta only, the blob is invisible but consuming quota). The same exception also triggers finding #1. Fix: roll back by deleting the blob if `putMeta`/`putPeaks` fail, or move `sources.set`/`bufferCache.set` after all three writes and document the orphan risk.
 
-REVIEW_APPROVED
+**3. P3 — App.tsx still shows `ClickToStart` during pool init**
+`App.tsx:81-82`: `engine === null || pool === null` renders the start screen while IDB initializes, which typically takes < 50ms but is perceptible. Not a regression from last review — still open.
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 8 findings verified against the current code:
+All 318 tests pass, types check clean. Let me verify each prior finding against the fixes:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | P1 tick overflow 480 | Fixed — `Math.floor` at `tempo-map.ts:68`, test added |
-| 2 | P1 shortcut re-register | Fixed — `stateRef` pattern at `useTransportShortcuts.ts:17-18`, `transportState` removed from deps |
-| 3 | P2 negative seek | Fixed — `Math.max(0, seconds)` at `transport-clock.ts:111` |
-| 4 | P2 stale beatsPerBar | Fixed — read inside callback at `use-transport.ts:73` |
-| 5 | P2 oscillator disconnect | Fixed — `osc.onended` at `metronome.ts:44`, plus fade-out in `dispose()` |
-| 6 | P2 getCursorSeconds side effects | Fixed — split into pure `getCursorSeconds()` and mutating `updateCursor()`/`didLoopWrap()` |
-| 7 | P3 SAB non-atomic | Acknowledged, not expected to fix now |
-| 8 | P3 tick overflow test | Fixed — test at `tempo-map.test.ts:68-76` |
+| Finding | Status |
+|---|---|
+| **P2-1**: `removeSource` deletes memory before storage | Fixed - storage ops now run first (lines 94-97), then `sources.delete`/`bufferCache.delete` |
+| **P2-2**: `StorageFullError` dead code | Fixed - `putBlob` now catches `QuotaExceededError` and returns `storage-full` error (lines 37-45) |
+| **P2-4**: No concurrency guard on import | Fixed - `importingRef` gate added (lines 90, 110-111, 133) |
+| **P3-1**: Only last error shown in batch | Fixed - `errors` is now an array, all errors accumulated and rendered (lines 89, 113, 126, 129-131, 192-198) |
+| **P3-2**: `getAudioBuffer` re-decodes every call | Fixed - `bufferCache` Map added, populated on import and decode (lines 18, 60, 69-70, 77) |
+| **P2-3**: `computeWaveformPeaks` blocks main thread | Not addressed (P2) |
+| **P3-3**: IDB connection never closed | Not addressed (P3) |
 
-Bonus: the implementer also improved the scheduler with `syncToPosition()` for phase-correct beat alignment and loop-wrap resync, and extracted `TransportProvider`/`TransportCtx` to properly share a single transport instance via React context. Both are clean additions.
+The remaining P2-3 (main-thread blocking waveform computation) is a real concern for large files but is an optimization, not a correctness bug -- and the 500MB gate limits the blast radius. P3-3 is low-impact given the engine lifecycle. The critical correctness and usability fixes are all resolved.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -55,17 +53,16 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+1. [P3] Redundant `getPeaks` calls during component mount (Unresolved)
+The fix for preventing redundant `getPeaks` calls was not correctly applied. The new `importingRef` prevents concurrent file imports, but the `useEffect` that loads cached peaks on mount remains unchanged. Because `setPeaksMap` is asynchronous and multiple renders can occur while it resolves, checking `if (peaksMap.has(source.id))` is insufficient. A ref (e.g., `loadingPeaksRef: MutableRefObject<Set<string>>`) must be used inside the `useEffect` to track in-flight requests and prevent redundant database reads.
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] `useTransportShortcuts` mutates a ref during render, which both fails the lint gate and risks stale/uncommitted transport state in the shortcut handler** ([useTransportShortcuts.ts:17](/Users/Nathan/Documents/Code/long-running-harness/src/ui/transport/useTransportShortcuts.ts:17))  
-  `stateRef.current = transportState` now runs on every render. The React refs rule rejects this, and the underlying issue is real: render-time ref writes can publish state from a render that never commits. Move the sync into an effect or switch to a React 19 pattern like `useEffectEvent`, then keep the command registration effect stable.
-
-- **[P2] `metronome.ts` still breaks `pnpm lint` on two shorthand void-return callbacks** ([metronome.ts:44](/Users/Nathan/Documents/Code/long-running-harness/src/audio/metronome.ts:44), [metronome.ts:54](/Users/Nathan/Documents/Code/long-running-harness/src/audio/metronome.ts:54))  
-  `pnpm test` passes, but `pnpm lint` fails because `osc.onended = () => osc.disconnect()` and `setTimeout(() => gainNode.disconnect(), 50)` violate `@typescript-eslint/no-confusing-void-expression`. Wrap both bodies in braces so the branch can pass the project quality gate.</codex-review>
+- **[P1] Negative seeks still desynchronize the UI store from the transport clock** ([use-transport.ts:136](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:136), [transport-clock.ts:116](/Users/Nathan/Documents/Code/long-running-harness/src/audio/transport-clock.ts:116))  
+  The clock still clamps `seek()` to `0`, but `useTransport.seek()` continues to write the raw `seconds` value into Zustand after calling `clock.seek(seconds)`. So `seek(-5)` leaves the audio clock and SAB at `0` while the UI store shows `-5`. The added `schedulerRef.current?.sync()` fixes beat phase, not this state split. Write the clamped value back to the store, or read back `clock.getCursorSeconds()` after seeking, and add a hook-level regression test for negative seeks.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

@@ -1,11 +1,8 @@
-All fixes applied and committed. Lint passes, 259 tests pass.
-
-**Summary of fixes:**
-
-| Finding | Severity | Fix |
-|---------|----------|-----|
-| `useTransportShortcuts` mutates ref during render | P1 | Moved `stateRef.current = transportState` into a `useEffect`, keeping command registration effect stable with no `transportState` dep |
-| `metronome.ts` void-return shorthand (`osc.onended`) | P2 | Wrapped arrow body in braces |
-| `metronome.ts` void-return shorthand (`setTimeout`) | P2 | Wrapped arrow body in braces |
+All checks pass. 318 tests green, types clean, lint clean.
 
 FIXES_APPLIED
+
+**What was fixed:**
+- **P1**: `importingRef.current` now resets in a `finally` block — exception during import no longer permanently locks the UI
+- **P1**: `seek()` now reads back `clock.getCursorSeconds()` instead of passing raw input to the store — negative seeks no longer desync UI from transport
+- **P2**: `importFile` now rolls back the blob if `putMeta`/`putPeaks` fails — no more orphaned blobs consuming IDB quota

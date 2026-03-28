@@ -1,19 +1,24 @@
-I have all the information I need. Here's my consolidated review:
-
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 — `secondsToBBT` tick overflow to 480** (`src/audio/tempo-map.ts:68`). `Math.round(fractionalBeat * 480)` produces 480 when `fractionalBeat` is close to 1.0 (e.g., 0.999). Tick must be 0–479. Fix: use `Math.floor()`, or handle the 480 case by incrementing beat/bar.
+## Findings
 
-2. **P1 — `useTransportShortcuts` re-registers command on every state change** (`src/ui/transport/useTransportShortcuts.ts:37`). `transportState` is in the dependency array, so every play/stop unregisters+re-registers the shortcut binding. During the brief gap, a keypress could be dropped. Fix: store `transportState` in a ref, read from ref inside `execute`, remove from deps.
+**P2-1: `removeSource` deletes from memory before confirming storage deletion** (`media-pool-manager.ts:77`)
+If `storage.deleteBlob()` or `storage.deleteMeta()` throws, the source is removed from the in-memory map but persists in IndexedDB. On next `init()`, it reappears as a ghost entry. Move `sources.delete(id)` to after all storage operations succeed.
 
-3. **P2 — `seek()` accepts negative seconds** (`src/audio/transport-clock.ts:110`). No clamp to `>= 0`. Negative cursor produces garbage BBT (negative bars). Add `Math.max(0, seconds)`.
+**P2-2: `StorageFullError` is dead code** (`types.ts:43-46`)
+The `storage-full` error kind is defined and handled in `formatError`, but no code path ever produces it. `putBlob` does not catch `QuotaExceededError` from IndexedDB. Either implement quota detection in `idb-storage.ts` or remove the dead type/branch to avoid misleading error handling.
 
-4. **P2 — `beatsPerBar` captured once at init** (`src/audio/use-transport.ts:68`). `const beatsPerBar = clock.getTempoMap().timeSignature.numerator` is closed over in the scheduler callback. If time signature or BPM changes, `beatsPerBar` stays stale — downbeat detection breaks after a `setBpm` call since `setBpm` creates a new `TempoMap` but the callback still reads the old numerator.
+**P2-3: `computeWaveformPeaks` blocks main thread for large files** (`waveform-peaks.ts`)
+For a 500MB WAV at 44.1kHz stereo, this iterates ~11.2M samples synchronously. At the 500MB limit this could block the UI for hundreds of milliseconds. Consider yielding to the event loop periodically (e.g., chunked processing with `setTimeout`) or moving to a Web Worker.
 
-5. **P2 — Metronome oscillators never disconnected** (`src/audio/metronome.ts:39-43`). Stopped oscillators remain connected to the gain node. The Web Audio spec will eventually GC them, but explicit cleanup via `osc.onended = () => osc.disconnect()` reduces GC pressure in long sessions with hundreds of ticks/minute.
+**P2-4: No concurrency guard on import** (`MediaPoolPanel.tsx:108-129`)
+User can click IMPORT or drop files while a previous import is still in progress. Both flows fire `handleImport` with no mutex or `isImporting` flag, risking interleaved state updates and confusing error display. Add a busy guard or disable the import button during processing.
 
-6. **P2 — `getCursorSeconds()` mutates anchor state as a side effect** (`src/audio/transport-clock.ts:142-144`). A "get" method silently re-anchors `playStartContextTime` and `playStartCursorSeconds` during loop wrap. If called multiple times in the same frame (e.g., by both the scheduler and cursor display), the second call computes from a re-anchored baseline — the position will be subtly different. Either document explicitly or split into `getCursorSeconds()` (pure read) and `advanceCursor()` (mutating).
+**P3-1: Only last error shown in batch import** (`MediaPoolPanel.tsx:123`)
+When importing multiple files, `setError(result.error)` overwrites any previous error. If 3 of 5 files fail, user only sees the last failure. Consider accumulating errors or showing a count.
 
-7. **P3 — SAB Float64 cursor writes are non-atomic** (`src/audio/transport-clock.ts:73-74`, documented at `shared-buffer-layout.ts:29-31`). Currently safe because reads happen on the same thread. When an AudioWorklet reads the SAB in the future, torn reads on Float64 are possible. Tracking issue recommended.
+**P3-2: `getAudioBuffer` re-decodes on every call** (`media-pool-manager.ts:56-62`)
+Each call reads from IDB and calls `decodeAudioData`. For DAW playback this will be called frequently. Consider an LRU cache for decoded AudioBuffers.
 
-8. **P3 — No test for tick=480 edge case** (`src/audio/tempo-map.test.ts`). The round-trip test at line 106 uses clean values (0.25, 0.5, etc.) that never trigger the rounding boundary. Add a test with a value like `0.4999s` at 120 BPM to catch the overflow.
+**P3-3: IDB connection is never closed** (`idb-storage.ts:172-179`)
+The lazy singleton `dbPromise` holds the IDB connection for the lifetime of the page. The `MediaPoolStorage` interface has no `close()` or `dispose()` method, so when `App.tsx` creates a new storage on engine change (line 24), the old connection leaks. Low impact since engine changes at most once, but the pattern is fragile.

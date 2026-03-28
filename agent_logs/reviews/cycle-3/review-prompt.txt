@@ -5,22 +5,27 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
 ✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
 ├── ✓ long-running-harness-8ew ● P0 epic E3: Transport & Scheduling Engine
-└── ✓ long-running-harness-5he ● P1 epic E2: Neo-Brutalist Design System
+├── ✓ long-running-harness-5he ● P1 epic E2: Neo-Brutalist Design System
+└── ✓ long-running-harness-dxr ● P1 epic E4: Media Pool & Audio Storage
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
+✓ long-running-harness-2ph ● P1 task E4.4: Media pool manager
+✓ long-running-harness-a5x ● P1 task E4.3: Decode pipeline & waveform peaks
+✓ long-running-harness-bna ● P1 task E4.5: Media pool UI & integration
+✓ long-running-harness-jn8 ● P1 task E4.1: Core types & magic-bytes validation
+✓ long-running-harness-jpe ● P1 task E4.2: IndexedDB storage layer
 
 --------------------------------------------------------------------------------
-Total: 7 issues (0 open, 0 in progress)
+Total: 13 issues (0 open, 0 in progress)
 
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-6a718c1 Fix lint errors from review: ref-during-render and void expressions
-ede5ba1 chore: auto-commit uncommitted changes from long-running-harness-8ew
-8cf33e4 E3: Add transport integration tests
-129f8b6 E3: Add loop support, keyboard shortcuts, and transport wiring
-0b7ec6f E3: Add transport bar UI, AudioEngine provider, and useTransport controller
-adebe56 E3: Add transport engine audio layer (TempoMap, TransportClock, Scheduler, Metronome)
+13a1cc4 Fix review findings: import lock reset, seek desync, blob orphan rollback
+4b75ff9 Fix review findings: AudioBuffer cache, scheduler loop/seek, import safety
+4e28189 chore: auto-commit uncommitted changes from long-running-harness-dxr
+fc4bfcd Fix review issues: init race, memory pressure, MP3 detection, edge cases
+5a2aa82 E4: Add media pool with IndexedDB storage, decode pipeline, and waveform peaks
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

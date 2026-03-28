@@ -6,63 +6,57 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-Now I have enough context. Let me compile findings.
-
 REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P0] Double `useTransport()` instantiation — keyboard shortcuts and UI operate on separate clocks**
+**1. P1 — `getAudioBuffer` has no in-memory cache; will re-decode on every call**
+`media-pool-manager.ts:56` reads the blob from IDB and calls `decodeAudioData` every time. `decodeAudioData` is CPU-expensive and must not be called on the hot path. When tracks/clips start consuming this API, every playback event will trigger a full decode. An `AudioBuffer` cache (`Map<string, AudioBuffer>`) needs to be maintained alongside `sources`.
 
-`DawShell` calls `useTransportShortcuts(registry, shortcuts)` (line 13 in `DawShell.tsx`), which internally calls `useTransport()`. It also renders `<Toolbar />` → `<TransportBar />` which calls `useTransport()` independently. Each `useTransport()` call creates its own `TransportClock`, `LookAheadScheduler`, `Metronome`, and `SharedArrayBuffer` via the `useEffect` on mount. The spacebar shortcut operates on clock A; the UI play/stop buttons operate on clock B. They're completely independent — two metronomes will fire, two schedulers will run. `useTransport()` must be lifted to context or the shortcut hook must accept the transport as a prop.
+**2. P2 — `importFile` writes are non-atomic; orphaned blobs accumulate on partial failure**
+`media-pool-manager.ts:34-46`: `putBlob` → `putMeta` → `putPeaks` are three separate IDB transactions. A crash after `putBlob` but before `putMeta` leaves an invisible orphaned blob that will never be cleaned up (since `init()` only loads from `getMeta`). Same issue for `removeSource` (lines 78-80) in reverse: if `deleteBlob` succeeds but `deleteMeta` fails, dead metadata persists. Either use a blob-key-matches-meta invariant enforced on startup, or document that orphans are tolerated and add a cleanup path.
 
----
+**3. P2 — `deletePeaksBySource` in IDB issues one transaction per peak key**
+`idb-storage.ts:217-225`: sequentially awaits `idbDelete` per key inside a loop. Each is a separate transaction with its own overhead. Should batch all deletes under one transaction using a cursor or `IDBKeyRange`.
 
-**2. [P1] Cursor display stuck at 0 during playback**
+**4. P3 — Unsafe cast `as unknown as File[]` in `useFileDrop.ts:46`**
+`[...(e.dataTransfer.files as unknown as File[])]` — `FileList` is not `File[]`; the cast hides the type. Use `Array.from(e.dataTransfer.files)` which is typed correctly and handles `null` safely.
 
-`useTransportCursor` (`src/ui/hooks/useTransportCursor.ts:24`) reads `CURSOR_SECONDS` from the SAB in an RAF loop. But `writeSABCursor` is only called inside `getCursorSeconds()`, `pause()`, `stop()`, and `seek()`. Nothing calls `getCursorSeconds()` periodically during playback — the `use-transport.ts` play callback calls `clock.play()` and `storePlay()` but no RAF or interval that drives the SAB write. The cursor display reads a stale SAB value (0 or the last pause position) for the entire play duration.
+**5. P3 — `App.tsx` shows `ClickToStart` during pool init**
+Lines 90-92: `engine === null || pool === null` renders `ClickToStart` while IDB is initializing after the user has already clicked start. Any IDB delay causes a confusing re-appearance of the start screen. Pool init should not block render; show a loading state or initialize pool synchronously before first render.
 
-Fix: drive the SAB cursor write from the same RAF loop that reads it, or add an RAF in `use-transport.ts` while playing that calls `getCursorSeconds()` (which already writes the SAB as a side-effect).
+**6. P3 — `WaveformPreview.tsx:32` hardcodes `#0066ff`**
+Comment says `/* --color-blue */` but uses the literal hex. If the design token changes the displayed waveform won't follow. Use `var(--color-blue)` with a `fillStyle` computed from a CSS variable or accept the color as a prop.
 
----
-
-**3. [P2] `useTransportShortcuts` re-registers and rebinds on every state transition**
-
-`transportState` is in the `useEffect` dependency array (`useTransportShortcuts.ts:37`). Every play/pause/stop triggers an unregister + re-register + rebind cycle. The command's `execute` closure already captures the current state correctly; `transportState` only needs to be in the closure, not the deps. Use a ref for `transportState` or restructure the command to delegate to transport functions that check state internally.
-
----
-
-**4. [P2] `getCursorSeconds()` mutates SAB and re-anchors playback state as a side-effect**
-
-`transport-clock.ts:143-145` re-anchors `playStartContextTime` and `playStartCursorSeconds` on loop wrap inside a read-only accessor. Side-effecting getters are a correctness hazard: calling the function for display purposes alters the reference frame for all subsequent timing calculations. If two callers invoke `getCursorSeconds()` at different `ctx.currentTime` values within the same frame (once from the future RAF, once from scheduler), the second call computes position relative to the re-anchor made by the first. Separate the display-read path from the loop-wrap state mutation.
-
----
-
-**5. [P3] `TempoMap.secondsToSamples()` returns a float**
-
-`tempo-map.ts:53`: `return seconds * sampleRate` — returns a non-integer for most inputs. Any consumer expecting an integer sample offset will silently get a float. Should return `Math.round(seconds * sampleRate)` or callers must document the truncation responsibility. Currently unused, but will bite when wired to the scheduler.
+**7. P3 — `handleImport` silently discards all but the last error in multi-file imports**
+`MediaPoolPanel.tsx:118`: `setError(result.error)` inside the `for` loop overwrites each previous error. If files 1 and 2 fail but file 3 succeeds, no error is shown at all. Accumulate errors and display all of them, or stop on first error and report which file failed.
 </claude-sonnet-review>
 
 <claude-opus-review>
-I have all the information I need. Here's my consolidated review:
-
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 — `secondsToBBT` tick overflow to 480** (`src/audio/tempo-map.ts:68`). `Math.round(fractionalBeat * 480)` produces 480 when `fractionalBeat` is close to 1.0 (e.g., 0.999). Tick must be 0–479. Fix: use `Math.floor()`, or handle the 480 case by incrementing beat/bar.
+## Findings
 
-2. **P1 — `useTransportShortcuts` re-registers command on every state change** (`src/ui/transport/useTransportShortcuts.ts:37`). `transportState` is in the dependency array, so every play/stop unregisters+re-registers the shortcut binding. During the brief gap, a keypress could be dropped. Fix: store `transportState` in a ref, read from ref inside `execute`, remove from deps.
+**P2-1: `removeSource` deletes from memory before confirming storage deletion** (`media-pool-manager.ts:77`)
+If `storage.deleteBlob()` or `storage.deleteMeta()` throws, the source is removed from the in-memory map but persists in IndexedDB. On next `init()`, it reappears as a ghost entry. Move `sources.delete(id)` to after all storage operations succeed.
 
-3. **P2 — `seek()` accepts negative seconds** (`src/audio/transport-clock.ts:110`). No clamp to `>= 0`. Negative cursor produces garbage BBT (negative bars). Add `Math.max(0, seconds)`.
+**P2-2: `StorageFullError` is dead code** (`types.ts:43-46`)
+The `storage-full` error kind is defined and handled in `formatError`, but no code path ever produces it. `putBlob` does not catch `QuotaExceededError` from IndexedDB. Either implement quota detection in `idb-storage.ts` or remove the dead type/branch to avoid misleading error handling.
 
-4. **P2 — `beatsPerBar` captured once at init** (`src/audio/use-transport.ts:68`). `const beatsPerBar = clock.getTempoMap().timeSignature.numerator` is closed over in the scheduler callback. If time signature or BPM changes, `beatsPerBar` stays stale — downbeat detection breaks after a `setBpm` call since `setBpm` creates a new `TempoMap` but the callback still reads the old numerator.
+**P2-3: `computeWaveformPeaks` blocks main thread for large files** (`waveform-peaks.ts`)
+For a 500MB WAV at 44.1kHz stereo, this iterates ~11.2M samples synchronously. At the 500MB limit this could block the UI for hundreds of milliseconds. Consider yielding to the event loop periodically (e.g., chunked processing with `setTimeout`) or moving to a Web Worker.
 
-5. **P2 — Metronome oscillators never disconnected** (`src/audio/metronome.ts:39-43`). Stopped oscillators remain connected to the gain node. The Web Audio spec will eventually GC them, but explicit cleanup via `osc.onended = () => osc.disconnect()` reduces GC pressure in long sessions with hundreds of ticks/minute.
+**P2-4: No concurrency guard on import** (`MediaPoolPanel.tsx:108-129`)
+User can click IMPORT or drop files while a previous import is still in progress. Both flows fire `handleImport` with no mutex or `isImporting` flag, risking interleaved state updates and confusing error display. Add a busy guard or disable the import button during processing.
 
-6. **P2 — `getCursorSeconds()` mutates anchor state as a side effect** (`src/audio/transport-clock.ts:142-144`). A "get" method silently re-anchors `playStartContextTime` and `playStartCursorSeconds` during loop wrap. If called multiple times in the same frame (e.g., by both the scheduler and cursor display), the second call computes from a re-anchored baseline — the position will be subtly different. Either document explicitly or split into `getCursorSeconds()` (pure read) and `advanceCursor()` (mutating).
+**P3-1: Only last error shown in batch import** (`MediaPoolPanel.tsx:123`)
+When importing multiple files, `setError(result.error)` overwrites any previous error. If 3 of 5 files fail, user only sees the last failure. Consider accumulating errors or showing a count.
 
-7. **P3 — SAB Float64 cursor writes are non-atomic** (`src/audio/transport-clock.ts:73-74`, documented at `shared-buffer-layout.ts:29-31`). Currently safe because reads happen on the same thread. When an AudioWorklet reads the SAB in the future, torn reads on Float64 are possible. Tracking issue recommended.
+**P3-2: `getAudioBuffer` re-decodes on every call** (`media-pool-manager.ts:56-62`)
+Each call reads from IDB and calls `decodeAudioData`. For DAW playback this will be called frequently. Consider an LRU cache for decoded AudioBuffers.
 
-8. **P3 — No test for tick=480 edge case** (`src/audio/tempo-map.test.ts`). The round-trip test at line 106 uses clean values (0.25, 0.5, etc.) that never trigger the rounding boundary. Add a test with a value like `0.4999s` at 120 BPM to catch the overflow.
+**P3-3: IDB connection is never closed** (`idb-storage.ts:172-179`)
+The lazy singleton `dbPromise` holds the IDB connection for the lifetime of the page. The `MediaPoolStorage` interface has no `close()` or `dispose()` method, so when `App.tsx` creates a new storage on engine change (line 24), the old connection leaks. Low impact since engine changes at most once, but the pattern is fragile.
 </claude-opus-review>
 
 <gemini-review>
@@ -84,25 +78,17 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] Transport cursor freezes during playback**  
-   The `SharedArrayBuffer` for the UI cursor is only updated inside `TransportClock.getCursorSeconds()`. However, `getCursorSeconds()` is never called continuously (e.g., inside the scheduler loop or a RAF). As a result, `useTransportCursor` reads a static value and the UI playhead never advances.  
-   *Action:* Call `clock.getCursorSeconds()` periodically (e.g., inside `LookAheadScheduler.advance()`) to ensure the `SharedArrayBuffer` receives continuous updates.
+1. [P1] Look-ahead scheduler schedules events past the loop end boundary
+In `src/audio/look-ahead-scheduler.ts`, the `advance()` loop schedules events up to `scheduleUntil = ctx.currentTime + lookAheadSec` assuming linear time. When approaching the loop end, it will schedule events past `loop.end` into the Web Audio API. When `ctx.currentTime` actually passes the boundary later, `clock.updateCursor()` triggers a wrap and `syncToPosition` resyncs the phase, but the erroneous events have already been scheduled and the wrap-point events (e.g., beat 0) are skipped entirely. The scheduler needs to constrain its `scheduleUntil` window by the loop boundary and wrap its internal `nextBeatTime` during the look-ahead pass.
 
-2. **[P0] `LookAheadScheduler` loses metronome phase on resume/seek**  
-   `scheduler.start()` unconditionally sets `nextBeatTime = ctx.currentTime` and `currentBeat = 0`. If playback is paused at beat 3.5 and resumed (or if a user seeks), the metronome instantly plays a downbeat at the current context time, losing complete synchronization with the project's actual phase and BBT tempo map.  
-   *Action:* Modify `start()` to calculate the initial `nextBeatTime` and `currentBeat` based on the transport clock's actual playhead position.
+2. [P1] Seeking during playback desynchronizes the LookAheadScheduler
+In `src/audio/use-transport.ts`, the `seek(seconds)` function updates the `clock` cursor but does not notify the `schedulerRef`. Because the scheduler caches `nextBeatTime` and `currentBeat`, it remains completely unaware of the seek and continues ticking at the old phase and beat numbers. The scheduler must be stopped/started or provided a `sync()` method to align to the new cursor position when a seek occurs during playback.
 
-3. **[P0] `LookAheadScheduler` ignores the loop region**  
-   The loop wrapping logic is encapsulated inside `TransportClock.getCursorSeconds()`. Since the scheduler independently loops via `nextBeatTime += spb` and ignores the clock's boundaries, scheduled audio events continue linearly to infinity and fail to wrap when the end of the loop is reached.  
-   *Action:* Ensure the scheduler checks the active loop boundaries (`clock.getLoop()`) and recalculates `nextBeatTime`/`currentBeat` when the playhead wraps.
+3. [P2] Severe memory and performance overhead in `MediaPool.getAudioBuffer()`
+In `src/audio/media-pool/media-pool-manager.ts`, `getAudioBuffer` fetches the file from IndexedDB and calls `ctx.decodeAudioData(arrayBuffer)` on every invocation. For a DAW Media Pool, multiple track items referencing the same source will trigger redundant decodes, causing significant CPU overhead, GC pauses, and memory pressure. The Media Pool should maintain an in-memory cache of active `AudioBuffer`s.
 
-4. **[P2] `Metronome.dispose()` prematurely disconnects output**  
-   `dispose()` immediately calls `gainNode.disconnect()`. If playback is stopped while a 30ms tick is playing, this hard disconnect will cause an immediate audio pop.  
-   *Action:* Apply a short linear fade-out (e.g., `setTargetAtTime(0, ctx.currentTime, 0.01)`) in `silence()` and wait for ticks to decay before fully disconnecting nodes.
-
-5. **[P3] `TransportClock.seek()` accepts negative values**  
-   Seeking to negative seconds is not clamped. Negative positions will cause `TempoMap.secondsToBBT()` to calculate negative bars/beats (e.g., `-1.-1.000`), breaking the UI text display.  
-   *Action:* Clamp the `seconds` argument in `seek()` using `Math.max(0, seconds)`.
+4. [P3] Redundant `getPeaks` calls during component mount
+In `src/ui/media-pool/MediaPoolPanel.tsx`, `peaksMap.has(source.id)` is checked synchronously, but `setPeaksMap` happens asynchronously inside `Promise.all`. Concurrent React renders can cause `pool.getPeaks` to be called multiple times for the same source before the state is updated. This should use a ref or an atomic loading state map to prevent redundant DB reads.
 </gemini-review>
 
 

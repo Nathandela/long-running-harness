@@ -16,22 +16,14 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] Transport cursor freezes during playback**  
-   The `SharedArrayBuffer` for the UI cursor is only updated inside `TransportClock.getCursorSeconds()`. However, `getCursorSeconds()` is never called continuously (e.g., inside the scheduler loop or a RAF). As a result, `useTransportCursor` reads a static value and the UI playhead never advances.  
-   *Action:* Call `clock.getCursorSeconds()` periodically (e.g., inside `LookAheadScheduler.advance()`) to ensure the `SharedArrayBuffer` receives continuous updates.
+1. [P1] Look-ahead scheduler schedules events past the loop end boundary
+In `src/audio/look-ahead-scheduler.ts`, the `advance()` loop schedules events up to `scheduleUntil = ctx.currentTime + lookAheadSec` assuming linear time. When approaching the loop end, it will schedule events past `loop.end` into the Web Audio API. When `ctx.currentTime` actually passes the boundary later, `clock.updateCursor()` triggers a wrap and `syncToPosition` resyncs the phase, but the erroneous events have already been scheduled and the wrap-point events (e.g., beat 0) are skipped entirely. The scheduler needs to constrain its `scheduleUntil` window by the loop boundary and wrap its internal `nextBeatTime` during the look-ahead pass.
 
-2. **[P0] `LookAheadScheduler` loses metronome phase on resume/seek**  
-   `scheduler.start()` unconditionally sets `nextBeatTime = ctx.currentTime` and `currentBeat = 0`. If playback is paused at beat 3.5 and resumed (or if a user seeks), the metronome instantly plays a downbeat at the current context time, losing complete synchronization with the project's actual phase and BBT tempo map.  
-   *Action:* Modify `start()` to calculate the initial `nextBeatTime` and `currentBeat` based on the transport clock's actual playhead position.
+2. [P1] Seeking during playback desynchronizes the LookAheadScheduler
+In `src/audio/use-transport.ts`, the `seek(seconds)` function updates the `clock` cursor but does not notify the `schedulerRef`. Because the scheduler caches `nextBeatTime` and `currentBeat`, it remains completely unaware of the seek and continues ticking at the old phase and beat numbers. The scheduler must be stopped/started or provided a `sync()` method to align to the new cursor position when a seek occurs during playback.
 
-3. **[P0] `LookAheadScheduler` ignores the loop region**  
-   The loop wrapping logic is encapsulated inside `TransportClock.getCursorSeconds()`. Since the scheduler independently loops via `nextBeatTime += spb` and ignores the clock's boundaries, scheduled audio events continue linearly to infinity and fail to wrap when the end of the loop is reached.  
-   *Action:* Ensure the scheduler checks the active loop boundaries (`clock.getLoop()`) and recalculates `nextBeatTime`/`currentBeat` when the playhead wraps.
+3. [P2] Severe memory and performance overhead in `MediaPool.getAudioBuffer()`
+In `src/audio/media-pool/media-pool-manager.ts`, `getAudioBuffer` fetches the file from IndexedDB and calls `ctx.decodeAudioData(arrayBuffer)` on every invocation. For a DAW Media Pool, multiple track items referencing the same source will trigger redundant decodes, causing significant CPU overhead, GC pauses, and memory pressure. The Media Pool should maintain an in-memory cache of active `AudioBuffer`s.
 
-4. **[P2] `Metronome.dispose()` prematurely disconnects output**  
-   `dispose()` immediately calls `gainNode.disconnect()`. If playback is stopped while a 30ms tick is playing, this hard disconnect will cause an immediate audio pop.  
-   *Action:* Apply a short linear fade-out (e.g., `setTargetAtTime(0, ctx.currentTime, 0.01)`) in `silence()` and wait for ticks to decay before fully disconnecting nodes.
-
-5. **[P3] `TransportClock.seek()` accepts negative values**  
-   Seeking to negative seconds is not clamped. Negative positions will cause `TempoMap.secondsToBBT()` to calculate negative bars/beats (e.g., `-1.-1.000`), breaking the UI text display.  
-   *Action:* Clamp the `seconds` argument in `seek()` using `Math.max(0, seconds)`.
+4. [P3] Redundant `getPeaks` calls during component mount
+In `src/ui/media-pool/MediaPoolPanel.tsx`, `peaksMap.has(source.id)` is checked synchronously, but `setPeaksMap` happens asynchronously inside `Promise.all`. Concurrent React renders can cause `pool.getPeaks` to be called multiple times for the same source before the state is updated. This should use a ref or an atomic loading state map to prevent redundant DB reads.

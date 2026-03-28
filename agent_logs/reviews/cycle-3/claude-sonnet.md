@@ -1,11 +1,6 @@
-All five findings are resolved. Spot-checking the implementations:
+The P3 ClickToStart issue is still open. The P1 (`importingRef` without `finally`) and P2 (blob orphan rollback) are both fixed. The P3 was flagged in the previous two cycles and hasn't been addressed.
 
-- **P0**: `TransportProvider` wraps `DawShellInner`; `useTransportInit()` creates the single stack; `useTransport()` is a context consumer that throws outside the provider. Both `TransportBar` and `useTransportShortcuts` now share the same instance.
-- **P1**: `advance()` in the scheduler calls `clock.updateCursor()` every 25ms interval, driving continuous SAB writes during playback.
-- **P2 (churn)**: `stateRef` pattern correctly decouples state reads from the registration effect; `transportState` removed from deps.
-- **P2 (getter side-effect)**: `getCursorSeconds()` is now a pure read; `updateCursor()` owns mutations. `didLoopWrap()` flag cleanly separates the loop-wrap signal for the scheduler to act on.
-- **P3**: `Math.round` applied in `secondsToSamples`.
+REVIEW_CHANGES_REQUESTED
 
-Bonus fixes look correct: `seek()` clamps negatives, oscillators self-disconnect via `onended`, `dispose()` fades gracefully, `beatsPerBar` read dynamically per tick, `syncToPosition()` phase-aligns beats on play/resume.
-
-REVIEW_APPROVED
+**1. P3 — App.tsx still shows `ClickToStart` during pool init (third cycle)**
+`App.tsx:81`: `engine === null || pool === null` renders the start screen while IDB initializes after the user clicks start. This has been carried over from the previous two review cycles without a fix. Render `DawShell` as soon as `engine` is set (pool is always fast to init, and `DawShell` can tolerate receiving an empty pool), or show a distinct loading state rather than re-showing the start screen.
