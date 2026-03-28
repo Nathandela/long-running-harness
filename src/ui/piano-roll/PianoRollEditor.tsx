@@ -17,6 +17,8 @@ import {
   PR_DEFAULT_PPS,
   PR_DEFAULT_SCROLL_Y,
   PR_VELOCITY_LANE_HEIGHT,
+  PR_MIN_NOTE,
+  PR_MAX_NOTE,
 } from "./constants";
 import styles from "./PianoRollEditor.module.css";
 
@@ -76,6 +78,7 @@ export function PianoRollEditor({
   const clipDuration = clip !== undefined ? clip.duration : 4;
 
   // Keyboard commands
+  const { deleteSelectedNotes } = interactions;
   const registry = useMemo(() => {
     const reg = new CommandRegistry();
     reg.register({
@@ -103,11 +106,11 @@ export function PianoRollEditor({
       id: "piano-roll.delete-selected",
       label: "Delete Selected Notes",
       execute() {
-        interactions.deleteSelectedNotes();
+        deleteSelectedNotes();
       },
     });
     return reg;
-  }, [interactions]);
+  }, [deleteSelectedNotes]);
 
   const shortcuts = useMemo(() => {
     const map = new ShortcutMap();
@@ -188,6 +191,7 @@ export function PianoRollEditor({
       if (ctx !== null) {
         ctx.scale(dpr, dpr);
       }
+      render();
     };
 
     if (typeof ResizeObserver === "undefined") return;
@@ -199,11 +203,15 @@ export function PianoRollEditor({
     return (): void => {
       observer.disconnect();
     };
-  }, []);
+  }, [render]);
 
   // Wheel: ctrl+wheel for zoom, plain wheel for scroll
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLCanvasElement>): void => {
+  // Attached via useEffect with { passive: false } so preventDefault() works
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas === null) return;
+
+    const handleWheel = (e: WheelEvent): void => {
       e.preventDefault();
 
       if (e.ctrlKey || e.metaKey) {
@@ -224,12 +232,19 @@ export function PianoRollEditor({
         setView((prev) => ({
           ...prev,
           scrollX: Math.max(0, prev.scrollX + e.deltaX / prev.pixelsPerSecond),
-          scrollY: prev.scrollY - e.deltaY / prev.noteHeight,
+          scrollY: Math.min(
+            PR_MAX_NOTE,
+            Math.max(PR_MIN_NOTE, prev.scrollY - e.deltaY / prev.noteHeight),
+          ),
         }));
       }
-    },
-    [],
-  );
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return (): void => {
+      canvas.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
 
   return (
     <section data-testid="piano-roll-editor" className={styles["container"]}>
@@ -284,7 +299,6 @@ export function PianoRollEditor({
           ref={canvasRef}
           className={styles["canvas"]}
           style={{ cursor: interactions.cursor }}
-          onWheel={handleWheel}
           onPointerDown={interactions.onPointerDown}
           onPointerMove={interactions.onPointerMove}
           onPointerUp={interactions.onPointerUp}

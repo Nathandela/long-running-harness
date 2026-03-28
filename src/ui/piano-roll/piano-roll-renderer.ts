@@ -60,12 +60,7 @@ export function secondsToX(seconds: number, view: PianoRollViewState): number {
   return view.keyboardWidth + (seconds - view.scrollX) * view.pixelsPerSecond;
 }
 
-export function pitchToY(
-  pitch: number,
-  view: PianoRollViewState,
-  _height: number,
-  _velocityLaneHeight: number,
-): number {
+export function pitchToY(pitch: number, view: PianoRollViewState): number {
   return PR_RULER_HEIGHT + (view.scrollY - pitch) * view.noteHeight;
 }
 
@@ -124,7 +119,7 @@ function drawNoteGrid(rc: PianoRollRenderContext): void {
   const bottomPitch = topPitch - visibleRows;
 
   for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
-    const y = pitchToY(pitch, view, height, velocityLaneHeight);
+    const y = pitchToY(pitch, view);
     if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
 
     // Row fill: slightly lighter for white keys
@@ -190,7 +185,7 @@ function drawNotes(rc: PianoRollRenderContext): void {
   for (const note of notes) {
     const x = secondsToX(note.startTime, view);
     const w = note.duration * view.pixelsPerSecond;
-    const y = pitchToY(note.pitch, view, height, velocityLaneHeight);
+    const y = pitchToY(note.pitch, view);
     const h = view.noteHeight;
 
     // Skip notes fully out of view
@@ -229,7 +224,7 @@ function drawKeyboard(rc: PianoRollRenderContext): void {
   const bottomPitch = topPitch - visibleRows;
 
   for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
-    const y = pitchToY(pitch, view, height, velocityLaneHeight);
+    const y = pitchToY(pitch, view);
     if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
 
     const black = isBlackKey(pitch);

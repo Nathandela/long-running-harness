@@ -8,6 +8,7 @@ import { useDawStore } from "@state/store";
 import type { MIDINoteEvent } from "@state/track/types";
 import { isMidiClip } from "@state/track/types";
 import { sharedUndoManager } from "@state/undo";
+import type { UndoCommand } from "@state/undo/undo-command";
 import {
   AddNoteCommand,
   RemoveNoteCommand,
@@ -42,7 +43,9 @@ type DragState =
       noteId: string;
       clipId: string;
       startX: number;
+      origStartTime: number;
       origDuration: number;
+      edge: "left" | "right";
     }
   | {
       kind: "draw-note";
@@ -202,7 +205,9 @@ export function usePianoRollInteractions(
                 noteId: hit.noteId,
                 clipId,
                 startX: x,
+                origStartTime: note.startTime,
                 origDuration: note.duration,
+                edge: hit.kind === "note-left-edge" ? "left" : "right",
               };
             }
           } else if (hit.kind === "empty-grid") {
@@ -294,8 +299,24 @@ export function usePianoRollInteractions(
           setCursor("ew-resize");
           const deltaPx = x - drag.startX;
           const deltaSec = deltaPx / view.pixelsPerSecond;
-          const newDuration = Math.max(0.01, drag.origDuration + deltaSec);
-          state.resizeNoteEvent(drag.clipId, drag.noteId, newDuration);
+          if (drag.edge === "left") {
+            const newStartTime = Math.max(0, drag.origStartTime + deltaSec);
+            const newDuration = Math.max(
+              0.01,
+              drag.origDuration - (newStartTime - drag.origStartTime),
+            );
+            state.moveNoteEvent(
+              drag.clipId,
+              drag.noteId,
+              newStartTime,
+              // Keep pitch unchanged -- look up current pitch
+              getNotes().find((n) => n.id === drag.noteId)?.pitch ?? 0,
+            );
+            state.resizeNoteEvent(drag.clipId, drag.noteId, newDuration);
+          } else {
+            const newDuration = Math.max(0.01, drag.origDuration + deltaSec);
+            state.resizeNoteEvent(drag.clipId, drag.noteId, newDuration);
+          }
           break;
         }
         case "draw-note": {
@@ -358,15 +379,63 @@ export function usePianoRollInteractions(
       } else if (drag.kind === "resize-note") {
         const notes = getNotes();
         const note = notes.find((n) => n.id === drag.noteId);
-        if (note !== undefined && note.duration !== drag.origDuration) {
-          const cmd = new ResizeNoteCommand(
-            drag.clipId,
-            drag.noteId,
-            note.duration,
-            drag.origDuration,
-          );
-          // Store is already updated during drag -- just record for undo
-          sharedUndoManager.push(cmd);
+        if (note !== undefined) {
+          if (drag.edge === "left") {
+            // Left-edge drag changed both startTime and duration
+            const cmds: UndoCommand[] = [];
+            if (note.startTime !== drag.origStartTime) {
+              cmds.push(
+                new MoveNoteCommand(
+                  drag.clipId,
+                  drag.noteId,
+                  note.startTime,
+                  note.pitch,
+                  drag.origStartTime,
+                  note.pitch,
+                ),
+              );
+            }
+            if (note.duration !== drag.origDuration) {
+              cmds.push(
+                new ResizeNoteCommand(
+                  drag.clipId,
+                  drag.noteId,
+                  note.duration,
+                  drag.origDuration,
+                ),
+              );
+            }
+            if (cmds.length > 0) {
+              const batch = new BatchNoteCommand(cmds);
+              sharedUndoManager.push(batch);
+            }
+          } else if (note.duration !== drag.origDuration) {
+            const cmd = new ResizeNoteCommand(
+              drag.clipId,
+              drag.noteId,
+              note.duration,
+              drag.origDuration,
+            );
+            sharedUndoManager.push(cmd);
+          }
+        }
+      } else if (drag.kind === "draw-note") {
+        // If the user dragged to extend the note, capture a resize command
+        // so redo restores the final dragged duration (not the initial grid-step size)
+        const notes = getNotes();
+        const note = notes.find((n) => n.id === drag.noteId);
+        if (note !== undefined) {
+          const state = useDawStore.getState();
+          const initialDuration = gridDuration(state.bpm, gridSnap);
+          if (note.duration !== initialDuration) {
+            const cmd = new ResizeNoteCommand(
+              drag.clipId,
+              drag.noteId,
+              note.duration,
+              initialDuration,
+            );
+            sharedUndoManager.push(cmd);
+          }
         }
       }
 
@@ -382,7 +451,7 @@ export function usePianoRollInteractions(
         setCursor("default");
       }
     },
-    [tool, getNotes],
+    [tool, gridSnap, getNotes],
   );
 
   const deleteSelectedNotes = useCallback((): void => {

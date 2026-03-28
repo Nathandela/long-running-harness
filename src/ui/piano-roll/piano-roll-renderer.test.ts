@@ -179,22 +179,21 @@ describe("piano-roll-renderer", () => {
   describe("pitchToY", () => {
     it("places higher pitch at lower Y value (higher on screen)", () => {
       const view = { ...defaultView, scrollY: 84, noteHeight: 16 };
-      const height = 400;
-      const yHigh = pitchToY(84, view, height, PR_VELOCITY_LANE_HEIGHT);
-      const yLow = pitchToY(60, view, height, PR_VELOCITY_LANE_HEIGHT);
+      const yHigh = pitchToY(84, view);
+      const yLow = pitchToY(60, view);
       expect(yHigh).toBeLessThan(yLow);
     });
 
     it("returns ruler height when pitch equals scrollY", () => {
       const view = { ...defaultView, scrollY: 84, noteHeight: 16 };
-      const y = pitchToY(84, view, 400, PR_VELOCITY_LANE_HEIGHT);
+      const y = pitchToY(84, view);
       expect(y).toBe(PR_RULER_HEIGHT);
     });
 
     it("each semitone step moves by noteHeight pixels", () => {
       const view = { ...defaultView, scrollY: 84, noteHeight: 16 };
-      const y1 = pitchToY(84, view, 400, PR_VELOCITY_LANE_HEIGHT);
-      const y2 = pitchToY(83, view, 400, PR_VELOCITY_LANE_HEIGHT);
+      const y1 = pitchToY(84, view);
+      const y2 = pitchToY(83, view);
       expect(y2 - y1).toBe(16);
     });
   });
