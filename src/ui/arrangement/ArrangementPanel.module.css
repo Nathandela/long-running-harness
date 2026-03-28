@@ -1,0 +1,15 @@
+.container {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border: var(--border);
+  background-color: var(--color-gray-900);
+  min-height: 120px;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+}

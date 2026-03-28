@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Toolbar } from "./Toolbar";
-import { ArrangementPanel, MixerPanel, InstrumentPanel } from "./panels";
+import { ArrangementPanel } from "@ui/arrangement";
+import { MixerPanel, InstrumentPanel } from "./panels";
 import { MediaPoolPanel } from "./media-pool/MediaPoolPanel";
 import { CommandRegistry } from "./keyboard/command-registry";
 import { ShortcutMap } from "./keyboard/shortcut-map";

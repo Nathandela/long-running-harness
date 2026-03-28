@@ -3,7 +3,8 @@ export { ClickToStart } from "./ClickToStart";
 export { CrossOriginError } from "./CrossOriginError";
 export { DawShell } from "./DawShell";
 export { Toolbar } from "./Toolbar";
-export { ArrangementPanel, MixerPanel, InstrumentPanel } from "./panels";
+export { ArrangementPanel } from "./arrangement";
+export { MixerPanel, InstrumentPanel } from "./panels";
 
 // Design tokens
 export { tokens } from "./tokens/tokens";

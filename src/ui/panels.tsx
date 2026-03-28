@@ -10,14 +10,6 @@ const panelStyle: React.CSSProperties = {
   minHeight: "120px",
 };
 
-export function ArrangementPanel(): React.JSX.Element {
-  return (
-    <section data-testid="arrangement-panel" style={{ ...panelStyle, flex: 1 }}>
-      ARRANGEMENT
-    </section>
-  );
-}
-
 export function MixerPanel(): React.JSX.Element {
   return (
     <section
