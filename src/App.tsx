@@ -27,12 +27,16 @@ export function App(): React.JSX.Element {
     engineRef.current = engine;
     engine.resume().then(
       () => {
+        if (engineRef.current !== engine) return;
         setEngineStatus("running");
         setAudioStarted(true);
       },
       () => {
+        void engine.close();
+        if (engineRef.current === engine) {
+          engineRef.current = null;
+        }
         setEngineStatus("error");
-        engineRef.current = null;
       },
     );
   }, [setEngineStatus]);
