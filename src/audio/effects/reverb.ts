@@ -68,7 +68,7 @@ export function createReverbFactory(): EffectFactory {
         typeId: "reverb",
         params: PARAMS,
         buildChain(inputNode, outputNode) {
-          preDelayNode = ctx.createDelay(0.1);
+          preDelayNode = ctx.createDelay(0.15);
           convolver = ctx.createConvolver();
           convolver.buffer = generateImpulseResponse(ctx, 2);
 

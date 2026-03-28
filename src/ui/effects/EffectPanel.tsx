@@ -101,7 +101,6 @@ export function EffectPanel({
             max={p.max}
             step={p.step}
             value={params[p.key] ?? p.default}
-            unit={p.unit}
             onChange={onParamChange}
           />
         ))}
@@ -117,7 +116,6 @@ type ParamKnobProps = {
   max: number;
   step: number;
   value: number;
-  unit: string;
   onChange: (key: string, value: number) => void;
 };
 
