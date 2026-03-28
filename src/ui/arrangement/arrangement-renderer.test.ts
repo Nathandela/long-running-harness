@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { TrackModel, ClipModel } from "@state/track/types";
+import type { TrackModel, AudioClipModel } from "@state/track/types";
 import {
   renderArrangement,
   type ArrangementViewState,
@@ -73,8 +73,9 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
   };
 }
 
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "clip-1",
     trackId: "track-1",
     sourceId: "src-1",

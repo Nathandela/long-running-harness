@@ -1,10 +1,9 @@
-All six findings verified:
+Checking the applied fixes against my 5 findings:
 
-1. **LFO S&H range** — `>>>` unsigned shift + `/2147483648` now maps to [-1, 1) (confirmed empirically: -0.999976 to +0.999976). ✓
-2. **`allNotesOff` stealing** — now clears `pendingNote`/`pendingVelocity` and transitions stealing voices to "releasing". ✓
-3. **Legato voice state** — on re-examination, the "best active" search on line 142 explicitly filters `voice.state === "active"`, so a releasing voice can't be returned; the state update is not needed. ✓ (false positive in my initial review)
-4. **Duplicate enum arrays** — replaced with imported `WAVEFORM_TYPES`, `FILTER_TYPES`, `LFO_SHAPES`. ✓
-5. **`crossfadeSamples` per-sample** — cached in `cachedCrossfadeSamples`. ✓
-6. **`completedSteals.push` allocation** — replaced with pre-allocated `new Array(MAX_VOICES)` + `completedCount` index counter. ✓
+1. **P1 — `disconnectFromMixer`**: Now calls `output.disconnect(strip.inputGain)` — fixed.
+2. **P1 — `activeOH` stale on natural decay**: "ended" handler now clears `activeOH`/`activeOHFlam` by identity check — fixed.
+3. **P2 — Dead `onSetFlam` prop**: Removed from props type, component destructuring, and tests — fixed.
+4. **P2 — Velocity clamping**: `Math.max(0.001, p.volume * Math.min(1, velocity))` — fixed (also guards against zero gain for exponentialRamp).
+5. **P2 — Hardcoded knob ranges**: Now reads from `PARAM_RANGES` — fixed.
 
 REVIEW_APPROVED

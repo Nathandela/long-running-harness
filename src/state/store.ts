@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { TrackModel, ClipModel } from "./track/types";
+import type {
+  TrackModel,
+  ClipModel,
+  MidiClipModel,
+  MIDINoteEvent,
+} from "./track/types";
+import { isAudioClip, isMidiClip } from "./track/types";
 
 export type TransportState = "stopped" | "playing" | "paused";
 
@@ -29,6 +35,7 @@ export type DawStore = {
   clips: Record<string, ClipModel>;
   selectedTrackIds: readonly string[];
   selectedClipIds: readonly string[];
+  selectedNoteIds: readonly string[];
 
   // Transport actions
   play: () => void;
@@ -62,9 +69,32 @@ export type DawStore = {
   trimClip: (id: string, newStart?: number, newEnd?: number) => void;
   duplicateClip: (id: string, providedId?: string) => string | undefined;
 
+  // MIDI clip actions
+  addMidiClip: (clip: MidiClipModel) => void;
+  removeMidiClip: (id: string) => void;
+  addNoteEvent: (clipId: string, note: MIDINoteEvent) => void;
+  removeNoteEvent: (clipId: string, noteId: string) => void;
+  moveNoteEvent: (
+    clipId: string,
+    noteId: string,
+    newStartTime: number,
+    newPitch: number,
+  ) => void;
+  resizeNoteEvent: (
+    clipId: string,
+    noteId: string,
+    newDuration: number,
+  ) => void;
+  updateNoteVelocity: (
+    clipId: string,
+    noteId: string,
+    velocity: number,
+  ) => void;
+
   // Selection actions
   setSelectedTrackIds: (ids: readonly string[]) => void;
   setSelectedClipIds: (ids: readonly string[]) => void;
+  setSelectedNoteIds: (ids: readonly string[]) => void;
 
   // Query
   queryClipsAtTime: (time: number) => readonly ClipModel[];
@@ -94,6 +124,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
   clips: {},
   selectedTrackIds: [],
   selectedClipIds: [],
+  selectedNoteIds: [],
 
   // Transport actions
   play: () => {
@@ -240,6 +271,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     const state = get();
     const clip = state.clips[id];
     if (!clip) return undefined;
+    if (!isAudioClip(clip)) return undefined;
 
     const clipEnd = clip.startTime + clip.duration;
     if (atTime <= clip.startTime || atTime >= clipEnd) return undefined;
@@ -274,6 +306,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[id];
       if (!clip) return state;
+      if (!isAudioClip(clip)) return state;
 
       let { startTime, sourceOffset, duration } = clip;
       const clipEnd = startTime + duration;
@@ -324,12 +357,115 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     return newId;
   },
 
+  // MIDI clip actions
+  addMidiClip: (clip: MidiClipModel) => {
+    set((state) => {
+      const nextClips = { ...state.clips, [clip.id]: clip };
+      const tracks = state.tracks.map((t) =>
+        t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, clip.id] } : t,
+      );
+      return { clips: nextClips, tracks };
+    });
+  },
+
+  removeMidiClip: (id: string) => {
+    set((state) => {
+      const clip = state.clips[id];
+      if (!clip) return state;
+      const nextClips = Object.fromEntries(
+        Object.entries(state.clips).filter(([k]) => k !== id),
+      );
+      const tracks = state.tracks.map((t) =>
+        t.id === clip.trackId
+          ? { ...t, clipIds: t.clipIds.filter((cid) => cid !== id) }
+          : t,
+      );
+      return { clips: nextClips, tracks };
+    });
+  },
+
+  addNoteEvent: (clipId: string, note: MIDINoteEvent) => {
+    set((state) => {
+      const clip = state.clips[clipId];
+      if (!clip || !isMidiClip(clip)) return state;
+      const updated: MidiClipModel = {
+        ...clip,
+        noteEvents: [...clip.noteEvents, note],
+      };
+      return { clips: { ...state.clips, [clipId]: updated } };
+    });
+  },
+
+  removeNoteEvent: (clipId: string, noteId: string) => {
+    set((state) => {
+      const clip = state.clips[clipId];
+      if (!clip || !isMidiClip(clip)) return state;
+      const updated: MidiClipModel = {
+        ...clip,
+        noteEvents: clip.noteEvents.filter((n) => n.id !== noteId),
+      };
+      return { clips: { ...state.clips, [clipId]: updated } };
+    });
+  },
+
+  moveNoteEvent: (
+    clipId: string,
+    noteId: string,
+    newStartTime: number,
+    newPitch: number,
+  ) => {
+    set((state) => {
+      const clip = state.clips[clipId];
+      if (!clip || !isMidiClip(clip)) return state;
+      const updated: MidiClipModel = {
+        ...clip,
+        noteEvents: clip.noteEvents.map((n) =>
+          n.id === noteId
+            ? { ...n, startTime: newStartTime, pitch: newPitch }
+            : n,
+        ),
+      };
+      return { clips: { ...state.clips, [clipId]: updated } };
+    });
+  },
+
+  resizeNoteEvent: (clipId: string, noteId: string, newDuration: number) => {
+    set((state) => {
+      const clip = state.clips[clipId];
+      if (!clip || !isMidiClip(clip)) return state;
+      const updated: MidiClipModel = {
+        ...clip,
+        noteEvents: clip.noteEvents.map((n) =>
+          n.id === noteId ? { ...n, duration: newDuration } : n,
+        ),
+      };
+      return { clips: { ...state.clips, [clipId]: updated } };
+    });
+  },
+
+  updateNoteVelocity: (clipId: string, noteId: string, velocity: number) => {
+    set((state) => {
+      const clip = state.clips[clipId];
+      if (!clip || !isMidiClip(clip)) return state;
+      const updated: MidiClipModel = {
+        ...clip,
+        noteEvents: clip.noteEvents.map((n) =>
+          n.id === noteId ? { ...n, velocity } : n,
+        ),
+      };
+      return { clips: { ...state.clips, [clipId]: updated } };
+    });
+  },
+
   // Selection
   setSelectedTrackIds: (ids: readonly string[]) => {
     set({ selectedTrackIds: ids });
   },
   setSelectedClipIds: (ids: readonly string[]) => {
     set({ selectedClipIds: ids });
+  },
+  setSelectedNoteIds: (ids: readonly string[]) => {
+    set({ selectedNoteIds: ids });
   },
 
   // Query

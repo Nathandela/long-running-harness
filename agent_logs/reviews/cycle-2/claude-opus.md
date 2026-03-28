@@ -1,13 +1,15 @@
-All 82 tests pass, types check clean. Mapping fixes to my original findings:
+All 797 tests pass. Let me verify all three findings are resolved:
 
-| # | Finding | Status |
-|---|---------|--------|
-| P1-1 | `allNotesOff` skips stealing voices | Fixed — now cancels pending steal and transitions to releasing |
-| P1-2 | LFO S&H output outside [-1,1] | Fixed — `prngState / 2147483648` maps signed int32 to [-1,1) |
-| P2-3 | xorshift `>>` vs `>>>` | Fixed — now uses unsigned right shift |
-| P2-4 | Biquad trig per-sample | Comment corrected; octave/detune `Math.pow` hoisted out of sample loop |
-| P2-5 | No NaN guard on filter | Fixed — `isFinite(output) ? output : 0` with state cleanup |
-| P3-6 | `completedSteals.push()` | Fixed — pre-allocated fixed-size array with counter |
-| P3-7 | `as unknown[]` casts | Cosmetic, not addressed (acceptable) |
+**Finding 1 (P2) — voice-allocator pre-allocation**: Fixed. `completedSteals.length` mutation replaced with a pre-allocated `StealResult` object (`{data, count}`). The array stays at fixed size `MAX_VOICES`. The caller in synth-processor.ts:370 now iterates `completed.count` and reads `completed.data[ci]`. Zero-allocation preserved.
+
+**Finding 2 (P3) — dead `onSetFlam` prop**: Fixed. Prop removed from `DrumMachinePanelProps` and tests.
+
+**Finding 3 (P3) — `disconnectFromMixer` ignoring args**: Fixed. Now calls `mixer.getOrCreateStrip(trackId)` and disconnects specifically from `strip.inputGain`.
+
+Additionally, the fixes include bonus improvements beyond what I flagged:
+- OH flam voice tracking (`activeOHFlam`) so CH cuts both primary and flam OH voices
+- `peakGain` clamped to `Math.max(0.001, ...)` preventing `exponentialRampToValueAtTime` from receiving zero (which would throw)
+- Stale OH reference cleanup in the `ended` listener
+- `PARAM_RANGES` used in UI knobs instead of hardcoded min/max values
 
 REVIEW_APPROVED

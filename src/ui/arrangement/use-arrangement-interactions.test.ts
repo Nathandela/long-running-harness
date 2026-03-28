@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useDawStore } from "@state/store";
-import type { TrackModel, ClipModel } from "@state/track/types";
+import type { TrackModel, AudioClipModel } from "@state/track/types";
 import { sharedUndoManager } from "@state/undo";
 import { useArrangementInteractions } from "./use-arrangement-interactions";
 import type { ArrangementViewState } from "./arrangement-renderer";
@@ -31,8 +31,9 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
   };
 }
 
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "c1",
     trackId: "t1",
     sourceId: "src-1",

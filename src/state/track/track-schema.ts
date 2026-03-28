@@ -1,6 +1,15 @@
 import { z } from "zod/v4";
 
-export const clipSchema = z.object({
+export const noteEventSchema = z.object({
+  id: z.string(),
+  pitch: z.number().int().min(0).max(127),
+  velocity: z.number().int().min(0).max(127),
+  startTime: z.number().min(0),
+  duration: z.number().gt(0),
+});
+
+export const audioClipSchema = z.object({
+  type: z.literal("audio"),
   id: z.string(),
   trackId: z.string(),
   sourceId: z.string(),
@@ -12,6 +21,21 @@ export const clipSchema = z.object({
   fadeOut: z.number().min(0),
   name: z.string(),
 });
+
+export const midiClipSchema = z.object({
+  type: z.literal("midi"),
+  id: z.string(),
+  trackId: z.string(),
+  startTime: z.number().min(0),
+  duration: z.number().min(0),
+  noteEvents: z.array(noteEventSchema),
+  name: z.string(),
+});
+
+export const clipSchema = z.discriminatedUnion("type", [
+  audioClipSchema,
+  midiClipSchema,
+]);
 
 export type ClipSchema = z.infer<typeof clipSchema>;
 

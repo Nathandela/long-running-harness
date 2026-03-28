@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useDawStore } from "@state/store";
-import type { ClipModel, TrackModel } from "./types";
+import type { AudioClipModel, TrackModel } from "./types";
 import {
   AddTrackCommand,
   RemoveTrackCommand,
@@ -31,8 +31,9 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
   };
 }
 
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "clip-1",
     trackId: "track-1",
     sourceId: "source-1",

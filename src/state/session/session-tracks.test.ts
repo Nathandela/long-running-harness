@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useDawStore } from "@state/store";
 import { sessionSchema, createDefaultSession } from "./session-schema";
 import { hydrateStore } from "./use-session-persistence";
-import type { TrackModel, ClipModel } from "@state/track/index";
+import type { TrackModel, AudioClipModel } from "@state/track/index";
 import type { SessionSchema } from "./session-schema";
 
 /** Helper: build a minimal track */
@@ -24,8 +24,9 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
 }
 
 /** Helper: build a minimal clip */
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "clip-1",
     trackId: "track-1",
     sourceId: "source-1",

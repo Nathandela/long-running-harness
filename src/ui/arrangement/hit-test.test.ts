@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { TrackModel, ClipModel } from "@state/track/types";
+import type { TrackModel, AudioClipModel } from "@state/track/types";
 import type { ArrangementViewState } from "./arrangement-renderer";
 import { hitTest, snapToGrid, xToSeconds } from "./hit-test";
 
@@ -28,8 +28,9 @@ function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
   };
 }
 
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "c1",
     trackId: "t1",
     sourceId: "src-1",

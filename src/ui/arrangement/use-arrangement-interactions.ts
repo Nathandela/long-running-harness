@@ -6,6 +6,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import type { ClipModel } from "@state/track/types";
+import { isAudioClip } from "@state/track/types";
 import type { UndoCommand } from "@state/undo";
 import { sharedUndoManager } from "@state/undo";
 import { SplitClipCommand } from "@state/track/track-commands";
@@ -114,7 +115,7 @@ export function useArrangementInteractions(
             clipId: hit.clipId,
             startX: x,
             originalStart: clip.startTime,
-            originalSourceOffset: clip.sourceOffset,
+            originalSourceOffset: isAudioClip(clip) ? clip.sourceOffset : 0,
             originalDuration: clip.duration,
             beforeClip: { ...clip },
           };
@@ -294,7 +295,9 @@ export function useArrangementInteractions(
           (before.startTime !== afterClip.startTime ||
             before.trackId !== afterClip.trackId ||
             before.duration !== afterClip.duration ||
-            before.sourceOffset !== afterClip.sourceOffset)
+            (isAudioClip(before) &&
+              isAudioClip(afterClip) &&
+              before.sourceOffset !== afterClip.sourceOffset))
         ) {
           const clipId = drag.clipId;
           const cmd: UndoCommand =

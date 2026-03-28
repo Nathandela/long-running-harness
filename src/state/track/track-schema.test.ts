@@ -3,6 +3,7 @@ import { clipSchema, trackSchema } from "./track-schema";
 
 describe("clipSchema", () => {
   const validClip = {
+    type: "audio" as const,
     id: "clip-1",
     trackId: "track-1",
     sourceId: "source-1",

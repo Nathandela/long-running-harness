@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createClipScheduler } from "./clip-scheduler";
-import type { ClipModel } from "@state/track/types";
+import type { AudioClipModel } from "@state/track/types";
 
 type MockFn = ReturnType<typeof vi.fn>;
 
@@ -40,8 +40,9 @@ function mockAudioContext(): AudioContext & {
   };
 }
 
-function makeClip(overrides: Partial<ClipModel> = {}): ClipModel {
+function makeClip(overrides: Partial<AudioClipModel> = {}): AudioClipModel {
   return {
+    type: "audio",
     id: "clip-1",
     trackId: "track-1",
     sourceId: "source-1",

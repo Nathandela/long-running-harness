@@ -8,7 +8,7 @@
  *   audioContextTime = arrangementTime + timeOffset
  */
 
-import type { ClipModel } from "@state/track/types";
+import type { AudioClipModel } from "@state/track/types";
 
 type ScheduledClip = {
   source: AudioBufferSourceNode;
@@ -30,7 +30,7 @@ export type ClipScheduler = {
    * @param destination - Node to connect scheduled clips to
    */
   scheduleClips(
-    clips: readonly ClipModel[],
+    clips: readonly AudioClipModel[],
     windowStart: number,
     windowEnd: number,
     timeOffset: number,
@@ -50,7 +50,7 @@ export function createClipScheduler(ctx: AudioContext): ClipScheduler {
 
   return {
     scheduleClips(
-      clips: readonly ClipModel[],
+      clips: readonly AudioClipModel[],
       windowStart: number,
       windowEnd: number,
       timeOffset: number,
