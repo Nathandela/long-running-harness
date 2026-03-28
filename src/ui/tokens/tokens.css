@@ -1,0 +1,52 @@
+:root {
+  /* Colors */
+  --color-black: #000000;
+  --color-white: #ffffff;
+  --color-blue: #0066ff;
+  --color-pink: #ff2d6f;
+  --color-green: #39ff14;
+  --color-amber: #ffb800;
+  --color-red: #ff0000;
+
+  /* Grays */
+  --color-gray-900: #111111;
+  --color-gray-700: #333333;
+  --color-gray-500: #666666;
+  --color-gray-300: #999999;
+  --color-gray-100: #e5e5e5;
+
+  /* Typography */
+  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-4xl: 48px;
+
+  /* Spacing (8px grid with 4px half-step) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Borders */
+  --border-width: 2px;
+  --border-color: var(--color-gray-700);
+  --border: var(--border-width) solid var(--border-color);
+
+  /* Focus */
+  --focus-ring: 2px solid var(--color-blue);
+  --focus-offset: 2px;
+
+  /* Transitions */
+  --transition-fast: 100ms;
+  --transition-normal: 200ms;
+}

@@ -9,7 +9,7 @@ export function DawShell(): React.JSX.Element {
         display: "flex",
         flexDirection: "column",
         height: "100vh",
-        backgroundColor: "#000",
+        backgroundColor: "var(--color-black)",
       }}
     >
       <Toolbar />
