@@ -14,6 +14,7 @@ import {
   LFO_SHAPES,
 } from "./synth-types";
 import type { MixerEngine } from "@audio/mixer/types";
+import type { WorkletModRoute } from "./modulation-engine";
 
 export type SynthInstrument = {
   /** The audio output node — connect to mixer channel strip. */
@@ -31,6 +32,10 @@ export type SynthInstrument = {
     key: K,
     value: SynthParameterMap[K],
   ): void;
+  /** Send modulation routes to the worklet. */
+  setModRoutes(routes: WorkletModRoute[]): void;
+  /** Set a modulation source value (aftertouch, modWheel, pitchBend). */
+  setModSource(source: string, value: number): void;
   /** Connect to a mixer channel. */
   connectToMixer(mixer: MixerEngine, trackId: string): void;
   /** Disconnect from mixer. */
@@ -120,6 +125,14 @@ export async function createSynthInstrument(
         key: key as string,
         value: numericValue,
       });
+    },
+
+    setModRoutes(routes: WorkletModRoute[]): void {
+      postCommand({ type: "setModRoutes", routes });
+    },
+
+    setModSource(source: string, value: number): void {
+      postCommand({ type: "setModSource", source, value });
     },
 
     connectToMixer(mixer: MixerEngine, trackId: string): void {

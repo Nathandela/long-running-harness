@@ -15,7 +15,17 @@ export type SynthVoiceCommand =
   | { type: "noteOn"; note: number; velocity: number; legato: boolean }
   | { type: "noteOff"; note: number }
   | { type: "allNotesOff" }
-  | { type: "setParam"; key: string; value: number };
+  | { type: "setParam"; key: string; value: number }
+  | {
+      type: "setModRoutes";
+      routes: {
+        sourceIdx: number;
+        destIdx: number;
+        amount: number;
+        bipolar: boolean;
+      }[];
+    }
+  | { type: "setModSource"; source: string; value: number };
 
 // ─── Parameter Map ───
 

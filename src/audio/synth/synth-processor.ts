@@ -41,6 +41,14 @@ import {
   type SynthParameterMap,
   DEFAULT_SYNTH_PARAMS,
 } from "./synth-types";
+import {
+  createModAccumulators,
+  resetAccumulators,
+  applyModRoute,
+  type ModAccumulators,
+  type WorkletModRoute,
+  SOURCE_INDEX,
+} from "./modulation-engine";
 
 // ─── AudioWorklet globals ───
 declare const sampleRate: number;
@@ -101,6 +109,12 @@ class SynthProcessor extends AudioWorkletProcessor {
   private ampParams: ADSRParams;
   private filterParams: ADSRParams;
   private alive = true;
+
+  // Modulation matrix (pre-allocated)
+  private modRoutes: WorkletModRoute[] = [];
+  private modSourceValues = new Float64Array(8); // Global source values
+  private modAccGlobal: ModAccumulators = createModAccumulators();
+  private modAccVoice: ModAccumulators = createModAccumulators();
 
   constructor() {
     super();
@@ -174,6 +188,19 @@ class SynthProcessor extends AudioWorkletProcessor {
       case "setParam":
         this.setParamValue(cmd.key, cmd.value);
         break;
+
+      case "setModRoutes":
+        this.modRoutes = cmd.routes;
+        break;
+
+      case "setModSource": {
+        // Update global mod source values (aftertouch, modwheel, pitchbend)
+        const srcKey = cmd.source as keyof typeof SOURCE_INDEX;
+        if (srcKey in SOURCE_INDEX) {
+          this.modSourceValues[SOURCE_INDEX[srcKey]] = cmd.value;
+        }
+        break;
+      }
     }
   }
 
@@ -271,9 +298,43 @@ class SynthProcessor extends AudioWorkletProcessor {
     const osc2OctMul = Math.pow(2, p.osc2Octave);
     const osc2DetMul = Math.pow(2, p.osc2Detune / 1200);
 
+    // Per-voice source values (reused each voice iteration)
+    const voiceSrcValues = new Float64Array(8);
+
     for (let s = 0; s < numSamples; s++) {
-      const lfo1Val = this.lfo1.process(p.lfo1Rate, sr);
-      const lfo2Val = this.lfo2.process(p.lfo2Rate, sr);
+      // LFO rates incorporate modulation from previous sample (1-sample delay, inaudible)
+      const lfo1Rate = Math.max(0.01, p.lfo1Rate + this.modAccGlobal.lfo1Rate);
+      const lfo2Rate = Math.max(0.01, p.lfo2Rate + this.modAccGlobal.lfo2Rate);
+      const lfo1Val = this.lfo1.process(lfo1Rate, sr);
+      const lfo2Val = this.lfo2.process(lfo2Rate, sr);
+
+      // Update global source values for modulation
+      this.modSourceValues[SOURCE_INDEX.lfo1] = lfo1Val;
+      this.modSourceValues[SOURCE_INDEX.lfo2] = lfo2Val;
+
+      // Compute global modulation (from non-per-voice sources)
+      resetAccumulators(this.modAccGlobal);
+      for (let ri = 0; ri < this.modRoutes.length; ri++) {
+        const route = at(this.modRoutes as unknown[], ri) as WorkletModRoute;
+        // Global sources: lfo1, lfo2, aftertouch, modWheel, pitchBend
+        const si = route.sourceIdx;
+        if (
+          si === SOURCE_INDEX.lfo1 ||
+          si === SOURCE_INDEX.lfo2 ||
+          si === SOURCE_INDEX.aftertouch ||
+          si === SOURCE_INDEX.modWheel ||
+          si === SOURCE_INDEX.pitchBend
+        ) {
+          applyModRoute(
+            this.modAccGlobal,
+            this.modSourceValues,
+            si,
+            route.destIdx,
+            route.amount,
+            route.bipolar,
+          );
+        }
+      }
 
       let mixL = 0;
       let mixR = 0;
@@ -305,37 +366,94 @@ class SynthProcessor extends AudioWorkletProcessor {
 
         const baseFreq = vd.currentFreq;
 
-        // LFO1 -> pitch modulation (in semitones)
-        const pitchMod = lfo1Val * p.lfo1Depth * 2;
-        const pitchMultiplier = Math.pow(2, pitchMod / 12);
+        // Filter envelope (must process every sample to advance state)
+        const filterEnvVal = vd.filterEnv.process(this.filterParams, sr);
+        // Amplitude envelope
+        const ampLevel = vd.ampEnv.process(this.ampParams, sr);
 
-        const freq1 = baseFreq * osc1OctMul * osc1DetMul * pitchMultiplier;
-        const freq2 = baseFreq * osc2OctMul * osc2DetMul * pitchMultiplier;
+        // Compute per-voice modulation
+        resetAccumulators(this.modAccVoice);
+        if (this.modRoutes.length > 0) {
+          // Set per-voice source values
+          voiceSrcValues[SOURCE_INDEX.ampEnv] = ampLevel;
+          voiceSrcValues[SOURCE_INDEX.filterEnv] = filterEnvVal;
+          voiceSrcValues[SOURCE_INDEX.velocity] = vd.velocity;
+
+          for (let ri = 0; ri < this.modRoutes.length; ri++) {
+            const route = at(
+              this.modRoutes as unknown[],
+              ri,
+            ) as WorkletModRoute;
+            const si = route.sourceIdx;
+            // Per-voice sources: ampEnv, filterEnv, velocity
+            if (
+              si === SOURCE_INDEX.ampEnv ||
+              si === SOURCE_INDEX.filterEnv ||
+              si === SOURCE_INDEX.velocity
+            ) {
+              applyModRoute(
+                this.modAccVoice,
+                voiceSrcValues,
+                si,
+                route.destIdx,
+                route.amount,
+                route.bipolar,
+              );
+            }
+          }
+        }
+
+        // Combined modulation (global + per-voice)
+        const modPitchOsc1 =
+          this.modAccGlobal.osc1Pitch + this.modAccVoice.osc1Pitch;
+        const modPitchOsc2 =
+          this.modAccGlobal.osc2Pitch + this.modAccVoice.osc2Pitch;
+        const modFilterCutoff =
+          this.modAccGlobal.filterCutoff + this.modAccVoice.filterCutoff;
+        const modFilterReso =
+          this.modAccGlobal.filterResonance + this.modAccVoice.filterResonance;
+        const modAmpLevel =
+          this.modAccGlobal.ampLevel + this.modAccVoice.ampLevel;
+        const modOscMix = this.modAccGlobal.oscMix + this.modAccVoice.oscMix;
+
+        // Pitch modulation (scaled to semitones, max +/-24)
+        const pitchMod1 = modPitchOsc1 * 24;
+        const pitchMod2 = modPitchOsc2 * 24;
+        const pitchMult1 = Math.pow(2, pitchMod1 / 12);
+        const pitchMult2 = Math.pow(2, pitchMod2 / 12);
+
+        const freq1 = baseFreq * osc1OctMul * osc1DetMul * pitchMult1;
+        const freq2 = baseFreq * osc2OctMul * osc2DetMul * pitchMult2;
 
         const osc1Out = vd.osc1.next(freq1, sr) * p.osc1Level;
         const osc2Out = vd.osc2.next(freq2, sr) * p.osc2Level;
-        let sample = osc1Out + osc2Out;
 
-        // Filter envelope (must process every sample to advance state)
-        const filterEnvVal = vd.filterEnv.process(this.filterParams, sr);
+        // Osc mix: without modulation, both oscs play at full level.
+        // oscMix modulation crossfades: negative = more osc1, positive = more osc2
+        const osc1Gain = Math.max(0, Math.min(1, 1 - modOscMix));
+        const osc2Gain = Math.max(0, Math.min(1, 1 + modOscMix));
+        let sample = osc1Out * osc1Gain + osc2Out * osc2Gain;
 
         // Control-rate filter coefficients: recompute once per block per voice
-        // (avoids expensive Math.sin/cos per-sample; block rate ~3ms at 44.1kHz)
         if (s === 0) {
-          const envCutoffMod = filterEnvVal * p.filterEnvDepth;
-          const lfoCutoffMod = lfo1Val * p.lfo1Depth * 12;
-          const velCutoffMod = vd.velocity * 24;
-          const totalCutoffMod = envCutoffMod + lfoCutoffMod + velCutoffMod;
+          // Filter cutoff modulation (in semitones)
+          const cutoffModSt =
+            filterEnvVal * p.filterEnvDepth + modFilterCutoff * 60;
           const modulatedCutoff =
-            p.filterCutoff * Math.pow(2, totalCutoffMod / 12);
+            p.filterCutoff * Math.pow(2, cutoffModSt / 12);
           const clampedCutoff = Math.min(
             Math.max(modulatedCutoff, 20),
             sr / 2 - 100,
           );
+          // Filter resonance modulation
+          const modulatedReso = Math.max(
+            0.5,
+            Math.min(20, p.filterResonance + modFilterReso * 10),
+          );
           computeBiquadCoeffs(
             p.filterType,
             clampedCutoff,
-            p.filterResonance,
+            modulatedReso,
             sr,
             vd.filter.coeffs,
           );
@@ -343,11 +461,8 @@ class SynthProcessor extends AudioWorkletProcessor {
 
         sample = vd.filter.process(sample);
 
-        // Amplitude envelope
-        const ampLevel = vd.ampEnv.process(this.ampParams, sr);
-
-        // LFO2 -> amplitude modulation (tremolo)
-        const ampMod = 1 + lfo2Val * p.lfo2Depth * 0.5;
+        // Amplitude modulation: base envelope * (1 + mod offset)
+        const ampMod = Math.max(0, 1 + modAmpLevel);
 
         // Velocity -> amplitude
         const velAmp = 0.5 + vd.velocity * 0.5;
