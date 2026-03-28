@@ -300,11 +300,12 @@ export function usePianoRollInteractions(
           const deltaPx = x - drag.startX;
           const deltaSec = deltaPx / view.pixelsPerSecond;
           if (drag.edge === "left") {
-            const newStartTime = Math.max(0, drag.origStartTime + deltaSec);
-            const newDuration = Math.max(
-              0.01,
-              drag.origDuration - (newStartTime - drag.origStartTime),
+            const origEnd = drag.origStartTime + drag.origDuration;
+            const newStartTime = Math.max(
+              0,
+              Math.min(drag.origStartTime + deltaSec, origEnd - 0.01),
             );
+            const newDuration = origEnd - newStartTime;
             state.moveNoteEvent(
               drag.clipId,
               drag.noteId,

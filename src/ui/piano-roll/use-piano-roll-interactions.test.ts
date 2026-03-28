@@ -504,6 +504,58 @@ describe("usePianoRollInteractions", () => {
         }
       }
     });
+
+    it("left-edge drag keeps the right edge fixed even when dragged past it", () => {
+      const note = makeNote({
+        id: "n1",
+        pitch: 76,
+        startTime: 0.5,
+        duration: 0.5,
+      });
+      const clip = makeMidiClip({ id: "clip1", noteEvents: [note] });
+      useDawStore.setState({ clips: { clip1: clip } });
+
+      const { result } = renderHook(() =>
+        usePianoRollInteractions("clip1", defaultView, "select", defaultSnap),
+      );
+
+      // Click on left edge of note (startTime = 0.5)
+      const noteStartX = timeToX(0.5);
+      const startX = noteStartX + 3; // within left-edge hit zone
+      const y = pitchToCanvasY(76) + defaultView.noteHeight / 2;
+
+      act(() => {
+        result.current.onPointerDown(
+          mockPointerEvent({ clientX: startX, clientY: y }),
+        );
+      });
+
+      // Drag right far past the note's original end (1.0s) — 200px = 2 seconds past
+      act(() => {
+        result.current.onPointerMove(
+          mockPointerEvent({ clientX: startX + 200, clientY: y }),
+        );
+      });
+
+      const midDragClip = useDawStore.getState().clips["clip1"];
+      if (midDragClip && midDragClip.type === "midi") {
+        const midNote = midDragClip.noteEvents.find((n) => n.id === "n1");
+        expect(midNote).toBeDefined();
+        if (midNote) {
+          // Right edge must stay at original end (0.5 + 0.5 = 1.0)
+          const rightEdge = midNote.startTime + midNote.duration;
+          expect(rightEdge).toBeCloseTo(1.0, 2);
+          // Duration should be clamped to minimum, not negative
+          expect(midNote.duration).toBeGreaterThanOrEqual(0.01);
+        }
+      }
+
+      act(() => {
+        result.current.onPointerUp(
+          mockPointerEvent({ clientX: startX + 200, clientY: y }),
+        );
+      });
+    });
   });
 
   describe("no clip", () => {
