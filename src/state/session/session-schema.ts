@@ -8,19 +8,23 @@ export const metaSectionSchema = z.object({
   updatedAt: z.number(),
 });
 
-export const transportSectionSchema = z.object({
-  bpm: z.number(),
-  loopEnabled: z.boolean(),
-  loopStart: z.number(),
-  loopEnd: z.number(),
-});
+export const transportSectionSchema = z
+  .object({
+    bpm: z.number().min(1).max(999),
+    loopEnabled: z.boolean(),
+    loopStart: z.number().min(0),
+    loopEnd: z.number().min(0),
+  })
+  .refine((t) => t.loopEnd >= t.loopStart, {
+    message: "loopEnd must be >= loopStart",
+  });
 
 export const mixerSectionSchema = z.object({
-  masterVolume: z.number(),
+  masterVolume: z.number().min(0).max(2),
 });
 
 export const sessionSchema = z.object({
-  version: z.number(),
+  version: z.literal(SESSION_VERSION),
   meta: metaSectionSchema,
   transport: transportSectionSchema,
   tracks: z.array(z.unknown()),

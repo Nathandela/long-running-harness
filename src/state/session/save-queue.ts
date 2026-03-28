@@ -26,7 +26,6 @@ export function createSaveQueue(storage: SessionStorage): SaveQueue {
       queued = null;
       await doSave(next);
     }
-    inflight = null;
   }
 
   return {
@@ -35,7 +34,14 @@ export function createSaveQueue(storage: SessionStorage): SaveQueue {
         queued = sessionJson;
         return inflight;
       }
-      inflight = doSave(sessionJson).then(() => processQueue());
+      inflight = (async () => {
+        try {
+          await doSave(sessionJson);
+          await processQueue();
+        } finally {
+          inflight = null;
+        }
+      })();
       return inflight;
     },
 

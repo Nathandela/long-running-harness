@@ -34,6 +34,14 @@ export function recoverSession(raw: string): RecoveryResult {
     return { session: fullResult.data, warnings: [] };
   }
 
+  // Guard against non-object JSON values (null, number, string, array)
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {
+      session: defaults,
+      warnings: ["Session data is not an object - using default session"],
+    };
+  }
+
   // Partial recovery: parse each section independently
   const obj = parsed as Record<string, unknown>;
 

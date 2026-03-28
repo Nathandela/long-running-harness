@@ -13,6 +13,8 @@ import { useMediaPool } from "@audio/media-pool/use-media-pool";
 import { createUndoManager } from "@state/undo/index";
 import { useSessionPersistence } from "@state/session/use-session-persistence";
 import { createInMemorySessionStorage } from "@state/session/index";
+import { createDefaultSession } from "@state/session/session-schema";
+import { hydrateStore } from "@state/session/use-session-persistence";
 
 // Use in-memory storage until IndexedDB is wired in App-level provider
 const defaultStorage = createInMemorySessionStorage();
@@ -23,7 +25,8 @@ function DawShellInner(): React.JSX.Element {
   const pool = useMediaPool();
   const undoManager = useMemo(() => createUndoManager(), []);
   const { saveNow, recoveryWarnings } = useSessionPersistence(defaultStorage);
-  const [showRecovery, setShowRecovery] = useState(recoveryWarnings.length > 0);
+  const [dismissed, setDismissed] = useState(false);
+  const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
   const stableSaveNow = useCallback(() => saveNow(), [saveNow]);
 
@@ -65,10 +68,11 @@ function DawShellInner(): React.JSX.Element {
         open={showRecovery}
         warnings={recoveryWarnings}
         onAccept={() => {
-          setShowRecovery(false);
+          setDismissed(true);
         }}
         onDiscard={() => {
-          setShowRecovery(false);
+          hydrateStore(createDefaultSession());
+          setDismissed(true);
         }}
       />
     </div>

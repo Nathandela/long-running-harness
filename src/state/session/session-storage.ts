@@ -156,15 +156,23 @@ function idbDelete(db: IDBDatabase, store: string, key: string): Promise<void> {
   });
 }
 
-function idbGetAllKeys(db: IDBDatabase, store: string): Promise<string[]> {
+function idbGetAll(
+  db: IDBDatabase,
+  store: string,
+): Promise<{ keys: IDBValidKey[]; values: unknown[] }> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(store, "readonly");
-    const req = tx.objectStore(store).getAllKeys();
-    req.onsuccess = (): void => {
-      resolve(req.result as string[]);
+    const objectStore = tx.objectStore(store);
+    const keysReq = objectStore.getAllKeys();
+    const valuesReq = objectStore.getAll();
+    tx.oncomplete = (): void => {
+      resolve({
+        keys: keysReq.result,
+        values: valuesReq.result as unknown[],
+      });
     };
-    req.onerror = (): void => {
-      reject(req.error ?? new Error("IDB getAllKeys failed"));
+    tx.onerror = (): void => {
+      reject(tx.error ?? new Error("IDB getAll failed"));
     };
   });
 }
@@ -174,7 +182,10 @@ export function createIndexedDBSessionStorage(): SessionStorage {
 
   function getDb(): Promise<IDBDatabase> {
     if (dbPromise === null) {
-      dbPromise = openSessionDb();
+      dbPromise = openSessionDb().catch((err: unknown) => {
+        dbPromise = null;
+        throw err;
+      });
     }
     return dbPromise;
   }
@@ -210,17 +221,15 @@ export function createIndexedDBSessionStorage(): SessionStorage {
     },
     async listSessions(): Promise<SessionListEntry[]> {
       const db = await getDb();
-      const keys = await idbGetAllKeys(db, STORE_SAVED);
+      const { keys, values } = await idbGetAll(db, STORE_SAVED);
       const entries: SessionListEntry[] = [];
-      for (const key of keys) {
-        const entry = await idbGet<{
-          name: string;
-          json: string;
-          updatedAt: number;
-        }>(db, STORE_SAVED, key);
+      for (let i = 0; i < keys.length; i++) {
+        const entry = values[i] as
+          | { name: string; json: string; updatedAt: number }
+          | undefined;
         if (entry !== undefined) {
           entries.push({
-            id: key,
+            id: keys[i] as string,
             name: entry.name,
             updatedAt: entry.updatedAt,
           });

@@ -7,12 +7,21 @@ import { recoverSession } from "./session-recovery";
 import { SESSION_VERSION } from "./session-schema";
 import type { SessionSchema } from "./session-schema";
 
+// Stored meta from the loaded session, preserved across auto-saves
+let sessionMeta: { name: string; createdAt: number } = {
+  name: "Untitled",
+  createdAt: Date.now(),
+};
+
 function storeToSession(): SessionSchema {
   const state = useDawStore.getState();
-  const now = Date.now();
   return {
     version: SESSION_VERSION,
-    meta: { name: "Untitled", createdAt: now, updatedAt: now },
+    meta: {
+      name: sessionMeta.name,
+      createdAt: sessionMeta.createdAt,
+      updatedAt: Date.now(),
+    },
     transport: {
       bpm: state.bpm,
       loopEnabled: state.loopEnabled,
@@ -24,7 +33,11 @@ function storeToSession(): SessionSchema {
   };
 }
 
-function hydrateStore(session: SessionSchema): void {
+export function hydrateStore(session: SessionSchema): void {
+  sessionMeta = {
+    name: session.meta.name,
+    createdAt: session.meta.createdAt,
+  };
   useDawStore.setState({
     bpm: session.transport.bpm,
     loopEnabled: session.transport.loopEnabled,
@@ -54,16 +67,24 @@ export function useSessionPersistence(
     [saveQueue],
   );
 
-  // Load session from storage on mount
+  // Load session from storage on mount (draft-first for crash safety)
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
 
     void (async (): Promise<void> => {
-      const raw = await storage.getCurrent();
+      // Check draft first — a crash between putDraft and putCurrent
+      // means the draft is the most recent write attempt
+      const draft = await storage.getDraft();
+      const raw = draft ?? (await storage.getCurrent());
       if (raw !== undefined) {
         const result = recoverSession(raw);
         hydrateStore(result.session);
+        if (draft !== undefined) {
+          result.warnings.push(
+            "Recovered from unsaved draft (possible crash recovery)",
+          );
+        }
         if (result.warnings.length > 0) {
           setRecoveryWarnings(result.warnings);
         }
