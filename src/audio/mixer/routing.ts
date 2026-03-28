@@ -147,19 +147,41 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
       const bus = buses.get(id);
       if (!bus) return;
 
+      // Re-route buses whose output targeted this bus back to master
+      for (const other of buses.values()) {
+        if (other.outputTarget === id) {
+          graph.removeEdge(other.id, id);
+          other.outputTarget = "master";
+          graph.addEdge(other.id, "master");
+          connectBusOutput(other);
+        }
+      }
+
       // Remove all sends targeting this bus
       for (const [sourceId, trackSends] of sends.entries()) {
         const filtered = trackSends.filter((s) => {
           if (s.busId === id) {
             s.sendGain.disconnect();
+            graph.removeEdge(sourceId, id);
             return false;
           }
           return true;
         });
         if (filtered.length === 0) {
           sends.delete(sourceId);
+          // Prune orphaned source node (not a bus)
+          if (!buses.has(sourceId)) graph.removeNode(sourceId);
         } else {
           sends.set(sourceId, filtered);
+        }
+      }
+
+      // Remove sidechains referencing this bus
+      for (let i = sidechains.length - 1; i >= 0; i--) {
+        const sc = sidechains[i];
+        if (sc && (sc.sourceId === id || sc.targetId === id)) {
+          sc.analyser.disconnect();
+          sidechains.splice(i, 1);
         }
       }
 
@@ -182,7 +204,10 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
       const bus = buses.get(busId);
       if (!bus) return;
 
-      // Check cycle: temporarily add edge busId -> targetId
+      if (targetId !== "master" && !buses.has(targetId)) {
+        throw new Error(`Bus output target not found: ${targetId}`);
+      }
+
       if (graph.wouldCauseCycle(busId, targetId)) {
         throw new Error(`Routing cycle detected: ${busId} -> ${targetId}`);
       }
@@ -210,6 +235,10 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
 
       const bus = buses.get(busId);
       if (!bus) throw new Error(`Bus not found: ${busId}`);
+
+      if (graph.wouldCauseCycle(sourceId, busId)) {
+        throw new Error(`Routing cycle detected: ${sourceId} -> ${busId}`);
+      }
 
       const level = clamp(options?.level ?? 1, 0, 1);
       const preFader = options?.preFader ?? false;
@@ -247,11 +276,13 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
       removed.sendGain.disconnect();
       trackSends.splice(idx, 1);
 
+      graph.removeEdge(sourceId, busId);
+
       if (trackSends.length === 0) {
         sends.delete(sourceId);
+        // Prune orphaned source node (not a bus)
+        if (!buses.has(sourceId)) graph.removeNode(sourceId);
       }
-
-      graph.removeEdge(sourceId, busId);
     },
 
     setSendLevel(sourceId: string, busId: string, level: number): void {
@@ -325,6 +356,7 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
       }
       buses.clear();
 
+      graph.clear();
       masterInput.disconnect();
     },
   };

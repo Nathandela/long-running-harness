@@ -179,6 +179,24 @@ describe("RoutingEngine", () => {
       expect(engine.getSends("track-1")).toHaveLength(0);
       expect(engine.getSends("track-2")).toHaveLength(0);
     });
+
+    it("re-routes dependent buses to master when bus is removed", () => {
+      engine.createBus("bus-1");
+      engine.createBus("bus-2");
+      engine.setBusOutput("bus-1", "bus-2");
+      expect(engine.getBus("bus-1")?.outputTarget).toBe("bus-2");
+      engine.removeBus("bus-2");
+      expect(engine.getBus("bus-1")?.outputTarget).toBe("master");
+    });
+
+    it("removes sidechains referencing removed bus", () => {
+      engine.createBus("bus-1");
+      engine.addSidechain("bus-1", "track-1");
+      engine.addSidechain("track-2", "bus-1");
+      engine.removeBus("bus-1");
+      expect(engine.getSidechains("track-1")).toHaveLength(0);
+      expect(engine.getSidechains("bus-1")).toHaveLength(0);
+    });
   });
 
   describe("sidechain routing", () => {
@@ -229,6 +247,15 @@ describe("RoutingEngine", () => {
       engine.addSend("bus-1", "bus-2");
       // bus-2 -> bus-1 would create cycle
       expect(engine.wouldCauseCycle("bus-2", "bus-1")).toBe(true);
+    });
+
+    it("addSend throws on cycle", () => {
+      engine.createBus("bus-1");
+      engine.createBus("bus-2");
+      engine.addSend("bus-1", "bus-2");
+      expect(() => {
+        engine.addSend("bus-2", "bus-1");
+      }).toThrow(/cycle/i);
     });
   });
 
@@ -284,6 +311,13 @@ describe("RoutingEngine", () => {
         engine.setBusOutput("bus-2", "bus-1");
       }).toThrow(/cycle/i);
     });
+
+    it("rejects bus output to unknown target", () => {
+      engine.createBus("bus-1");
+      expect(() => {
+        engine.setBusOutput("bus-1", "nonexistent");
+      }).toThrow(/not found/i);
+    });
   });
 
   describe("dispose", () => {
@@ -295,6 +329,32 @@ describe("RoutingEngine", () => {
       expect(engine.getAllBuses()).toHaveLength(0);
       expect(engine.getSends("track-1")).toHaveLength(0);
       expect(engine.getSidechains("track-2")).toHaveLength(0);
+    });
+
+    it("clears routing graph on dispose", () => {
+      engine.createBus("bus-1");
+      engine.addSend("track-1", "bus-1");
+      engine.dispose();
+      expect(engine.getRenderOrder()).toEqual([]);
+    });
+  });
+
+  describe("removeSend node pruning", () => {
+    it("prunes orphaned track node from graph after last send removed", () => {
+      engine.createBus("bus-1");
+      engine.addSend("track-1", "bus-1");
+      engine.removeSend("track-1", "bus-1");
+      // track-1 should not appear in render order
+      expect(engine.getRenderOrder()).not.toContain("track-1");
+    });
+
+    it("keeps bus node in graph after its sends are removed", () => {
+      engine.createBus("bus-1");
+      engine.createBus("bus-2");
+      engine.addSend("bus-1", "bus-2");
+      engine.removeSend("bus-1", "bus-2");
+      // bus-1 should still be in graph (it's a bus, not just a send source)
+      expect(engine.getRenderOrder()).toContain("bus-1");
     });
   });
 });

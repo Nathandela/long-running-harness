@@ -41,7 +41,13 @@ export const useRoutingStore = create<RoutingStore>()((set, get) => ({
   removeBus(id) {
     set((s) => {
       const buses = Object.fromEntries(
-        Object.entries(s.buses).filter(([k]) => k !== id),
+        Object.entries(s.buses)
+          .filter(([k]) => k !== id)
+          .map(([k, bus]) =>
+            bus.outputTarget === id
+              ? [k, { ...bus, outputTarget: "master" }]
+              : [k, bus],
+          ),
       );
       const sends = Object.fromEntries(
         Object.entries(s.sends)
@@ -54,7 +60,10 @@ export const useRoutingStore = create<RoutingStore>()((set, get) => ({
           )
           .filter(([, filtered]) => filtered.length > 0),
       );
-      return { buses, sends };
+      const sidechains = s.sidechains.filter(
+        (sc) => sc.sourceId !== id && sc.targetId !== id,
+      );
+      return { buses, sends, sidechains };
     });
   },
 
@@ -71,6 +80,7 @@ export const useRoutingStore = create<RoutingStore>()((set, get) => ({
   addSend(trackId, send) {
     set((s) => {
       const existing = s.sends[trackId] ?? [];
+      if (existing.some((e) => e.busId === send.busId)) return s;
       return {
         sends: { ...s.sends, [trackId]: [...existing, send] },
       };
@@ -97,11 +107,12 @@ export const useRoutingStore = create<RoutingStore>()((set, get) => ({
     set((s) => {
       const existing = s.sends[trackId];
       if (!existing) return s;
+      const clamped = Math.min(1, Math.max(0, level));
       return {
         sends: {
           ...s.sends,
           [trackId]: existing.map((send) =>
-            send.busId === busId ? { ...send, level } : send,
+            send.busId === busId ? { ...send, level: clamped } : send,
           ),
         },
       };

@@ -40,6 +40,10 @@ export class RoutingGraph {
     return this.adjacency.get(from) ?? new Set();
   }
 
+  clear(): void {
+    this.adjacency.clear();
+  }
+
   /** Check if adding edge from->to would create a cycle without actually adding it */
   wouldCauseCycle(from: string, to: string): boolean {
     // Adding from->to creates a cycle iff there's already a path from to->from
