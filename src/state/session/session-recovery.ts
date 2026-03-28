@@ -8,6 +8,7 @@ import {
   type SessionSchema,
 } from "./session-schema";
 import { z } from "zod/v4";
+import { trackSchema, clipSchema } from "@state/track/index";
 
 export type RecoveryResult = {
   session: SessionSchema;
@@ -59,10 +60,16 @@ export function recoverSession(raw: string): RecoveryResult {
     warnings.push("Invalid transport section - using defaults");
   }
 
-  const tracksResult = z.array(z.unknown()).safeParse(obj["tracks"]);
+  const tracksResult = z.array(trackSchema).safeParse(obj["tracks"]);
   const tracks = tracksResult.success ? tracksResult.data : defaults.tracks;
   if (!tracksResult.success) {
     warnings.push("Invalid tracks section - using defaults");
+  }
+
+  const clipsResult = z.array(clipSchema).safeParse(obj["clips"]);
+  const clips = clipsResult.success ? clipsResult.data : defaults.clips;
+  if (!clipsResult.success) {
+    warnings.push("Invalid clips section - using defaults");
   }
 
   const mixerResult = mixerSectionSchema.safeParse(obj["mixer"]);
@@ -78,7 +85,7 @@ export function recoverSession(raw: string): RecoveryResult {
   }
 
   return {
-    session: { version, meta, transport, tracks, mixer },
+    session: { version, meta, transport, tracks, clips, mixer },
     warnings,
   };
 }

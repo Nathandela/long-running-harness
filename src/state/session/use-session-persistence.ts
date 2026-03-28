@@ -28,7 +28,8 @@ function storeToSession(): SessionSchema {
       loopStart: state.loopStart,
       loopEnd: state.loopEnd,
     },
-    tracks: [],
+    tracks: state.tracks.map((t) => ({ ...t })),
+    clips: Object.values(state.clips),
     mixer: { masterVolume: 1 },
   };
 }
@@ -38,11 +39,18 @@ export function hydrateStore(session: SessionSchema): void {
     name: session.meta.name,
     createdAt: session.meta.createdAt,
   };
+  const clips: Record<string, (typeof session.clips)[number]> = {};
+  for (const clip of session.clips) {
+    clips[clip.id] = clip;
+  }
+
   useDawStore.setState({
     bpm: session.transport.bpm,
     loopEnabled: session.transport.loopEnabled,
     loopStart: session.transport.loopStart,
     loopEnd: session.transport.loopEnd,
+    tracks: session.tracks,
+    clips,
   });
 }
 
