@@ -1,12 +1,17 @@
-All findings are addressed per the system reminders:
+Both original P1 findings are resolved. The pre-fader tap was added to the channel strip chain, and `RoutingBridgeProvider` + `routing-bridge.ts` correctly bridge the Zustand store to the audio engine via subscription. New files introduce two minor issues:
 
-- **P1** — `modulation-bridge.ts` implemented with `subscribeModRoutes`, tested, exported. ✅
-- **P2 drag leak** — `useEffect` with `document.addEventListener("mouseup", ...)` in `ModulationMatrix.tsx`. ✅
-- **P2 type widening** — `ModulationStore["matrices"]` used in `hydrateStore`. ✅
-- **P2 MAX_MOD_ROUTES bypass** — `routes.slice(0, MAX_MOD_ROUTES)` on load. ✅
-- **P3 dead code** — `isPerVoiceSource` removed, `PER_VOICE_SOURCES` exported and tested. ✅
-- **P3 SVG cables** — `viewBox="0 0 60 200"` + `preserveAspectRatio="none"` with numeric coordinates gives a stable coordinate space. Y offsets are still fixed, but consistent within the declared viewport. Acceptable for this component. ✅
+REVIEW_CHANGES_REQUESTED
 
-Bonus: `_seedRouteCounter` prevents ID collisions after session hydration — correct handling of the module-level counter.
+**1. [P2] `routing-bridge.ts` has no tests**
 
-REVIEW_APPROVED
+`src/audio/mixer/routing-bridge.ts` is the most stateful integration piece in E13 — it tracks `wiredSends`, rewires pre/post-fader connections on toggle, syncs bus output targets, and manages sidechain lifecycle. All existing tests cover the engine and store in isolation. There are no tests verifying the bridge correctly handles:
+- A preFader toggle rewires the send tap point
+- Stale sends are removed when store removes them
+- Bus removal propagates to engine
+- The initial `sync()` on creation picks up pre-existing store state
+
+---
+
+**2. [P3] `key.split(":")` in bridge is fragile for IDs containing colons**
+
+`routing-bridge.ts:119` and `routing-bridge.ts:140` decompose composite keys using `split(":")`. If a track or bus ID ever contains a colon (e.g., a UUID variant or user-supplied name), the destructuring silently takes only the first segment, corrupting both `trackId` and `busId`. Replace with a split-safe separator (e.g., `\0` or a `Map<string, Map<string, ...>>` structure) or document that IDs must not contain colons.

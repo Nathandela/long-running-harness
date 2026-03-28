@@ -19,10 +19,10 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
+✓ long-running-harness-23s ● P1 bug Fix review findings: routing cycle detection, cleanup, store guards
 ✓ long-running-harness-3ag ● P1 task E11-T3: Piano roll interactions, hit testing, and quantization
 ✓ long-running-harness-gsm ● P1 task E11-T4: MIDI input validation and Web MIDI API integration
 ✓ long-running-harness-gv4 ● P1 task Review: E11 Piano Roll & MIDI Editor
-✓ long-running-harness-jr8 ● P1 task E11-T2: Piano roll canvas renderer
 ✓ long-running-harness-utg ● P1 task E11-T5: PianoRollEditor panel component and keyboard shortcuts
 ✓ long-running-harness-yiu ● P1 task Compound: E11 Piano Roll & MIDI Editor
 
@@ -32,12 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-4afc19e Fix review findings: route ID collision, processor tests, SVG, diff.patch
-8756cfe Fix review findings: bridge, drag leak, type safety, dead code, tests
-7bbeacb chore: auto-commit uncommitted changes from long-running-harness-9yc
-55a7503 Fix review findings: zero-alloc, LFO depth, bipolar toggle, persistence
-1ffc1b6 E12-T3/T4/T5: Add modulation store, UI panel, and session serialization
-487113a E12-T1/T2: Add modulation types, engine, and processor integration
+64c389f Fix review findings: bus source cleanup, pre-fader tap, routing bridge
+703dbf2 Fix review findings: cycle detection, bus cleanup, store guards
+75607ff chore: auto-commit uncommitted changes from long-running-harness-wv9
+dd88818 E13: Add advanced mixer routing (sends, buses, sidechains)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

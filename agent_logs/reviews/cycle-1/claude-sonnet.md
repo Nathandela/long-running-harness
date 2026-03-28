@@ -1,29 +1,43 @@
-Based on my review of the modulation system changes (E12), here are my findings:
-
 REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. P1 — Modulation routes never reach the AudioWorklet (feature is entirely non-functional)**
+**1. [P1] `addSend` has no cycle guard — audio feedback loop possible**
 
-`getWorkletRoutes()` and `instrument.setModRoutes()` are both implemented, but nothing connects the Zustand modulation store to the synth instrument. No subscriber or bridge calls `getWorkletRoutes(trackId)` and forwards the result to `instrument.setModRoutes(routes)` when routes change. The UI works, persistence works, but modulation has zero effect on audio output. This is the core deliverable of E12 and it's missing.
+`routing.ts:232-233` — `addSend` adds a graph edge without calling `wouldCauseCycle`. Since buses are valid send sources (proven by the render-order test at line 229: `engine.addSend("bus-1", "bus-2")`), calling `engine.addSend("bus-2", "bus-1")` after the above would silently create a cycle and produce an audio feedback loop. `setBusOutput` guards cycles but `addSend` does not.
 
-**2. P2 — Drag state leaks when mouse released outside component**
+---
 
-`ModulationMatrix.tsx`: `dragSource` is only cleared by `onMouseUp` on the container `div`. If the user drags off the component and releases, `dragSource` stays set — the next `mousedown` on any source port then reads a stale value. Needs a `document`-level `mouseup` listener (e.g. in a `useEffect`).
+**2. [P1] Pre-fader routing is unimplemented — `preFader` flag is decorative**
 
-**3. P2 — Session hydration bypasses route type safety**
+`routing.ts:219` — `addSend` always connects `sendGain` to `bus.inputGain` regardless of `preFader`. A real pre-fader send must tap the signal before the source channel's fader gain. The `RoutingEngine` has no reference to channel strips, so it cannot connect to the correct tap point. The `preFader` property is stored and tested but has zero effect on audio routing.
 
-`hydrateStore` (`use-session-persistence.ts:131-148`) constructs `matrices` with `source: string` / `destination: string`, then calls `useModulationStore.setState({ matrices })`. The store's type expects `ModSource` / `ModDestination`. When `getWorkletRoutes` is eventually wired up, `SOURCE_INDEX[r.source]` on a `string`-typed value can produce `undefined` as `sourceIdx`, which the worklet would receive silently. The Zod validation in `recoverSession` provides runtime safety, but the types should be cast explicitly after schema parse.
+---
 
-**4. P2 — MAX_MOD_ROUTES not enforced on session load**
+**3. [P1] UI actions are not bridged to the audio engine**
 
-`addRoute` guards against >32 routes, but `hydrateStore` calls `useModulationStore.setState({ matrices })` directly, bypassing that guard. A crafted session file can load unlimited routes, feeding an unbounded `modRoutes` array into `process()`.
+`RoutingMatrix.tsx:71` (EmptyCell `addSend`) and `RoutingMatrix.tsx:43` (`togglePreFader`) — these call Zustand store methods only. There is no code path that calls `routingEngine.addSend()` or `routingEngine.setSendLevel()`. Sends added through the UI are visually present but produce no audio. The `RoutingStore` and `RoutingEngine` are parallel but never synchronized.
 
-**5. P3 — `isPerVoiceSource` is dead code**
+---
 
-`modulation-types.ts:30-32` defines `isPerVoiceSource`, but `synth-processor.ts` hardcodes the same per-voice/global split with explicit `SOURCE_INDEX` comparisons. The function is never called. If a source is added, the processor's inline checks must be updated separately — a maintenance trap.
+**4. [P2] `setBusOutput` disconnects bus audio silently on unknown target**
 
-**6. P3 — SVG cable positions are pixel-hardcoded**
+`routing.ts:107-115` — `connectBusOutput` calls `bus.analyser.disconnect()` unconditionally, then only reconnects if the target exists. If `setBusOutput("bus-1", "nonexistent")` is called, bus-1's output is disconnected and goes silent with no error. Should either validate the target exists before disconnecting, or throw the cycle-check error path sooner.
 
-`ModulationMatrix.tsx:201-202`: `srcY = 20 + srcIdx * 22` / `destY = 20 + destIdx * 22` — hardcoded pixel offsets that don't measure actual port positions. Any token or spacing change will misalign cables.
+---
+
+**5. [P2] Source nodes are not pruned from graph after `removeSend`**
+
+`routing.ts:254` — `removeSend` removes the edge but never removes the source node when it has no remaining sends. `getRenderOrder()` then returns orphaned source IDs (tracks/buses with no active routing), producing an incorrect topological order. The node should be removed when its send list empties.
+
+---
+
+**6. [P2] `dispose()` does not clear the routing graph**
+
+`routing.ts:308-329` — `dispose()` clears buses, sends, and sidechains but not the `graph`. Nodes and edges from the pre-dispose state remain. Any post-dispose call to `getRenderOrder()` or `wouldCauseCycle()` returns stale results. Add `graph.clear()` (or reset via a new `RoutingGraph()`) in `dispose()`.
+
+---
+
+**7. [P3] `updateSendLevel` in Zustand store does not clamp**
+
+`routing-store.ts:97-109` — `updateSendLevel` writes the raw level value without clamping to `[0, 1]`. The engine's `setSendLevel` clamps, but if the store is updated directly (e.g., from persisted state or tests), the store can hold values the engine would reject, causing state divergence.

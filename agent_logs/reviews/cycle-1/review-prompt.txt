@@ -32,10 +32,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-7bbeacb chore: auto-commit uncommitted changes from long-running-harness-9yc
-55a7503 Fix review findings: zero-alloc, LFO depth, bipolar toggle, persistence
-1ffc1b6 E12-T3/T4/T5: Add modulation store, UI panel, and session serialization
-487113a E12-T1/T2: Add modulation types, engine, and processor integration
+75607ff chore: auto-commit uncommitted changes from long-running-harness-wv9
+dd88818 E13: Add advanced mixer routing (sends, buses, sidechains)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

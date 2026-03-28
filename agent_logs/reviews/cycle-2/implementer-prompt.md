@@ -6,39 +6,43 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All findings are resolved:
+All fixes from the previous review (P1 #1, P2 #4, P2 #5, P2 #6, P3 #7) were correctly applied. The `RoutingGraph.clear()` method was added, cycle guard in `addSend`, target validation in `setBusOutput`, orphan pruning in `removeSend`, and level clamping in store all look correct.
 
-- **P1 (bridge missing)** — `subscribeModRoutes` implemented in `modulation-bridge.ts` with immediate send + subscription, tested, exported for callsite use. Consistent with the pre-existing state where `createSynthInstrument` itself isn't yet wired to the app.
-- **P2 (drag leak)** — document-level `mouseup` listener added via `useEffect`, tested.
-- **P2 (type widening)** — `ModulationStore["matrices"]` used in `hydrateStore`, eliminating the `string` widening.
-- **P2 (MAX_MOD_ROUTES bypass)** — `routes.slice(0, MAX_MOD_ROUTES)` added on load, tested.
-- **P3 (dead code)** — `isPerVoiceSource` removed, `PER_VOICE_SOURCES` exported and tested.
-
-The P3 SVG cable hardcoded positions remain but are cosmetic and not blocking.
-
-REVIEW_APPROVED
-</claude-sonnet-review>
-
-<claude-opus-review>
-Checking findings against fixes:
-
-| # | Original Finding | Status |
-|---|---|---|
-| 1 | P2 `routeCounter` HMR/test | Fixed: `_resetRouteCounter()` added, `Date.now()` removed from ID |
-| 2 | P2 Filter coeff once-per-block | Fixed: documented as intentional trade-off |
-| 3 | P2 No bridge from store to worklet | **Still open** — `setModRoutes`/`getWorkletRoutes` never called from any `.tsx` |
-| 4 | P2 `hydrateStore` weak typing | Fixed: uses `ModulationStore["matrices"]` + `MAX_MOD_ROUTES` enforcement |
-| 5 | P3 `diff.patch` in repo | **Still present** |
-| 6 | P3 `voiceSrcValues` stale slots | Acceptable (documented by per-voice filter) |
-| 7 | P3 `isPerVoiceSource` unused | Fixed: removed function, exported `PER_VOICE_SOURCES` directly |
-
-Additionally, the `ModulationMatrix.tsx` drag-leak was proactively fixed with a document-level `mouseup` listener.
+Two original findings remain unaddressed:
 
 REVIEW_CHANGES_REQUESTED
 
-1. **P2 — No bridge from UI store to worklet is still missing.** Nothing subscribes to `useModulationStore` changes and calls `instrument.setModRoutes(getWorkletRoutes(trackId))`. The modulation matrix UI updates the Zustand store, but routes never reach the `synth-processor`. This is the only functional bug remaining — the entire modulation feature is inert at runtime.
+**1. [P1] Pre-fader routing has no audio effect — `preFader` flag is decorative**
 
-2. **P3 — `diff.patch` still committed in repo root** (2425 lines). Should be deleted or added to `.gitignore`.
+`routing.ts:223` — `sendGain.connect(bus.inputGain)` is used regardless of `preFader`. A pre-fader send must tap the signal before the source channel's fader. `RoutingEngine` has no reference to `MixerEngine` channel strips, and `ChannelStrip` (`mixer/types.ts:19`) exposes `faderGain` but no pre-fader tap node. The commit message claims pre/post-fader selection is implemented — it is not. Either implement it (requires cross-engine access or a pre-fader tap on `ChannelStrip`) or remove `preFader` from the public API until it is.
+
+---
+
+**2. [P1] `RoutingEngine` is never instantiated in production — UI has no audio effect**
+
+`createRoutingEngine` appears only in `routing.ts` and `routing.test.ts`. `RoutingMatrix.tsx` updates the Zustand store, but no bridge/provider creates a `RoutingEngine` instance or synchronizes store mutations to it. Compare `EffectsBridgeProvider.tsx`, which wires the effects store to `MixerEngine`. Without an equivalent `RoutingBridgeProvider`, all UI interactions (adding sends, toggling pre-fader, setting bus outputs) are visually present but produce zero audio change.
+</claude-sonnet-review>
+
+<claude-opus-review>
+All 59 tests pass (up from 48), no type errors. Let me verify each finding was addressed:
+
+**P1 #1 — `addSend` cycle detection**: Fixed. `routing.ts:214-216` now calls `wouldCauseCycle` before adding the graph edge, throws on cycle. New test at `routing.test.ts:234-241`.
+
+**P1 #2 — `removeBus` orphaned `outputTarget`**: Fixed. `routing.ts:150-158` re-routes dependent buses to master and updates graph edges. Also removes sidechains referencing the bus (`routing.ts:179-186`). Store does the same (`routing-store.ts:46-49, 63-65`). Tests at `routing.test.ts:183-199` and `routing-store.test.ts:61-87`.
+
+**P2 #3 — Store `addSend` duplicates**: Fixed. `routing-store.ts:83` checks `existing.some((e) => e.busId === send.busId)`. Test at `routing-store.test.ts:113-124`.
+
+**P2 #4 — Store `setBusOutput` cycle guard**: Not added to the store, which is acceptable — the audio engine is the validation authority.
+
+**P3 #5 — Store `updateSendLevel` clamping**: Fixed. `routing-store.ts:100` clamps with `Math.min(1, Math.max(0, level))`. Test at `routing-store.test.ts:126-137`.
+
+**Bonus fixes** beyond what was requested:
+- `setBusOutput` validates target exists (`routing.ts:185-187`)
+- `removeSend` prunes orphaned source nodes from graph (`routing.ts:252-256`)
+- `dispose` calls `graph.clear()` (`routing.ts:328`)
+- `RoutingGraph.clear()` method added (`cycle-detection.ts:43-45`)
+
+REVIEW_APPROVED
 </claude-opus-review>
 
 <gemini-review>
@@ -51,30 +55,21 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:518:28)
-    at Pipe.<anonymous> (node:net:351:12) {
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-
-1. **Missing Tests (P1):** While tests were added for `toggleRouteBipolar` and session serialization, the missing tests for `setModRoutes`/`setModSource` message handling and per-voice `voiceSrcValues` routing within the AudioWorklet processor context (`synth-processor.ts`) remain unaddressed. No tests cover this logic.
-
-2. **SVG `<line>` Percentage Usage (P3):** The cable visualization in `src/ui/synth/ModulationMatrix.tsx` (around line 217) still uses `x2="100%"`. As previously requested, SVG `<line>` coordinates do not universally support percentage values in all rendering contexts; please switch to using `getBoundingClientRect` or a `viewBox` coordinate system.
+REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Hydrated modulation routes can now collide with newly added route IDs** ([modulation-types.ts:55](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-types.ts:55), [modulation-types.ts:64](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-types.ts:64), [use-session-persistence.ts:136](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:136), [modulation-store.ts:76](/Users/Nathan/Documents/Code/long-running-harness/src/state/synth/modulation-store.ts:76), [modulation-store.ts:94](/Users/Nathan/Documents/Code/long-running-harness/src/state/synth/modulation-store.ts:94))  
-  `createModRoute()` now generates deterministic `mod-<counter>` IDs, but hydration restores persisted routes without advancing that counter. After reloading any session that already contains `mod-1`, `mod-2`, etc., the next `addRoute()` can reuse an existing ID. Because remove/update/toggle all key off `routeId`, one UI action can then affect multiple routes or the wrong route. Seed the counter from hydrated data or switch back to a uniqueness-preserving ID strategy and keep deterministic tests via an injectable/resettable generator.
-
-- **[P1] The new modulation bridge is still not wired into runtime synth ownership** ([modulation-bridge.ts:17](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.ts:17), [modulation-bridge.test.ts:47](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.test.ts:47), [synth-instrument.ts:54](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/synth-instrument.ts:54))  
-  The bridge is tested in isolation, but there is still no non-test call site that subscribes a real `SynthInstrument` to modulation-store changes. That means modulation routes can exist in UI state and session persistence while never reaching the live AudioWorklet. Hook the subscription up where synth instruments are created/owned and clean it up with instrument disposal, then cover that path with an integration test.</codex-review>
+- **[P1] Removing a bus still leaves sends sourced from that bus behind** ([routing.ts:160](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.ts:160), [routing-store.ts:52](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.ts:52), [routing.test.ts:183](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.test.ts:183), [routing-store.test.ts:61](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.test.ts:61))  
+  Both the engine and the Zustand store only clean up sends whose `busId` matches the removed bus. If the removed bus itself was a send source, its outgoing sends survive under the `sourceId === removedBusId` entry. That leaves orphaned send routes in state and leaked `sendGain` nodes in the engine. Add explicit cleanup for sends sourced from the removed bus in both layers, and cover the `bus-1 -> bus-2`, then `removeBus("bus-1")` case with regression tests.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

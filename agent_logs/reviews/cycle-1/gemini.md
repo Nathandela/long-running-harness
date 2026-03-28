@@ -16,10 +16,14 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **Missing Tests (P1):** The implementer added new functionality (the `toggleRouteBipolar` action to the modulation store and session persistence serialization for modulation) but did not add any tests for them. Additionally, the previous review's findings regarding missing tests for `setModRoutes`/`setModSource` message handling, per-voice `voiceSrcValues` routing, UI drag cancellation, and session serialization round-trip remain unaddressed.
+1. **[P0] `RoutingEngine.addSend` does not check for or prevent cycles:**
+   The `addSend` method in `src/audio/mixer/routing.ts` lacks the `graph.wouldCauseCycle(sourceId, busId)` check that `setBusOutput` correctly performs. Because `sourceId` can be any string (including another bus), this allows the creation of feedback loops in the routing graph (e.g., `busA` sends to `busB`, and `busB` outputs to `busA`), which defeats the stated "cycle-safe output routing" requirement.
 
-2. **`routeCounter` Non-Determinism (P3):** In `src/audio/synth/modulation-types.ts`, `routeCounter` still uses a module-level mutable state combined with `Date.now()`. As flagged in the previous review, this is non-deterministic and can break snapshot testing. A crypto-based UUID or a simple incrementing counter without `Date.now()` should be used.
+2. **[P1] Dangling output targets and disconnected audio on bus removal:**
+   In `src/audio/mixer/routing.ts`, `removeBus` removes sends that target the bus, but it fails to reset the `outputTarget` of other buses that route to it. If `busA.outputTarget === busB.id` and `busB` is removed, `busA`'s output remains pointed at the deleted bus and is permanently disconnected from the master mix. The same issue exists in `src/state/routing/routing-store.ts` where the Zustand state retains the deleted `outputTarget`.
 
-3. **SVG `<line>` Percentage Usage (P3):** In `src/ui/synth/ModulationMatrix.tsx`, the cable visualization still uses `x2="100%"`. As noted in the previous review, SVG `<line>` coordinates do not universally support percentage values in all rendering contexts. Using `getBoundingClientRect` or a `viewBox` coordinate system is preferred.
+3. **[P1] Dangling sidechains on bus removal:**
+   In both `src/audio/mixer/routing.ts` and `src/state/routing/routing-store.ts`, `removeBus(id)` does not clean up sidechain assignments where the `sourceId` or `targetId` matches the removed bus `id`. This leaves disconnected `AnalyserNode` instances in memory and stale sidechain badges in the UI.
 
-*(Note: The "No Wiring Between Store Changes and Worklet" issue flagged in the prior review cycle was correctly skipped, as `createSynthInstrument` is not instantiated anywhere in the project yet, leaving no active instrument to which `setModRoutes` could be wired.)*
+4. **[P2] `addSend` allows duplicate entries in Zustand store:**
+   In `src/state/routing/routing-store.ts`, the `addSend` action blindly appends the incoming send to the `sends[trackId]` array without checking if a send for that `busId` already exists. While the audio engine correctly guards against duplicates, the store state can become polluted with redundant send objects.

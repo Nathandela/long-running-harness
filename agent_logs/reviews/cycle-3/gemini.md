@@ -7,9 +7,7 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:518:28)
-    at Pipe.<anonymous> (node:net:351:12) {
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
   code: -32000,
   data: undefined
 }
@@ -18,4 +16,8 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **Missing Tests (P1):** While you added `src/audio/synth/synth-processor.test.ts` to test `setModRoutes` and `setModSource` message handling, the tests only verify that the `onmessage` handler does not throw an error (`expect(() => ...).not.toThrow()`). There is still no test coverage for the actual DSP logic within the `process()` method, specifically the per-voice modulation routing involving `voiceSrcValues` that was highlighted in the previous review. Please add tests that call the `process()` method to verify that modulation routing is applied correctly to the audio output.
+1. **[P0] Bus-to-bus sends emit silence due to incorrect source resolution in `RoutingBridge`.**
+   In `src/audio/mixer/routing-bridge.ts`, `wireSend` blindly uses `mixer.getStrip(trackId) ?? mixer.getOrCreateStrip(trackId)` to find the source node. When a bus sends to another bus, this creates a disconnected "ghost" track strip in the `MixerEngine` rather than tapping the actual `BusTrack` from the `RoutingEngine`. The bridge must resolve the source correctly (e.g., checking `routing.getBus(trackId)`) and tap `bus.inputGain`/`bus.faderGain` if the source is a bus. The same bug exists in `unwireSend`.
+
+2. **[P1] Sidechain audio is completely disconnected (AnalyserNodes receive no signal).**
+   In `src/audio/mixer/routing-bridge.ts`, the `sync` loop creates sidechains via `routing.addSidechain(...)` but never actually connects the source audio (from either a track strip or a bus) into the resulting `sc.analyser`. Without a `wireSidechain` / `unwireSidechain` equivalent, the sidechain analysis nodes receive no signal.
