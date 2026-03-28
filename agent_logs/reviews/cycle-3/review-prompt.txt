@@ -19,12 +19,12 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-0rr ● P1 task E6-T5: Clip interaction handlers
-✓ long-running-harness-2x4 ● P1 task E6-T6: Session persistence integration
-✓ long-running-harness-8mv ● P1 task E6-T4: Canvas arrangement renderer
-✓ long-running-harness-bnn ● P1 task E7-T3: DFS cycle detection
+✓ long-running-harness-1hm ● P1 task E8.3: Mixer insert chain integration
+✓ long-running-harness-1jr ● P1 task E8.5: Effects rack store and session persistence
+✓ long-running-harness-83r ● P1 task E8.2: Implement 6 effects (Reverb, Delay, Compressor, EQ, Distortion, Chorus)
+✓ long-running-harness-dwc ● P1 task E8.1: Effect types, factory registry, and base infrastructure
 ✓ long-running-harness-gml ● P1 task E7-T7: Store and session persistence
-✓ long-running-harness-jxm ● P1 task E7-T5: Canvas metering (peak + RMS)
+✓ long-running-harness-i85 ● P1 task E8.4: Effects rack UI with parameter panels
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,10 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-3a75272 Fix fade-out gain envelope when seeking into active fade-out region
-e1258eb Fix mixer review findings: scheduler time model, solo state, cleanup safety
-602b9e0 chore: auto-commit uncommitted changes from long-running-harness-bqt
-c7ad6d8 E7: Add mixer core - channel strips, master bus, brickwall limiter
+b162010 Fix reverb delay headroom and remove dead unit prop
+ab6f19a Fix effects rack review findings: dispose leaks, selector perf
+7a39021 chore: auto-commit uncommitted changes from long-running-harness-g59
+1a0beb4 E8: Add effects rack - factory registry, 6 effects, insert chain, UI
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

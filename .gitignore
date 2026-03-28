@@ -24,6 +24,9 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Diff artifacts
+*.diff
+
 # Dolt database files (added by bd init)
 .dolt/
 *.db

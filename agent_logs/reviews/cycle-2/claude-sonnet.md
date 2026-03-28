@@ -1,11 +1,19 @@
-All 7 findings have been addressed:
+REVIEW_CHANGES_REQUESTED
 
-- **P1 cleanup()**: Fixed — now checks `entry.endTime <= ctx.currentTime` before disconnecting; only removes entries that have finished.
-- **P1 time coordinates**: Fixed — `timeOffset` parameter added; uses `clipStartCtx = clip.startTime + timeOffset`; overlap check replaces exact-start match; mid-clip seek computes correct `sourceOffset` and partial fade-in gain.
-- **P2 setSolo two-step**: Fixed — `setSolo()` and `setSoloIsolate()` now call `updateSoloState()` internally.
-- **P2 fade overlap**: Fixed — `maxFadeIn`/`maxFadeOut` clamped so they can't sum past `clip.duration`.
-- **P2 MixerEngine not wired**: Acknowledged as intentional deferred work; the existing MixerPanel comment already documents this; out of scope for this epic.
-- **P3 misnamed taper**: Renamed to `faderTaper`, comment updated.
-- **P3 dead code comment**: E13 intent comment added to the index export.
+Fixed: #2 (chorus LFO stop). These remain open:
 
-REVIEW_APPROVED
+**1. P1 — Effects-to-audio bridge still missing**
+
+No code subscribes to `useEffectsStore` changes and calls `MixerEngine.addInsert()` / `removeInsert()`. `createEffectRegistry` is still unused outside tests. The effects rack updates Zustand state only — no audio nodes are ever inserted into the signal chain. Effects are entirely visual.
+
+**2. P1 — Effects state still not persisted**
+
+`storeToSession()` and `hydrateStore()` in `use-session-persistence.ts` still do not read from or write to `useEffectsStore`. The session schema's `effects` field remains dead. Effects are lost on every page reload.
+
+**3. P2 — Reverb IR still regenerated synchronously on every decay change**
+
+`reverb.ts:applyParam` for `"decay"` still calls `generateImpulseResponse(ctx, value)` — allocating and filling a large `AudioBuffer` synchronously on every knob event. Unchanged from the original commit.
+
+**4. P2 — `insert-chain.ts` rewire still uses `source.disconnect()` with no arguments**
+
+Still severs all connections from source, not just the insert chain connection. Unchanged.

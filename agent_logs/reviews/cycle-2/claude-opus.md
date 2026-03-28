@@ -1,13 +1,15 @@
-All 60 tests pass (up from 57 — 3 new tests added for the clip scheduler fixes). Let me verify each original finding:
+Based on the system reminders showing the current file state, here's my assessment:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | P1: `cleanup()` broken — disconnected all entries | Fixed: now checks `entry.endTime <= ctx.currentTime` |
-| 2 | P1: `setSolo()` didn't update routing | Fixed: now calls `engine.updateSoloState()` internally; tests updated to remove manual calls |
-| 3 | P2: `tracks` in callback deps | Fixed: uses `useDawStore.getState().tracks.find(...)` inside callback |
-| 4 | P2: `clip.startTime` time model mismatch | Fixed: added `timeOffset` param with clear doc; handles mid-clip seeking and fade clamping |
-| 5 | P3: duplicated `volumeToDb` | Fixed: extracted to `format.ts`, imported in both components |
+**Finding 1 (P1 - Chorus LFO not stopped)**: FIXED. `createBaseEffect` now accepts optional `disposeChain()`, all 6 effects provide it, and chorus correctly calls `lfo.stop()`.
 
-Bonus improvements in the fix: `ScheduledClip` now tracks `endTime`, `ended` event handler guards against stale entries, fades are clamped to prevent overlap, and `logarithmicTaper` was renamed to `faderTaper` (more accurate — it's quadratic, not logarithmic).
+**Finding 5 (P3 - EffectsRack selector)**: FIXED. Proper Zustand selector `s.trackEffects[trackId] ?? EMPTY_SLOTS` replaces the `useMemo` pattern.
 
-REVIEW_APPROVED
+Three findings remain unaddressed:
+
+REVIEW_CHANGES_REQUESTED
+
+1. **P2 — Reverb IR generation still blocks main thread** (`src/audio/effects/reverb.ts:86`). Changing the `decay` parameter still synchronously regenerates the full impulse response. At max decay (10s, 48kHz), this is ~960K float ops per channel on the main thread. Downgraded from P1 since typical usage may not hit max, but still worth a debounce or cap on IR length.
+
+2. **P2 — No audio-engine bridge from effects store** (`src/ui/effects/EffectsRack.tsx:48-63`). `handleAdd` writes to Zustand but never creates `EffectInstance` audio nodes or calls `mixer.addInsert()`. Param changes and bypass toggles are also store-only. If this is deferred by design, add a TODO comment.
+
+3. **P2 — Stale `.diff` files still in repo root**. `audio.diff`, `state.diff`, `ui.diff` are still present. Delete them and add `*.diff` to `.gitignore`.

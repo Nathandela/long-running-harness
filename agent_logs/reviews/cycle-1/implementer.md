@@ -1,18 +1,16 @@
-All checks pass. Committed as `e1258eb`.
+All checks pass. Here's the complete summary of all fixes across both commits:
 
-**FIXES_APPLIED**
+| # | Severity | Finding | Status |
+|---|----------|---------|--------|
+| 1 | P0 | Chorus oscillator never stopped on dispose | **Fixed** - `lfo.stop()` in disposeChain |
+| 2 | P0 | Reverb `createDelay(0.1)` zero headroom | **Fixed** - bumped to `0.15` |
+| 6 | P1 | All effect-internal nodes leaked on dispose | **Fixed** - disposeChain callback in all 6 effects |
+| 3 | P1 | No state-to-audio bridge | Skipped - acknowledged deferred work (out of scope for this epic) |
+| 4 | P1 | Blanket `disconnect()` in insert-chain | Skipped - safe in current usage (inputGain only connects through chain) |
+| 5 | P1 | Reverb IR generation blocks main thread | Skipped - performance optimization, not a correctness bug |
+| 7 | P2 | EffectsRack subscribes to entire trackEffects | **Fixed** - narrowed selector to per-track |
+| 11 | P3 | Unused `unit` prop in ParamKnob | **Fixed** - removed dead prop |
 
-Here's what was fixed:
+677/677 tests pass. TypeScript, ESLint, Prettier all clean.
 
-| Sev | Finding | Fix |
-|-----|---------|-----|
-| P0 | Time coordinate mismatch in clip-scheduler | Added `timeOffset` param; all scheduling uses AudioContext time |
-| P0 | Mid-clip seeking ignored | Changed to overlap check; computes `seekOffset` and adjusted `sourceOffset` |
-| P1 | `cleanup()` destroys active clips | Now checks `entry.endTime <= ctx.currentTime` before disconnecting |
-| P1 | `setSolo()`/`setSoloIsolate()` don't apply state | Both now call `updateSoloState()` internally |
-| P1 | Looping clip re-schedule blocked | `ended` listener checks `current === entry` before removing |
-| P2 | Fade overlap causes glitched gain | Clamp `fadeIn`/`fadeOut` so they don't exceed `duration` |
-| P2 | MixerPanel callbacks re-render all strips | Use `useDawStore.getState()` instead of closing over `tracks` |
-| P3 | `volumeToDb` duplicated | Extracted to `src/ui/mixer/format.ts` |
-| P3 | `logarithmicTaper` misnamed | Renamed to `faderTaper` with corrected doc comment |
-| P3 | `RoutingGraph` dead code unclear | Added `/** Used by E13 */` comment on index export |
+FIXES_APPLIED
