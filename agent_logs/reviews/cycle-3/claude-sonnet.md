@@ -1,19 +1,11 @@
-No new commits since the last review cycle. The four outstanding findings are unchanged.
+All five original findings have been addressed in the system-notified changes. Spot-checking each:
 
-REVIEW_CHANGES_REQUESTED
+- **P1 LFO S&H**: `>>> 17` (unsigned) + `/2147483648` — confirmed range [-1, 1) empirically in previous round. ✓  
+- **P1 allNotesOff**: Stealing voices now get `state = "releasing"` + `pendingNote/Velocity` cleared. ✓  
+- **P2 duplicate arrays**: `setParam` now uses imported `WAVEFORM_TYPES`, `FILTER_TYPES`, `LFO_SHAPES`. ✓  
+- **P2 crossfadeSamples hot path**: `cachedCrossfadeSamples` computed once on first call. ✓  
+- **P3 completedSteals.push**: Replaced with pre-allocated `new Array(MAX_VOICES)` + `completedCount` index; `length = completedCount` truncation keeps V8 backing store intact. ✓  
 
-**1. P1 — Effects-to-audio bridge missing**
+Also noting two unsolicited improvements that are correct: `isFinite` guard in `biquad-coeffs.ts` prevents NaN propagation through the delay line, and filter coefficients now computed at block rate (`s === 0`) rather than per-sample — a valid control-rate quantization trade-off at ~3ms granularity.
 
-`useEffectsStore` changes are never wired to `MixerEngine.addInsert()` / `removeInsert()`. `createEffectRegistry` is unused outside tests. Effects are visual-only — no audio nodes enter the signal chain.
-
-**2. P1 — Effects state not persisted**
-
-`storeToSession()` and `hydrateStore()` in `use-session-persistence.ts` still do not touch `useEffectsStore`. The session schema's `effects` field is dead. Effects are lost on every reload.
-
-**3. P2 — Reverb IR regenerated synchronously on every decay change**
-
-`reverb.ts:applyParam("decay")` still calls `generateImpulseResponse(ctx, value)` synchronously on every knob event, allocating and filling a large `AudioBuffer` on the main thread each time.
-
-**4. P2 — `insert-chain.ts` rewire calls `source.disconnect()` with no arguments**
-
-Severs all connections from the source node, not just the chain connection. Fragile if any second consumer is added to `inputGain` in the future.
+REVIEW_APPROVED

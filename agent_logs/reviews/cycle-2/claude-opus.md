@@ -1,15 +1,13 @@
-Based on the system reminders showing the current file state, here's my assessment:
+All 82 tests pass, types check clean. Mapping fixes to my original findings:
 
-**Finding 1 (P1 - Chorus LFO not stopped)**: FIXED. `createBaseEffect` now accepts optional `disposeChain()`, all 6 effects provide it, and chorus correctly calls `lfo.stop()`.
+| # | Finding | Status |
+|---|---------|--------|
+| P1-1 | `allNotesOff` skips stealing voices | Fixed — now cancels pending steal and transitions to releasing |
+| P1-2 | LFO S&H output outside [-1,1] | Fixed — `prngState / 2147483648` maps signed int32 to [-1,1) |
+| P2-3 | xorshift `>>` vs `>>>` | Fixed — now uses unsigned right shift |
+| P2-4 | Biquad trig per-sample | Comment corrected; octave/detune `Math.pow` hoisted out of sample loop |
+| P2-5 | No NaN guard on filter | Fixed — `isFinite(output) ? output : 0` with state cleanup |
+| P3-6 | `completedSteals.push()` | Fixed — pre-allocated fixed-size array with counter |
+| P3-7 | `as unknown[]` casts | Cosmetic, not addressed (acceptable) |
 
-**Finding 5 (P3 - EffectsRack selector)**: FIXED. Proper Zustand selector `s.trackEffects[trackId] ?? EMPTY_SLOTS` replaces the `useMemo` pattern.
-
-Three findings remain unaddressed:
-
-REVIEW_CHANGES_REQUESTED
-
-1. **P2 — Reverb IR generation still blocks main thread** (`src/audio/effects/reverb.ts:86`). Changing the `decay` parameter still synchronously regenerates the full impulse response. At max decay (10s, 48kHz), this is ~960K float ops per channel on the main thread. Downgraded from P1 since typical usage may not hit max, but still worth a debounce or cap on IR length.
-
-2. **P2 — No audio-engine bridge from effects store** (`src/ui/effects/EffectsRack.tsx:48-63`). `handleAdd` writes to Zustand but never creates `EffectInstance` audio nodes or calls `mixer.addInsert()`. Param changes and bypass toggles are also store-only. If this is deferred by design, add a TODO comment.
-
-3. **P2 — Stale `.diff` files still in repo root**. `audio.diff`, `state.diff`, `ui.diff` are still present. Delete them and add `*.diff` to `.gitignore`.
+REVIEW_APPROVED

@@ -19,12 +19,12 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-1hm ● P1 task E8.3: Mixer insert chain integration
-✓ long-running-harness-1jr ● P1 task E8.5: Effects rack store and session persistence
-✓ long-running-harness-83r ● P1 task E8.2: Implement 6 effects (Reverb, Delay, Compressor, EQ, Distortion, Chorus)
-✓ long-running-harness-dwc ● P1 task E8.1: Effect types, factory registry, and base infrastructure
-✓ long-running-harness-gml ● P1 task E7-T7: Store and session persistence
-✓ long-running-harness-i85 ● P1 task E8.4: Effects rack UI with parameter panels
+✓ long-running-harness-0jm ● P1 task E9.5: Synth state store and instrument track type
+✓ long-running-harness-5ys ● P1 task E9.3: AudioWorklet synth processor
+✓ long-running-harness-6ac ● P1 task E9.2: Voice allocator (16-voice pool, oldest-steal, legato)
+✓ long-running-harness-7nk ● P1 task E9.4: SynthInstrument main-thread controller
+✓ long-running-harness-adf ● P1 task E9.6: Virtual keyboard and synth editor UI
+✓ long-running-harness-oef ● P1 task E9.1: Core DSP functions (PolyBLEP, ADSR, biquad, LFO)
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,10 +32,11 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-b162010 Fix reverb delay headroom and remove dead unit prop
-ab6f19a Fix effects rack review findings: dispose leaks, selector perf
-7a39021 chore: auto-commit uncommitted changes from long-running-harness-g59
-1a0beb4 E8: Add effects rack - factory registry, 6 effects, insert chain, UI
+426f9d1 Fix review findings: test contracts, session hydration, filter perf
+9e28e55 Fix synth review findings: xorshift range, steal cancel, hot-path perf
+67b4f13 chore: auto-commit uncommitted changes from long-running-harness-13h
+62eaae8 Fix synth review findings: voice stealing, zero-allocation, idle check
+ff78c01 E9: Add synthesizer engine - PolyBLEP oscillators, voice allocator, AudioWorklet processor, UI
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

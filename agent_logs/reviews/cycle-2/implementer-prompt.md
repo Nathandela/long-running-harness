@@ -6,43 +6,32 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-REVIEW_CHANGES_REQUESTED
+All six findings verified:
 
-Fixed: #2 (chorus LFO stop). These remain open:
+1. **LFO S&H range** — `>>>` unsigned shift + `/2147483648` now maps to [-1, 1) (confirmed empirically: -0.999976 to +0.999976). ✓
+2. **`allNotesOff` stealing** — now clears `pendingNote`/`pendingVelocity` and transitions stealing voices to "releasing". ✓
+3. **Legato voice state** — on re-examination, the "best active" search on line 142 explicitly filters `voice.state === "active"`, so a releasing voice can't be returned; the state update is not needed. ✓ (false positive in my initial review)
+4. **Duplicate enum arrays** — replaced with imported `WAVEFORM_TYPES`, `FILTER_TYPES`, `LFO_SHAPES`. ✓
+5. **`crossfadeSamples` per-sample** — cached in `cachedCrossfadeSamples`. ✓
+6. **`completedSteals.push` allocation** — replaced with pre-allocated `new Array(MAX_VOICES)` + `completedCount` index counter. ✓
 
-**1. P1 — Effects-to-audio bridge still missing**
-
-No code subscribes to `useEffectsStore` changes and calls `MixerEngine.addInsert()` / `removeInsert()`. `createEffectRegistry` is still unused outside tests. The effects rack updates Zustand state only — no audio nodes are ever inserted into the signal chain. Effects are entirely visual.
-
-**2. P1 — Effects state still not persisted**
-
-`storeToSession()` and `hydrateStore()` in `use-session-persistence.ts` still do not read from or write to `useEffectsStore`. The session schema's `effects` field remains dead. Effects are lost on every page reload.
-
-**3. P2 — Reverb IR still regenerated synchronously on every decay change**
-
-`reverb.ts:applyParam` for `"decay"` still calls `generateImpulseResponse(ctx, value)` — allocating and filling a large `AudioBuffer` synchronously on every knob event. Unchanged from the original commit.
-
-**4. P2 — `insert-chain.ts` rewire still uses `source.disconnect()` with no arguments**
-
-Still severs all connections from source, not just the insert chain connection. Unchanged.
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-Based on the system reminders showing the current file state, here's my assessment:
+All 82 tests pass, types check clean. Mapping fixes to my original findings:
 
-**Finding 1 (P1 - Chorus LFO not stopped)**: FIXED. `createBaseEffect` now accepts optional `disposeChain()`, all 6 effects provide it, and chorus correctly calls `lfo.stop()`.
+| # | Finding | Status |
+|---|---------|--------|
+| P1-1 | `allNotesOff` skips stealing voices | Fixed — now cancels pending steal and transitions to releasing |
+| P1-2 | LFO S&H output outside [-1,1] | Fixed — `prngState / 2147483648` maps signed int32 to [-1,1) |
+| P2-3 | xorshift `>>` vs `>>>` | Fixed — now uses unsigned right shift |
+| P2-4 | Biquad trig per-sample | Comment corrected; octave/detune `Math.pow` hoisted out of sample loop |
+| P2-5 | No NaN guard on filter | Fixed — `isFinite(output) ? output : 0` with state cleanup |
+| P3-6 | `completedSteals.push()` | Fixed — pre-allocated fixed-size array with counter |
+| P3-7 | `as unknown[]` casts | Cosmetic, not addressed (acceptable) |
 
-**Finding 5 (P3 - EffectsRack selector)**: FIXED. Proper Zustand selector `s.trackEffects[trackId] ?? EMPTY_SLOTS` replaces the `useMemo` pattern.
-
-Three findings remain unaddressed:
-
-REVIEW_CHANGES_REQUESTED
-
-1. **P2 — Reverb IR generation still blocks main thread** (`src/audio/effects/reverb.ts:86`). Changing the `decay` parameter still synchronously regenerates the full impulse response. At max decay (10s, 48kHz), this is ~960K float ops per channel on the main thread. Downgraded from P1 since typical usage may not hit max, but still worth a debounce or cap on IR length.
-
-2. **P2 — No audio-engine bridge from effects store** (`src/ui/effects/EffectsRack.tsx:48-63`). `handleAdd` writes to Zustand but never creates `EffectInstance` audio nodes or calls `mixer.addInsert()`. Param changes and bypass toggles are also store-only. If this is deferred by design, add a TODO comment.
-
-3. **P2 — Stale `.diff` files still in repo root**. `audio.diff`, `state.diff`, `ui.diff` are still present. Delete them and add `*.diff` to `.gitignore`.
+REVIEW_APPROVED
 </claude-opus-review>
 
 <gemini-review>
@@ -63,17 +52,21 @@ MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
-
-1. **[P0] Missing State/Audio Engine Integration**: The Zustand `useEffectsStore` state is still completely disconnected from the `MixerEngine`. Actions in the UI (`addEffect`, `removeEffect`, `toggleBypass`, `updateEffectParam`) do not instantiate `EffectInstance`s or call `mixerEngine.addInsert`. The effects remain purely visual and do not process audio.
-2. **[P0] Memory and Audio Node Leaks**: While internal effect nodes are now cleaned up via `disposeChain()`, the overarching memory leak remains unresolved. `MixerEngine`'s `addInsert` API only receives `input` and `output` AudioNodes, leaving no mechanism to ever call `dispose()` on the parent `EffectInstance`. Additionally, `InsertChain.removeInsert` removes the insert from its array but fails to call `disconnect()` on the removed effect's `input` and `output` nodes.
-3. **[P1] Architecture Violation (Registry bypassed)**: The UI (`EffectsRack.tsx`) still directly instantiates and references effect factories globally (e.g., `createReverbFactory()`), completely ignoring and bypassing the `EffectRegistry` pattern intentionally built for this in `registry.ts`.
-4. **[P1] Main Thread Performance Degradation**: `updateCurve()` in `distortion.ts` still synchronously allocates and calculates a 4096-element `Float32Array` on the main thread every time a parameter changes. This needs to be debounced or memoized.
-5. **[P2] Brittle Audio Routing**: In `InsertChain.rewire`, calling `source.disconnect()` with no arguments still drops *all* outgoing connections from the input gain node, which will break any future auxiliary sends or alternative routing.
-6. **[P2] Audible Audio Clicks**: In `create-effect.ts`, `setMix()` and `applyMix()` continue to assign gain values instantaneously (`dryGain.gain.value = 1`). This bypasses AudioParam scheduling and causes audible clicks/zipper noise on bypass toggles.
+1. P1 (Unresolved Finding 2): Memory leak and multiple Web Audio node creation in `src/audio/effects/EffectsBridgeProvider.tsx`. The recent `setTimeout` fix in `useEffect` cleanup does not fix the StrictMode leak. React can call `useState` initializers multiple times and discard the result. The discarded `EffectsBridgeContext` instance from the initializer will never mount, its `useEffect` will never run, and thus its `bridge.dispose()` will never be called, permanently leaking the Zustand subscription and AudioNodes. Side-effectful initialization (like `createEffectsBridge`) must be moved completely inside `useEffect`.
+2. P2 (Unresolved Finding 3): Expensive `computeBiquadCoeffs` is still called per-sample, per-voice, inside the DSP inner sample loop `for (let s = 0; s < numSamples; s++)` in `src/audio/synth/synth-processor.ts`. This evaluates `Math.sin`/`Math.cos` per-sample. Modulated cutoff should either be computed at control-rate (once per block of samples) or use a fast polynomial approximation instead of exact trig functions if evaluated at audio rate.
 </gemini-review>
 
 <codex-review>
-REVIEW_APPROVED</codex-review>
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] The effects bridge still breaks the existing `App`/`DawShell` render path in tests** ([DawShell.tsx:88](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.tsx:88), [EffectsBridgeProvider.tsx:28](/Users/Nathan/Documents/Code/long-running-harness/src/audio/effects/EffectsBridgeProvider.tsx:28), [mixer-engine.ts:34](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/mixer-engine.ts:34))  
+  `pnpm lint` is clean enough now, but `pnpm test` still fails in `App.test.tsx` and `DawShell.test.tsx`. `DawShell` still unconditionally mounts `EffectsBridgeProvider`, and that provider eagerly constructs a real mixer from the audio engine context. That makes `DawShell` no longer renderable in isolation and also forces the `App` test `MockAudioContext` to implement `createDynamicsCompressor()` and the rest of the mixer graph APIs. Either move this provider requirement out of `DawShell`, or update the tests and test doubles to satisfy the new contract.
+
+- **[P1] The bypass smoothing change still violates the current effect contract** ([create-effect.ts:75](/Users/Nathan/Documents/Code/long-running-harness/src/audio/effects/create-effect.ts:75), [effects.test.ts:134](/Users/Nathan/Documents/Code/long-running-harness/src/audio/effects/effects.test.ts:134))  
+  All six `bypass toggles correctly` tests still fail because `setBypassed()` now schedules ramps but no longer makes `dryGain.gain.value` and `wetGain.gain.value` reflect the new state synchronously. If the ramped behavior is intended, the tests and any synchronous callers need to be updated to a new contract; otherwise the implementation needs to preserve the immediate observable state while still smoothing the audio transition.
+
+- **[P1] Session hydration still leaves stale effects behind when the loaded session has none** ([use-session-persistence.ts:50](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:50), [use-session-persistence.ts:75](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:75))  
+  This regression is still present. `storeToSession()` omits `effects` when there are no slots, but `hydrateStore()` only writes `trackEffects` when `session.effects` exists. Loading a blank/new session after one with inserts therefore preserves the old effects map and can re-save ghost inserts on the next autosave. Clear `trackEffects` on every hydrate, not only when `session.effects` is present.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.
