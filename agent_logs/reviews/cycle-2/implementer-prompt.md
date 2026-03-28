@@ -6,30 +6,33 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-REVIEW_CHANGES_REQUESTED
+All 7 findings have been addressed:
 
-**1. P1 — Drag interactions still bypass undo system (unchanged)**
+- **P1 cleanup()**: Fixed — now checks `entry.endTime <= ctx.currentTime` before disconnecting; only removes entries that have finished.
+- **P1 time coordinates**: Fixed — `timeOffset` parameter added; uses `clipStartCtx = clip.startTime + timeOffset`; overlap check replaces exact-start match; mid-clip seek computes correct `sourceOffset` and partial fade-in gain.
+- **P2 setSolo two-step**: Fixed — `setSolo()` and `setSoloIsolate()` now call `updateSoloState()` internally.
+- **P2 fade overlap**: Fixed — `maxFadeIn`/`maxFadeOut` clamped so they can't sum past `clip.duration`.
+- **P2 MixerEngine not wired**: Acknowledged as intentional deferred work; the existing MixerPanel comment already documents this; out of scope for this epic.
+- **P3 misnamed taper**: Renamed to `faderTaper`, comment updated.
+- **P3 dead code comment**: E13 intent comment added to the index export.
 
-`use-arrangement-interactions.ts` was not modified. `onMouseMove` still calls `state.moveClip` / `state.trimClip` directly, and `onDoubleClick` still calls `state.splitClip` directly. `onMouseUp` still just resets drag state without committing an undo entry. All mouse-driven clip mutations remain non-undoable.
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-Verified fixes against my original 6 findings:
+All 60 tests pass (up from 57 — 3 new tests added for the clip scheduler fixes). Let me verify each original finding:
 
-| # | Original Finding | Status |
-|---|---|---|
-| 1 | P1 clip ID collision | Fixed -- `crypto.randomUUID()` |
-| 2 | P1 drag ops bypass undo | **Not fixed** |
-| 3 | P2 trimClip negative duration | Fixed -- guard at `store.ts:271` |
-| 4 | P2 RULER_HEIGHT magic number | **Partially fixed** |
-| 5 | P2 track.color hex validation | Fixed -- schema regex + renderer fallback |
-| 6 | P3 trimClip negative sourceOffset | Fixed -- same guard |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1: `cleanup()` broken — disconnected all entries | Fixed: now checks `entry.endTime <= ctx.currentTime` |
+| 2 | P1: `setSolo()` didn't update routing | Fixed: now calls `engine.updateSoloState()` internally; tests updated to remove manual calls |
+| 3 | P2: `tracks` in callback deps | Fixed: uses `useDawStore.getState().tracks.find(...)` inside callback |
+| 4 | P2: `clip.startTime` time model mismatch | Fixed: added `timeOffset` param with clear doc; handles mid-clip seeking and fade clamping |
+| 5 | P3: duplicated `volumeToDb` | Fixed: extracted to `format.ts`, imported in both components |
 
-REVIEW_CHANGES_REQUESTED
+Bonus improvements in the fix: `ScheduledClip` now tracks `endTime`, `ended` event handler guards against stale entries, fades are clamped to prevent overlap, and `logarithmicTaper` was renamed to `faderTaper` (more accurate — it's quadratic, not logarithmic).
 
-1. **P1 -- Drag operations still bypass undo.** `use-arrangement-interactions.ts` still calls `state.moveClip()` (line 198), `state.trimClip()` (lines 212, 224), and `state.splitClip()` (line 276) directly on the store. The `sharedUndoManager` is never imported or used. The standard pattern: mutate the store directly during drag for visual feedback, then on `onMouseUp` push a single undo command capturing the before/after delta. Currently `onMouseUp` (line 262) just resets drag state with no undo entry, making all clip moves, trims, and splits permanently non-undoable.
-
-2. **P2 -- Hardcoded `24` remains in `use-arrangement-interactions.ts`.** Lines 192 and 238 still use the literal `24` instead of importing `RULER_HEIGHT` from `./constants`. The constant was extracted and imported correctly in `hit-test.ts` and `arrangement-renderer.ts`, but this file was missed.
+REVIEW_APPROVED
 </claude-opus-review>
 
 <gemini-review>
@@ -42,9 +45,7 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:518:28)
-    at Pipe.<anonymous> (node:net:351:12) {
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
   code: -32000,
   data: undefined
 }
@@ -52,16 +53,15 @@ MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
-1. **P1 - Drag operations bypass the undo system.** Not fixed. `useArrangementInteractions.ts` still calls store methods directly (e.g., `state.moveClip`, `state.trimClip`) instead of pushing the corresponding `UndoCommand` instances to the undo manager.
-2. **P1 - Right-trimming can produce negative durations.** Incomplete fix. While the `trimClip` store action now guards against invalid state, the UI interaction in `useArrangementInteractions.ts` (`trim-right`) still calculates `newEnd` without clamping it to the clip's `startTime`. The `trim-right` drag state must capture `originalStart` and use it to clamp `newEnd` to prevent the drag operation from failing silently when the user drags too far left.
-3. **P2 - Drag state gets stuck if cursor leaves canvas.** Not fixed. `ArrangementPanel.tsx` and `useArrangementInteractions.ts` still rely on the canvas's `onMouseUp` handler. You must implement `setPointerCapture` (using pointer events instead of mouse events) or use a window-level `mouseup` listener to ensure drag termination works outside the canvas bounds.
+
+6. **[P2] Mixer Engine is Not Hooked Up**: `createMixerEngine` is implemented and its types are exported, but it is never instantiated or integrated into `DawStore` or `AudioEngineProvider`. The mixer panel UI updates the Zustand store successfully, but it does not drive the actual audio graph. This finding from the initial review remains unaddressed.
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] The save queue can still write an older queued snapshot after a failed save** ([save-queue.ts:23](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:23), [save-queue.ts:37](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:37), [save-queue.test.ts:28](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.test.ts:28))  
-  The deadlock is fixed, but the failure path is still unsafe. If save `A` is inflight, `enqueue(B)` stores `queued = B`, and `doSave(A)` rejects, `inflight` is cleared in `finally` while `queued` survives. The next `enqueue(C)` will save `C` and then `processQueue()` will persist stale `B`, rolling storage backward to an older session. Clear or explicitly handle `queued` on failure before accepting new work, and add a regression test that forces a failing save with a queued follow-up.</codex-review>
+- **[P1] Seeking into the fade-out portion of a clip still applies the wrong gain envelope** ([clip-scheduler.ts:107](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/clip-scheduler.ts:107), [clip-scheduler.ts:118](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/clip-scheduler.ts:118), [clip-scheduler.test.ts:144](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/clip-scheduler.test.ts:144))  
+  The new mid-clip seek logic adjusts `sourceOffset`, but the fade-out automation is still scheduled as if playback began at the clip start. When playback starts after `fadeOutStartCtx`, `setValueAtTime(clip.gain, fadeOutStartCtx)` is in the past, so the clip resumes at full gain instead of the already-faded level and ramps down from there. That creates an audible jump when seeking into the tail fade. The tests cover mid-clip seeking and time offsets, but not seeking into an active fade-out region. Compute the starting fade-out gain from `seekOffset` the same way the fade-in path already does, and add a regression test for seeking into a clip whose fade-out is already in progress.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

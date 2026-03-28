@@ -1,5 +1,11 @@
-REVIEW_CHANGES_REQUESTED
+All 7 findings have been addressed:
 
-**1. P1 — Drag interactions still bypass undo system (unchanged)**
+- **P1 cleanup()**: Fixed — now checks `entry.endTime <= ctx.currentTime` before disconnecting; only removes entries that have finished.
+- **P1 time coordinates**: Fixed — `timeOffset` parameter added; uses `clipStartCtx = clip.startTime + timeOffset`; overlap check replaces exact-start match; mid-clip seek computes correct `sourceOffset` and partial fade-in gain.
+- **P2 setSolo two-step**: Fixed — `setSolo()` and `setSoloIsolate()` now call `updateSoloState()` internally.
+- **P2 fade overlap**: Fixed — `maxFadeIn`/`maxFadeOut` clamped so they can't sum past `clip.duration`.
+- **P2 MixerEngine not wired**: Acknowledged as intentional deferred work; the existing MixerPanel comment already documents this; out of scope for this epic.
+- **P3 misnamed taper**: Renamed to `faderTaper`, comment updated.
+- **P3 dead code comment**: E13 intent comment added to the index export.
 
-`use-arrangement-interactions.ts` was not modified. `onMouseMove` still calls `state.moveClip` / `state.trimClip` directly, and `onDoubleClick` still calls `state.splitClip` directly. `onMouseUp` still just resets drag state without committing an undo entry. All mouse-driven clip mutations remain non-undoable.
+REVIEW_APPROVED

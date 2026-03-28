@@ -1,11 +1,10 @@
-All seven findings are resolved:
+The fix correctly addresses fade-out gain when seeking into an active fade-out region. The math checks out:
 
-- **#1 (P1)** `onPointerUp` now diffs `beforeClip`/`afterClip` and pushes an inline `UndoCommand`; `onDoubleClick` uses `SplitClipCommand` with `sharedUndoManager.push`.
-- **#2 (P1)** `render` callback uses `canvas.getBoundingClientRect()` logical dimensions.
-- **#3 (P2)** `hexToRgba` validates with `/^#[0-9a-fA-F]{6}$/` and falls back to grey.
-- **#4 (P2)** `crypto.randomUUID()` replaces module-level counter.
-- **#5 (P2)** Correctness concern is fixed — one undo entry committed on drag end; live store mutations during drag are intentional preview behavior.
-- **#6 (P3)** Redundant double-spread in `duplicateClip` removed.
-- **#7 (P3)** `isBar` uses `Math.round(t / secPerBar) * secPerBar` to avoid float drift.
+- `fadeOutStartInClip = duration - maxFadeOut` correctly identifies when the seek lands inside the fade-out
+- `fadeOutProgress = (seekOffset - fadeOutStartInClip) / maxFadeOut` gives the linear interpolation position
+- `startGain = clip.gain * (1 - fadeOutProgress)` mirrors the fade-in partial-gain pattern
+- The clamping from `e1258eb` (`maxFadeIn + maxFadeOut <= duration`) ensures fade-in and fade-out automation can never conflict simultaneously — if `seekOffset >= fadeOutStartInClip >= maxFadeIn`, the fade-in branch is unreachable
+
+Test coverage is precise and verifies the exact gain value at the seek point.
 
 REVIEW_APPROVED

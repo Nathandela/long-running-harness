@@ -1,4 +1,1 @@
-REVIEW_CHANGES_REQUESTED
-
-- **[P1] The save-queue failure handling still drops the newest queued snapshot when a queued save fails** ([save-queue.ts:23](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:23), [save-queue.ts:41](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.ts:41), [save-queue.test.ts:45](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/save-queue.test.ts:45))  
-  The new test covers `A` succeeding and queued `B` failing, but it still misses the case where `C` is queued while `B` is in flight. In that sequence, `B` fails inside `processQueue()`, the outer `catch` executes `queued = null`, and the newest snapshot `C` is silently dropped. That means the queue no longer rolls back to stale state, but it can still lose the latest state under write failure. Add a regression test for `A succeeds -> B starts -> C queues -> B fails`, and preserve or explicitly retry the newest queued snapshot instead of clearing it blindly.
+REVIEW_APPROVED

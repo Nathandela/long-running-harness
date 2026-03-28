@@ -2,35 +2,49 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. P1 — Drag interactions bypass undo system**
+**1. P1 — `cleanup()` unconditionally kills all playing clips**
+`src/audio/mixer/clip-scheduler.ts:122-132`
 
-`use-arrangement-interactions.ts` calls store actions directly (`state.moveClip`, `state.trimClip`, `state.splitClip`) instead of dispatching `MoveClipCommand`, `TrimClipCommand`, `SplitClipCommand`. Mouse-driven moves, trims, and double-click splits are completely non-undoable despite the command infrastructure existing. `onMouseUp` just resets drag state — no final undo entry is committed.
+The method comment says "if source has ended" but there is no such check. `gainNode.disconnect()` is called for every entry — playing or not — and the exception swallow masks nothing (Web Audio `disconnect` doesn't throw for active nodes). Any call to `cleanup()` during playback will abruptly silence all clips. The `stopAll()` method is the correct path for a deliberate stop; `cleanup()` should only remove entries whose `source` has already ended (no reliable Web Audio API for this — the `ended` event + `scheduled.delete` in the listener already handles it, making `cleanup()` either a no-op or destructive).
 
-**2. P1 — HiDPI rendering broken (`ArrangementPanel.tsx:44-46`)**
+---
 
-`renderArrangement` receives `width: canvas.width` and `height: canvas.height` (physical pixels = `rect.width * dpr`) while a `ctx.scale(dpr, dpr)` transform is active. The renderer treats physical-pixel dimensions as logical coordinates: `fillRect(0, 0, width, height)` draws at 2× the canvas size on retina (cropped), and all visibility culling (`x > rc.width`) compares logical x against physical width — clips off-screen by logical measure still render, and clips within logical bounds get skipped at the wrong threshold. On dpr=2 displays the arrangement will appear zoomed in and clipped. Fix: pass `rect.width` / `rect.height` (logical pixels) to the renderer.
+**2. P1 — Time coordinate mismatch in clip-scheduler**
+`src/audio/mixer/clip-scheduler.ts:55, 71, 80, 93`
 
-**3. P2 — `hexToRgba` doesn't guard against invalid/short hex colors (`arrangement-renderer.ts:59-64`)**
+`clip.startTime` is "seconds on the song timeline" (`ClipModel` type comment confirms this). `windowStart`/`windowEnd` are AudioContext seconds (`ctx.currentTime + lookAheadSec` from the existing `LookAheadScheduler`). These are different coordinate spaces. `TransportClock` uses `playStartContextTime` and `playStartCursorSeconds` to convert between them. The scheduler must convert song time to AudioContext time before comparing and before passing to `source.start()`. As written, clips will never schedule correctly in practice (AudioContext time ≠ 0 at play start).
 
-`parseInt(hex.slice(1,3), 16)` on a 4-char `#rgb` string or any non-hex color (CSS named color, `hsl(...)`) returns `NaN`, producing `rgba(NaN,NaN,NaN,...)`. Canvas silently ignores invalid `fillStyle`, leaving clips invisible. No validation or fallback is present.
+---
 
-**4. P2 — Module-level `clipIdCounter` breaks test isolation (`store.ts:63-66`)**
+**3. P2 — MixerEngine never instantiated; all audio control is dead code**
+`src/audio/mixer/mixer-engine.ts`, `src/ui/mixer/MixerPanel.tsx`
 
-`let clipIdCounter = 0` is never reset. Tests that call `splitClip` or `duplicateClip` accumulate the counter across test files, making generated IDs non-deterministic relative to test order. Any test that asserts on a generated clip ID will be fragile.
+`createMixerEngine` is never called outside tests. `setFaderLevel`, `setMute`, `setSolo`, `updateSoloState`, and `emergencyMute` have no callers in production code. `MixerPanel` writes fader/pan/mute/solo to Zustand store but the audio engine is never told. Metering is hardcoded to `0` in `MixerPanel`. The mixer UI is a cosmetic shell with no audio effect.
 
-**5. P2 — Every `mousemove` commits a store mutation during drag (`use-arrangement-interactions.ts:198, 212, 223`)**
+---
 
-`state.moveClip` / `state.trimClip` are called on raw `mousemove` with no throttle or ghost-preview strategy. Each call triggers a Zustand set → React re-render → RAF re-schedule cycle. At 60fps mouse input this is dozens of full state mutations per second for the duration of a drag. Should use local preview state during drag and commit once on `mouseUp`.
+**4. P2 — `setSolo()` requires manual `updateSoloState()` to take effect**
+`src/audio/mixer/mixer-engine.ts:162-177`
 
-**6. P3 — Double spread in `duplicateClip` (`store.ts:296`)**
+`setSolo()` sets the flag but does not apply mute consequences. The caller must additionally call `updateSoloState()`. This two-step API is undocumented on the type and easy to misuse — toggling solo without the follow-up call leaves the mix in an inconsistent state. Either `setSolo()` should call `updateSoloState()` internally, or the type should document the requirement explicitly.
 
-```ts
-const nextClips = { ...s.clips, [newId]: duplicate };   // already includes s.clips
-return { clips: { ...s.clips, ...nextClips }, tracks };  // spreads s.clips twice
-```
+---
 
-`nextClips` already contains all of `s.clips`, so the outer spread is redundant. Should be `{ clips: nextClips, tracks }`.
+**5. P2 — No guard for overlapping fadeIn + fadeOut**
+`src/audio/mixer/clip-scheduler.ts:69-86`
 
-**7. P3 — Floating-point `isBar` check unreliable at large offsets (`arrangement-renderer.ts:127`)**
+When `clip.fadeIn + clip.fadeOut > clip.duration`, `fadeOutStart < clip.startTime + clip.fadeIn`. The `setValueAtTime(clip.gain, fadeOutStart)` writes a value in the middle of the fade-in ramp, clobbering it. Web Audio automation ordering is deterministic but the result is a glitched gain curve. No validation is done on `ClipModel` fields before scheduling.
 
-`Math.abs(t % secPerBar) < 0.001` with `t` accumulated via repeated `+= step` will drift. At 120 BPM (step = 0.5s) at bar 1000, accumulated error can exceed the 0.001 threshold, causing bar lines to render as beat lines. Use integer bar arithmetic: `Math.round(t / secPerBar) * secPerBar` to test if `t` is on a bar.
+---
+
+**6. P3 — `logarithmicTaper` misnamed**
+`src/audio/mixer/mixer-engine.ts:20-29`
+
+Uses `x²` (polynomial) for `[0,1]` and linear for `[1,2]`. The function name and comment both say "logarithmic", which is incorrect. Minor, but misleading for anyone tuning the taper curve later.
+
+---
+
+**7. P3 — `RoutingGraph`/`hasCycle` is dead code in production**
+`src/audio/mixer/cycle-detection.ts`
+
+Exported from the index but never instantiated or called in any production module. The commit message attributes it to E13 (future epic). It should at minimum have a `// Used by E13` comment in the index export to signal intent, or be deferred until E13.

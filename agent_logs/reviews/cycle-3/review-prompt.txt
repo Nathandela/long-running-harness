@@ -3,27 +3,28 @@ You are reviewing code changes made by an autonomous agent loop.
 ## Recently Completed Epics/Tasks
 ✓ long-running-harness-0ph ● P0 task SharedArrayBuffer layout + MessagePort protocol types
 ✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
+✓ long-running-harness-60p ● P0 task E7-T1: Mixer audio graph engine
 ✓ long-running-harness-6vx ● P0 task E6-T1: Track & Clip data models
 ✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
 ├── ✓ long-running-harness-8ew ● P0 epic E3: Transport & Scheduling Engine
 │   ├── ✓ long-running-harness-8v1 ● P0 epic E6: Track System & Arrangement View
-│   └── ✓ long-running-harness-3yf ● P1 epic E5: Session Persistence & Undo Framework
+│   │   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
+│   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
 ├── ✓ long-running-harness-8v1 ● P0 epic E6: Track System & Arrangement View
-├── ✓ long-running-harness-3yf ● P1 epic E5: Session Persistence & Undo Framework
-└── ✓ long-running-harness-dxr ● P1 epic E4: Media Pool & Audio Storage
-    └── ✓ long-running-harness-8v1 ● P0 epic E6: Track System & Arrangement View
+│   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
+└── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
+✓ long-running-harness-b4o ● P0 task E7-T2: Solo-in-place state machine
+✓ long-running-harness-cz0 ● P0 task E7-T6: Mixer panel UI
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
+✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
 ✓ long-running-harness-0rr ● P1 task E6-T5: Clip interaction handlers
-✓ long-running-harness-2ph ● P1 task E4.4: Media pool manager
 ✓ long-running-harness-2x4 ● P1 task E6-T6: Session persistence integration
 ✓ long-running-harness-8mv ● P1 task E6-T4: Canvas arrangement renderer
-✓ long-running-harness-a5x ● P1 task E4.3: Decode pipeline & waveform peaks
-✓ long-running-harness-bna ● P1 task E4.5: Media pool UI & integration
-✓ long-running-harness-jn8 ● P1 task E4.1: Core types & magic-bytes validation
-✓ long-running-harness-jpe ● P1 task E4.2: IndexedDB storage layer
-✓ long-running-harness-xtm ● P1 task E6-T3: Undo commands for track/clip ops
+✓ long-running-harness-bnn ● P1 task E7-T3: DFS cycle detection
+✓ long-running-harness-gml ● P1 task E7-T7: Store and session persistence
+✓ long-running-harness-jxm ● P1 task E7-T5: Canvas metering (peak + RMS)
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -31,11 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-6ce04ac chore: auto-commit uncommitted changes from long-running-harness-8v1
-17f635d E6: Add clip interaction handlers with grid snapping
-bd1fd00 E6: Add canvas-based arrangement renderer
-6bc9da7 E6: Add undo commands and session persistence for tracks/clips
-630d884 E6: Add Track & Clip data models with store actions
+3a75272 Fix fade-out gain envelope when seeking into active fade-out region
+e1258eb Fix mixer review findings: scheduler time model, solo state, cleanup safety
+602b9e0 chore: auto-commit uncommitted changes from long-running-harness-bqt
+c7ad6d8 E7: Add mixer core - channel strips, master bus, brickwall limiter
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

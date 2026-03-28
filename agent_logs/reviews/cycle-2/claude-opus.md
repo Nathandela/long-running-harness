@@ -1,16 +1,13 @@
-Verified fixes against my original 6 findings:
+All 60 tests pass (up from 57 — 3 new tests added for the clip scheduler fixes). Let me verify each original finding:
 
-| # | Original Finding | Status |
-|---|---|---|
-| 1 | P1 clip ID collision | Fixed -- `crypto.randomUUID()` |
-| 2 | P1 drag ops bypass undo | **Not fixed** |
-| 3 | P2 trimClip negative duration | Fixed -- guard at `store.ts:271` |
-| 4 | P2 RULER_HEIGHT magic number | **Partially fixed** |
-| 5 | P2 track.color hex validation | Fixed -- schema regex + renderer fallback |
-| 6 | P3 trimClip negative sourceOffset | Fixed -- same guard |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1: `cleanup()` broken — disconnected all entries | Fixed: now checks `entry.endTime <= ctx.currentTime` |
+| 2 | P1: `setSolo()` didn't update routing | Fixed: now calls `engine.updateSoloState()` internally; tests updated to remove manual calls |
+| 3 | P2: `tracks` in callback deps | Fixed: uses `useDawStore.getState().tracks.find(...)` inside callback |
+| 4 | P2: `clip.startTime` time model mismatch | Fixed: added `timeOffset` param with clear doc; handles mid-clip seeking and fade clamping |
+| 5 | P3: duplicated `volumeToDb` | Fixed: extracted to `format.ts`, imported in both components |
 
-REVIEW_CHANGES_REQUESTED
+Bonus improvements in the fix: `ScheduledClip` now tracks `endTime`, `ended` event handler guards against stale entries, fades are clamped to prevent overlap, and `logarithmicTaper` was renamed to `faderTaper` (more accurate — it's quadratic, not logarithmic).
 
-1. **P1 -- Drag operations still bypass undo.** `use-arrangement-interactions.ts` still calls `state.moveClip()` (line 198), `state.trimClip()` (lines 212, 224), and `state.splitClip()` (line 276) directly on the store. The `sharedUndoManager` is never imported or used. The standard pattern: mutate the store directly during drag for visual feedback, then on `onMouseUp` push a single undo command capturing the before/after delta. Currently `onMouseUp` (line 262) just resets drag state with no undo entry, making all clip moves, trims, and splits permanently non-undoable.
-
-2. **P2 -- Hardcoded `24` remains in `use-arrangement-interactions.ts`.** Lines 192 and 238 still use the literal `24` instead of importing `RULER_HEIGHT` from `./constants`. The constant was extracted and imported correctly in `hit-test.ts` and `arrangement-renderer.ts`, but this file was missed.
+REVIEW_APPROVED
