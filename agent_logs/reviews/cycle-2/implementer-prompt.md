@@ -6,41 +6,50 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All fixes from the previous review (P1 #1, P2 #4, P2 #5, P2 #6, P3 #7) were correctly applied. The `RoutingGraph.clear()` method was added, cycle guard in `addSend`, target validation in `setBusOutput`, orphan pruning in `removeSend`, and level clamping in store all look correct.
-
-Two original findings remain unaddressed:
+All five original findings have been addressed. One new issue introduced by the fix commit itself:
 
 REVIEW_CHANGES_REQUESTED
 
-**1. [P1] Pre-fader routing has no audio effect — `preFader` flag is decorative**
-
-`routing.ts:223` — `sendGain.connect(bus.inputGain)` is used regardless of `preFader`. A pre-fader send must tap the signal before the source channel's fader. `RoutingEngine` has no reference to `MixerEngine` channel strips, and `ChannelStrip` (`mixer/types.ts:19`) exposes `faderGain` but no pre-fader tap node. The commit message claims pre/post-fader selection is implemented — it is not. Either implement it (requires cross-engine access or a pre-fader tap on `ChannelStrip`) or remove `preFader` from the public API until it is.
-
 ---
 
-**2. [P1] `RoutingEngine` is never instantiated in production — UI has no audio effect**
+**1. [P2] `RemoveTrackCommand.undo()` restores arp with defaults, not saved state**
 
-`createRoutingEngine` appears only in `routing.ts` and `routing.test.ts`. `RoutingMatrix.tsx` updates the Zustand store, but no bridge/provider creates a `RoutingEngine` instance or synchronizes store mutations to it. Compare `EffectsBridgeProvider.tsx`, which wires the effects store to `MixerEngine`. Without an equivalent `RoutingBridgeProvider`, all UI interactions (adding sends, toggling pre-fader, setting bus outputs) are visually present but produce zero audio change.
+`track-commands.ts:67` — `execute()` saves `savedTrack` and `savedClips` before deletion, but not the arp params. On `undo()`, it calls `initArp(this.savedTrack.id)` which creates fresh default params. Any arp configuration the user had set before deleting the track is permanently lost on undo.
+
+The fix should snapshot arp params in `execute()` alongside the track/clips, then `setParams` on undo instead of `initArp`:
+
+```ts
+// In RemoveTrackCommand class:
+private savedArpParams: ArpParams | undefined;
+
+execute(): void {
+  // ...existing...
+  this.savedArpParams = useArpeggiatorStore.getState().getParams(this.trackId);
+  useArpeggiatorStore.getState().removeArp(this.trackId);
+  state.removeTrack(this.trackId);
+}
+
+undo(): void {
+  // ...existing...
+  useArpeggiatorStore.getState().initArp(this.savedTrack.id);
+  if (this.savedArpParams) {
+    useArpeggiatorStore.getState().setParams(this.savedTrack.id, this.savedArpParams);
+  }
+  // ...clips...
+}
+```
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 59 tests pass (up from 48), no type errors. Let me verify each finding was addressed:
+All 59 tests pass (up from 54). The fixes address real gaps:
 
-**P1 #1 — `addSend` cycle detection**: Fixed. `routing.ts:214-216` now calls `wouldCauseCycle` before adding the graph edge, throws on cycle. New test at `routing.test.ts:234-241`.
+1. **Enabled guard** (`arpeggiator.ts:180`): `scheduleStep` now early-returns when `!params.enabled`. Correct.
+2. **MIDI clamping** (`arpeggiator.ts:129-130`): `noteOn` clamps note and velocity to 0-127 with rounding. Correct.
+3. **Swing uses internal stepCounter** (`arpeggiator.ts:190`): Swing parity now uses `stepCounter % 2` instead of the external `stepIndex`, which is renamed to `_stepIndex`. Correct — ensures consistent swing regardless of caller's step numbering.
+4. **Latch dynamic toggle** (`arpeggiator.ts:199,205-207`): `setParams` detects when latch is toggled on and snapshots currently held notes. Correct — handles the mid-chord latch enable case.
+5. **Schema sync check** (`arpeggiator-schema.ts:39-40`): Changed from `{} as ArpParams` to `null as unknown as ArpParams` to avoid runtime object creation issues. Correct.
 
-**P1 #2 — `removeBus` orphaned `outputTarget`**: Fixed. `routing.ts:150-158` re-routes dependent buses to master and updates graph edges. Also removes sidechains referencing the bus (`routing.ts:179-186`). Store does the same (`routing-store.ts:46-49, 63-65`). Tests at `routing.test.ts:183-199` and `routing-store.test.ts:61-87`.
-
-**P2 #3 — Store `addSend` duplicates**: Fixed. `routing-store.ts:83` checks `existing.some((e) => e.busId === send.busId)`. Test at `routing-store.test.ts:113-124`.
-
-**P2 #4 — Store `setBusOutput` cycle guard**: Not added to the store, which is acceptable — the audio engine is the validation authority.
-
-**P3 #5 — Store `updateSendLevel` clamping**: Fixed. `routing-store.ts:100` clamps with `Math.min(1, Math.max(0, level))`. Test at `routing-store.test.ts:126-137`.
-
-**Bonus fixes** beyond what was requested:
-- `setBusOutput` validates target exists (`routing.ts:185-187`)
-- `removeSend` prunes orphaned source nodes from graph (`routing.ts:252-256`)
-- `dispose` calls `graph.clear()` (`routing.ts:328`)
-- `RoutingGraph.clear()` method added (`cycle-detection.ts:43-45`)
+All fixes are minimal, well-tested, and correctly implemented.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -68,8 +77,10 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Removing a bus still leaves sends sourced from that bus behind** ([routing.ts:160](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.ts:160), [routing-store.ts:52](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.ts:52), [routing.test.ts:183](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.test.ts:183), [routing-store.test.ts:61](/Users/Nathan/Documents/Code/long-running-harness/src/state/routing/routing-store.test.ts:61))  
-  Both the engine and the Zustand store only clean up sends whose `busId` matches the removed bus. If the removed bus itself was a send source, its outgoing sends survive under the `sourceId === removedBusId` entry. That leaves orphaned send routes in state and leaked `sendGain` nodes in the engine. Add explicit cleanup for sends sourced from the removed bus in both layers, and cover the `bus-1 -> bus-2`, then `removeBus("bus-1")` case with regression tests.</codex-review>
+- **[P1] Removing and undoing a track still loses that track’s arpeggiator settings** ([track-commands.ts:57](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:57), [track-commands.ts:67](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:67), [arpeggiator-store.ts:38](/Users/Nathan/Documents/Code/long-running-harness/src/state/arpeggiator/arpeggiator-store.ts:38), [track-commands.test.ts:180](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.test.ts:180))
+Detail: `RemoveTrackCommand.execute()` now deletes the track’s arp state, but it never snapshots the previous params. `undo()` recreates the arp with `initArp()`, and `initArp()` always restores `DEFAULT_ARP_PARAMS`. So a track with custom arp settings comes back with defaults after undo.
+Risk: Track deletion is no longer fully undo-safe. Users can lose programmed arp pattern/gate/latch settings when they undo a remove-track action, and the next autosave will persist the reset state.
+Suggestion: Save the removed track’s `ArpTrackState` alongside `savedTrack`/`savedClips`, restore that exact state on undo instead of calling `initArp()`, and add a regression test that removes a track with non-default arp params and verifies undo restores them exactly.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

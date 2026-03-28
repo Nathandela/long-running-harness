@@ -32,10 +32,9 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-099d8c5 Remove width param from shared effects test suite
-05f6fc3 Fix review findings: allpass topology, damping, types, insert-chain
-108f757 chore: auto-commit uncommitted changes from long-running-harness-3yo
-9596d0f E14: Add algorithmic reverb (Freeverb) with A/B comparison
+0f98e5d Fix arpeggiator review findings: persistence, lifecycle, enabled guard
+fb7ef89 chore: auto-commit uncommitted changes from long-running-harness-70a
+76b5504 E15: Add arpeggiator engine with pattern generation and session persistence
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

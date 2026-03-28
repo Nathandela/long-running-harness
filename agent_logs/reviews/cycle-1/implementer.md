@@ -1,18 +1,20 @@
-All clean. Here's a summary of every fix applied:
+All fixes committed. Here's a summary of what was addressed:
 
-**P0 — Build failure fixed:**
-- `EffectPanel.tsx`: Added `| undefined` to optional prop types for `exactOptionalPropertyTypes` compliance
+**P0 (Critical):**
+- **Session persistence integration** (Gemini): Wired `useArpeggiatorStore` into `storeToSession()`, `hydrateStore()`, and auto-save subscriptions
 
-**P1 — Allpass topology fixed:**
-- `freeverb.ts`: Added explicit `sum` node so feedforward comes from `v[n]` (sum of input + feedback) instead of raw `x[n]`, making the allpass stages true allpass filters and eliminating the ~5x gain boost
+**P1 (High):**
+- **`enabled` flag guard** (Sonnet): `scheduleStep` now returns early when `!params.enabled`
+- **Track lifecycle integration** (Gemini): `AddTrackCommand.execute()` calls `initArp()`, `RemoveTrackCommand.execute()` calls `removeArp()`, with proper undo support
 
-**P2 — All addressed:**
-- **Sample rate**: Replaced hardcoded `44100` with `ctx.sampleRate` in both comb and allpass delay calculations
-- **Width no-op**: Removed `width` parameter from schema, `applyParam`, and all tests
-- **Damping**: Added `BiquadFilterNode` (lowpass) inside each comb filter's feedback loop for proper Schroeder frequency-dependent decay, replacing the incorrect uniform gain reduction
-- **A/B swap mix**: `handleSwapReverb` now carries over the `mix` value from current params
-- **replaceInsert**: Now throws on missing ID instead of silently appending; also disconnects `old.input` in addition to `old.output`
+**P2 (Medium):**
+- **Compile-time sync check** (Sonnet): Changed `{} as X` to `null as unknown as X` so structural mismatches actually fail
+- **stepIndex/stepCounter drift** (Sonnet): Swing now uses internal `stepCounter` for parity instead of external `stepIndex` (parameter renamed to `_stepIndex`)
+- **MIDI range validation** (Sonnet): `noteOn` clamps note and velocity to 0-127
+- **Latch dynamic toggle** (Gemini): `setParams` snapshots held notes when latch transitions false→true
 
-1145/1145 tests pass, TypeScript and ESLint clean.
+**P2 declined** (Sonnet latchSnapshot on noteOff): The existing behavior is correct - latch should capture the full chord played, not just the last remaining keys. Standard arpeggiator latch semantics.
+
+12 new tests added, all 1211 tests passing.
 
 FIXES_APPLIED

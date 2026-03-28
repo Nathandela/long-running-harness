@@ -32,10 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-64c389f Fix review findings: bus source cleanup, pre-fader tap, routing bridge
-703dbf2 Fix review findings: cycle detection, bus cleanup, store guards
-75607ff chore: auto-commit uncommitted changes from long-running-harness-wv9
-dd88818 E13: Add advanced mixer routing (sends, buses, sidechains)
+5767695 Fix RemoveTrackCommand.undo() losing custom arp params
+0f98e5d Fix arpeggiator review findings: persistence, lifecycle, enabled guard
+fb7ef89 chore: auto-commit uncommitted changes from long-running-harness-70a
+76b5504 E15: Add arpeggiator engine with pattern generation and session persistence
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

@@ -1,11 +1,8 @@
-All passing. 1118 tests green, 0 type errors, 0 lint errors.
+All 1212 tests pass across 110 test files.
 
 FIXES_APPLIED
 
-**Summary of fixes:**
+**Summary**: Single fix addressing the P1/P2 finding identified by both Codex and Sonnet:
 
-| Finding | Source | Fix |
-|---------|--------|-----|
-| **P1** removeBus leaves sends sourced from the bus | Codex | Added cleanup of `sends.get(id)` in both engine (`routing.ts:160-167`) and store (`routing-store.ts:53` filter) |
-| **P1** preFader flag is decorative | Sonnet | Added `preFaderTap` GainNode to `ChannelStrip` (`types.ts:20`), wired between insert chain and fader in `mixer-engine.ts` |
-| **P1** RoutingEngine never instantiated | Sonnet | Created `routing-bridge.ts` (store-to-engine sync with pre/post-fader wiring) and `RoutingBridgeProvider.tsx`, wired into `DawShell.tsx` |
+- **`RemoveTrackCommand`** now snapshots `ArpParams` in `execute()` before calling `removeArp()`, and restores them via `setParams()` in `undo()` after `initArp()`. Previously, undo always reset to `DEFAULT_ARP_PARAMS`, losing any custom arp configuration.
+- Added regression test confirming non-default arp params (pattern, rate, octave range, gate, swing, latch) survive a remove-then-undo cycle.

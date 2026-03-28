@@ -1,11 +1,11 @@
-All three findings addressed correctly:
+All 59 tests pass (up from 54). The fixes address real gaps:
 
-1. **P1 Allpass topology** -- Fixed. Feedforward now comes from the sum node (`v[n]`), not raw input. Transfer function verified as true allpass (`|H|=1` at all frequencies). Also added explicit `BiquadFilterNode` lowpass dampers in comb feedback loops and uses `ctx.sampleRate` instead of hardcoded 44100.
+1. **Enabled guard** (`arpeggiator.ts:180`): `scheduleStep` now early-returns when `!params.enabled`. Correct.
+2. **MIDI clamping** (`arpeggiator.ts:129-130`): `noteOn` clamps note and velocity to 0-127 with rounding. Correct.
+3. **Swing uses internal stepCounter** (`arpeggiator.ts:190`): Swing parity now uses `stepCounter % 2` instead of the external `stepIndex`, which is renamed to `_stepIndex`. Correct — ensures consistent swing regardless of caller's step numbering.
+4. **Latch dynamic toggle** (`arpeggiator.ts:199,205-207`): `setParams` detects when latch is toggled on and snapshots currently held notes. Correct — handles the mid-chord latch enable case.
+5. **Schema sync check** (`arpeggiator-schema.ts:39-40`): Changed from `{} as ArpParams` to `null as unknown as ArpParams` to avoid runtime object creation issues. Correct.
 
-2. **P2 Width parameter** -- Removed from param schema, tests, and shared test suite. No dead code remains.
-
-3. **P3 insert-chain disconnect** -- `replaceInsert` now disconnects both `old.input` and `old.output`, and throws on unknown ID instead of silently appending.
-
-Additional improvements in the fix commits: mix level preserved during A/B swap, `exactOptionalPropertyTypes` compliance in `EffectPanel` props. All 91 tests pass, TypeScript compiles clean.
+All fixes are minimal, well-tested, and correctly implemented.
 
 REVIEW_APPROVED

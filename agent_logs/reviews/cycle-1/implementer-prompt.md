@@ -8,56 +8,69 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
-**1. P2 — Hardcoded sample rate in `freeverb.ts:132,154`**
+---
 
+**1. [P1] `enabled` flag not enforced in `scheduleStep`**
+
+`arpeggiator.ts:168` — `scheduleStep` never checks `params.enabled`. If a caller drives the arpeggiator while it's disabled, note events will still fire. The `enabled` field is dead state inside the engine. Either guard at the top of `scheduleStep`:
 ```ts
-const delayTime = delaySamples / 44100;  // wrong on 48kHz systems
+if (!params.enabled) return;
+```
+or document clearly that callers are solely responsible for gating — but then remove `enabled` from `ArpParams` since it belongs in caller logic.
+
+---
+
+**2. [P2] Compile-time sync check is a no-op**
+
+`arpeggiator-schema.ts:38-41`:
+```ts
+const _syncCheck: _SchemaType = {} as ArpParams;
+const _reverseCheck: ArpParams = {} as _SchemaType;
+```
+`as` casts bypass structural checks. If a field is added to `ArpParams` but omitted from the schema, this will still compile. The check provides false confidence. Use direct assignment without cast:
+```ts
+const _syncCheck: _SchemaType = null as unknown as ArpParams;
+const _reverseCheck: ArpParams = null as unknown as _SchemaType;
+```
+These fail at compile time when types diverge.
+
+---
+
+**3. [P2] `latchSnapshot` not updated on `noteOff` — stale notes enter latch pool**
+
+`arpeggiator.ts:147-158` — The snapshot is only taken on `noteOn`. Scenario: press 60, 64, 72 (snapshot = [60,64,72]), release 72 (no snapshot update), release 64 (no snapshot update), release 60 → `latchedNotes = [60,64,72]` but 72 and 64 were released before the latch triggered. A note that was explicitly released still ends up latched. Update the snapshot on `noteOff` as well:
+```ts
+heldNotes.splice(idx, 1);
+if (params.latch) latchSnapshot = heldNotes.map((h) => ({ ...h }));
 ```
 
-`ctx.sampleRate` should be used instead of the literal `44100`. On 48kHz contexts (common on Windows, some Linux setups) all delay times are 8% shorter than intended, noticeably shifting the reverb character. `reverb.ts:43` uses `ctx.sampleRate` correctly.
+---
+
+**4. [P3] `stepIndex` (swing) and `stepCounter` (pattern) can drift out of sync**
+
+`arpeggiator.ts:168-179` — Swing uses the external `stepIndex` for even/odd detection, while pattern position uses the internal `stepCounter`. If the external scheduler resets its counter (e.g., transport restart) without calling `arp.reset()`, swing phase and pattern position become desynchronized. Consider using `stepCounter` for swing parity instead of `stepIndex`, or drop the `stepIndex` parameter entirely.
 
 ---
 
-**2. P2 — `width` parameter is a no-op but exposed in UI**
+**5. [P3] `noteOn` accepts out-of-range MIDI values silently**
 
-`freeverb.ts:217-219` — the `width` case in `applyParam` is an empty stub with a "potential future use" comment. The UI renders a fully interactive Width knob that controls nothing. Either implement it or remove the parameter so the UI doesn't mislead users.
-
----
-
-**3. P3 — A/B swap silently resets all parameters to defaults**
-
-`EffectsRack.tsx:handleSwapReverb` resets to `p.default` for every parameter on swap. If the user has dialed in a convolution reverb's mix/decay and hits A/B, those settings are discarded. The feature is called "A/B comparison" which implies preserving comparable settings. At minimum the `mix` value should be carried over.
-
----
-
-**4. P3 — `replaceInsert` fallback-to-append is a silent error path**
-
-`insert-chain.ts:83-86` — when the insert ID is not found, `replaceInsert` falls back to appending. This is the only caller path that could hit this (a type-swap on a slot already in the chain), so a missing ID indicates a logic error in the bridge. The fallback masks the bug; it should throw or at least warn, consistent with how `at()` is used elsewhere in the same file.
+`arpeggiator.ts:139` — No validation on `note` (0–127) or `velocity` (0–127). Out-of-range notes propagate to the output `ArpNoteEvent` where downstream audio code may fail silently or clip. The octave-expansion code already filters notes `> 127` (correctly), but values like `note = -1` from root held notes still emit negative MIDI numbers from `scheduleStep` if octave direction is `"down"`.
 </claude-sonnet-review>
 
 <claude-opus-review>
-REVIEW_CHANGES_REQUESTED
+REVIEW_APPROVED
 
-**1. P1 — Allpass filter topology is incorrect, causes up to 5x gain boost**
-`src/audio/effects/freeverb.ts:156` — The feedforward path connects `prevNode` (raw input `x[n]`) instead of the delay line's input sum (`v[n]`). This makes the 4 "allpass" stages NOT true allpass filters. The magnitude response ranges from 1.17x to 1.5x per stage (with g=0.5), meaning 4 cascaded stages produce between ~1.85x and **~5x gain** depending on frequency. This will cause audible frequency coloring and potential clipping.
+Findings (all low-severity, none blocking):
 
-Fix: Add an explicit sum node for the allpass and connect feedforward to it:
-```typescript
-const sum = ctx.createGain();
-prevNode.connect(sum);           // x[n] -> sum
-sum.connect(delay);              // sum -> delay (creates v[n-M])
-delay.connect(feedback);         // v[n-M] * g
-feedback.connect(sum);           // g*v[n-M] -> sum (now sum = v[n])
-sum.connect(feedforward);        // -g * v[n] (correct!)
-feedforward.connect(apOutput);
-delay.connect(apOutput);         // + v[n-M]
-```
+1. **P3 - `insertionCounter` grows unboundedly** (`arpeggiator.ts:45,139`): The counter increments on every `noteOn` but never resets (not even in `reset()` or `allNotesOff()`). For "as-played" pattern this is fine since only relative ordering matters, and in practice it would take billions of noteOn calls to cause issues. Not actionable now, but worth noting.
 
-**2. P2 — `width` parameter is a no-op exposed as UI control**
-`src/audio/effects/freeverb.ts:204-205` — The "Width" parameter (0-100%) is defined in the schema and visible in the UI, but the `applyParam` handler does nothing with it (`break` with a comment about "potential stereo processing"). Users see a knob that has zero effect. Either implement stereo width or remove the parameter until implemented.
+2. **P3 - `rateDivisionToBeats` allocates a new map on every call** (`arpeggiator-types.ts:41-51`): The `Record` is rebuilt each invocation. Functionally correct; if called in a hot scheduling loop it could be lifted to a module-level constant, but this is a micro-optimization unlikely to matter.
 
-**3. P3 — `replaceInsert` disconnects output but not input of old insert**
-`src/audio/mixer/insert-chain.ts:87-89` — Only `old.output.disconnect()` is called; `old.input.disconnect()` is skipped. Currently safe because the bridge calls `dispose()` on the effect first, but the chain should be self-contained. Minor since `rewire()` re-routes all connections anyway.
+3. **P3 - `buildSequence()` rebuilds on every `scheduleStep`** (`arpeggiator.ts:57,169`): The sorted/expanded sequence is recomputed each step even when the note pool hasn't changed. No correctness issue; just a potential optimization point if scheduling becomes a bottleneck.
+
+4. **P3 - Schema enum literals duplicated** (`arpeggiator-schema.ts:10,21`): Pattern/direction/rate-division string literals are repeated in the Zod schema rather than derived from the `as const` arrays. The compile-time sync check at lines 38-42 catches drift, so this is safe — just slightly fragile.
+
+All findings are P3 (informational). Code is clean, well-tested (54 tests), correctly typed, and properly integrated into session persistence. Engine logic for patterns, octave expansion, latch, gate, and swing is sound.
 </claude-opus-review>
 
 <gemini-review>
@@ -79,9 +92,9 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] Build Failure (TypeScript):** The `onSwapType` and `swapLabel` props added to `EffectPanelProps` in `src/ui/effects/EffectPanel.tsx` are defined as optional (e.g., `onSwapType?: () => void;`), but in `src/ui/effects/EffectsRack.tsx` they are explicitly passed as `undefined`. Due to `exactOptionalPropertyTypes: true` in `tsconfig.json`, this causes a compilation error (`error TS2375`). You must explicitly allow `undefined` in the prop definitions (e.g., `onSwapType?: (() => void) | undefined;` and `swapLabel?: string | undefined;`).
-2. **[P2] Dead Parameter (Freeverb `width`):** The `width` parameter is defined, commented as controlling stereo spread, and wired to `applyParam` in `src/audio/effects/freeverb.ts`, but it does absolutely nothing to the audio signal. The effect is entirely mono/summed. The intended stereo spread implementation (like right-channel delay offsets) is missing.
-3. **[P2] Incorrect Damping Implementation:** The `damping` parameter is implemented by globally reducing the comb filter feedback gain (`dampToCoeff`). True Schroeder damping requires a one-pole low-pass filter (a `BiquadFilterNode` with `type = "lowpass"`) inside the feedback loop of each comb filter so that high frequencies decay faster than low frequencies over time. The current implementation just incorrectly reduces the overall reverb tail length identically for all frequencies.
+1. **[P0] Missing Session Persistence Integration:** The commit claims to add "session persistence" and includes the `arpeggiator` field in `sessionSchema`, but the actual integration is completely missing. `useArpeggiatorStore` is not used in `src/state/session/use-session-persistence.ts`: the arpeggiator state is not serialized in `storeToSession()`, it is not restored in `hydrateStore()`, and the `autoSave` effect does not subscribe to `useArpeggiatorStore` changes.
+2. **[P1] Missing Track Lifecycle Integration:** The methods `useArpeggiatorStore.initArp` and `removeArp` are never called outside of tests. These must be wired into track creation (`addTrack`) and deletion (`removeTrack`) within `useDawStore` or the relevant track commands. Without this, newly created tracks will have an uninitialized arpeggiator state, and deleted tracks will cause memory/state leaks.
+3. **[P2] Latch Snapshot Bug on Dynamic Toggle:** In `src/audio/arpeggiator/arpeggiator.ts`, `latchSnapshot` is only updated inside `noteOn()` when `params.latch` is true. If a user holds a chord and *then* turns on Latch dynamically via `setParams`, the `latchSnapshot` remains empty. When those keys are subsequently released, the arpeggiator latches an empty pool and stops playing instead of latching the held notes. `setParams()` should update `latchSnapshot` with the current `heldNotes` if `latch` transitions from false to true.
 </gemini-review>
 
 

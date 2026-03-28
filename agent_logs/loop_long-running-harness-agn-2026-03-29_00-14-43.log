@@ -1,0 +1,23 @@
+Good context. Now let me understand the project structure before planning.Excellent. I now have a comprehensive understanding of the codebase. Let me read a few key files for precise API details, then start planning.Now let me look at how existing store slices and index files are structured.Now let me read the test setup and the arpeggiator schema for the pattern we should follow:I have all the context I need. Now let me create the implementation plan. The epic requires:
+
+1. **Automation lane types** (AutomationLane, AutomationCurve, AutomationPoint, AutomationMode)
+2. **Breakpoint curve with interpolation** (linear + Bezier/curved)
+3. **Parameter binding** (automation lane -> AudioParam or Zustand state)
+4. **Sample-accurate playback** via AudioParam scheduling
+5. **Read/Write/Touch modes**
+6. **Visual indication when automation overrides manual**
+7. **Session persistence**
+
+Let me decompose this into sub-tasks and create beads.Now let me create sub-tasks for the epic:Good. Now let me start implementing. I'll follow TDD: tests first, then implementation.
+
+## E16.1: Automation Types and Curve Interpolation EngineFirst, let me write the types file:Now let me write the test for the curve evaluation engine first (TDD):Run the tests to verify they fail for the right reason (missing implementation):Good - fails because the module doesn't exist. Now implement the curve evaluation:All 22 tests pass. Now create the index file for the automation audio module:Close task 1:## E16.2: Automation Zustand Store and Session PersistenceWrite tests first for the store:Good - fails because module doesn't exist. Now implement:All 11 store tests pass. Now write the schema + tests:All 21 tests pass. Now write the index and integrate with session schema:Now integrate with session-schema.ts:Run the session schema tests to make sure nothing broke:Close sub-task 2:## E16.3: Automation SchedulerLet me read the look-ahead scheduler and clip scheduler for patterns:Now write the automation scheduler tests:Good - missing module. Now implement:All 9 scheduler tests pass. Update the index:Now run all tests to make sure nothing is broken:61 tests, all passing. Close sub-task 3:Now let me run the full test suite to make sure nothing existing is broken:All 1264 tests pass across 114 files. Now let me also run type checking:Clean type check. Now let me run the review phase using a multi-agent review:Excellent review. Let me address the critical findings:Now let me fix the critical issues identified in the review. I'll address them all:
+
+### Fix 1: Wire session persistence (serialization + hydration + auto-save subscription)Now I need to add `_seedLaneCounter` to the types file, then move the counter out of the store:Now update the store to use the shared counter:Now add serialization and hydration in the persistence file. Add automation serialization in `storeToSession()`:Now add hydration in `hydrateStore()`:Now add auto-save subscription:### Fix 2: Already done (lane counter seeding via `_seedLaneCounter` in automation-types.ts)
+
+### Fix 3: Clamp `denormalize` output### Fix 4: Export new functions from index### Fix 5: Wire track deletion cleanupAlso wire AddTrack undo:Now let me run all tests to make sure everything is still green:All 1264 tests pass. Let me also verify TypeScript compilation:Clean. Now let me close the epic and commit everything:Now commit and push:ESLint errors to fix. Let me check how other test files handle `noUncheckedIndexedAccess`:Let me check how other test files handle array indexing with strict TypeScript:I see - the project uses optional chaining (`?.`) instead of non-null assertions (`!`). Let me fix all lint errors. The main issues are:
+
+1. `!` assertions -> use optional chaining or proper checks
+2. Template literal with number -> use `String()`
+3. `void` expression in arrow shorthand
+
+Let me fix all files:I need to replace all `!` assertions with safe patterns. Let me rewrite the files properly:Now fix the test files. Let me check how existing tests handle the indexing pattern:OK, the pattern is `events[0]?.note` (optional chaining). Let me rewrite the test files:Now fix the automation-types.ts template literal:Now fix the scheduler test:Now fix the store test:Now run lint + tests:Clean lint. Now let me run the full test suite one more time and then commit:All 1264 tests pass. Now commit:Prettier formatting issues. Let me fix:Commit succeeded. Now push:Pushed successfully. Let me capture a lesson:EPIC_COMPLETE

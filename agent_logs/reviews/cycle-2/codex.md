@@ -1,1 +1,6 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] Removing and undoing a track still loses that track’s arpeggiator settings** ([track-commands.ts:57](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:57), [track-commands.ts:67](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:67), [arpeggiator-store.ts:38](/Users/Nathan/Documents/Code/long-running-harness/src/state/arpeggiator/arpeggiator-store.ts:38), [track-commands.test.ts:180](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.test.ts:180))
+Detail: `RemoveTrackCommand.execute()` now deletes the track’s arp state, but it never snapshots the previous params. `undo()` recreates the arp with `initArp()`, and `initArp()` always restores `DEFAULT_ARP_PARAMS`. So a track with custom arp settings comes back with defaults after undo.
+Risk: Track deletion is no longer fully undo-safe. Users can lose programmed arp pattern/gate/latch settings when they undo a remove-track action, and the next autosave will persist the reset state.
+Suggestion: Save the removed track’s `ArpTrackState` alongside `savedTrack`/`savedClips`, restore that exact state on undo instead of calling `initArp()`, and add a regression test that removes a track with non-default arp params and verifies undo restores them exactly.

@@ -1,6 +1,1 @@
-REVIEW_CHANGES_REQUESTED
-
-- **[P1] Routing bridge still assumes every send source is a mixer track strip** ([routing-bridge.ts:32](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing-bridge.ts:32), [routing-bridge.ts:85](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing-bridge.ts:85), [routing.ts:119](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.ts:119), [routing.ts:235](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/routing.ts:235))
-Detail: `createRoutingBridge()` syncs `state.sends` by source id, but `wireSend()` always resolves that source through `mixer.getStrip(trackId) ?? mixer.getOrCreateStrip(trackId)`. That is only valid for track-origin sends. The routing engine itself supports generic `sourceId` values, including bus-origin sends, whose live audio exists on `BusTrack` nodes inside `RoutingEngine`, not on mixer channel strips.
-Risk: A `bus-1 -> bus-2` send can exist in store/engine state but the bridge will attach it to a fabricated mixer strip instead of the real bus signal, so hydrated or programmatic bus-sourced sends will be silently wrong at runtime.
-Suggestion: Either explicitly reject bus-origin sends until they are supported end to end, or teach the bridge to detect bus sources and tap the real routing bus nodes with defined pre/post-fader semantics. Add an integration test that exercises a bus-origin send through the bridge.
+REVIEW_APPROVED
