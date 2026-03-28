@@ -15,8 +15,8 @@ type EffectPanelProps = {
   onParamChange: (key: string, value: number) => void;
   onBypassToggle: () => void;
   onRemove: () => void;
-  onSwapType?: () => void;
-  swapLabel?: string;
+  onSwapType?: (() => void) | undefined;
+  swapLabel?: string | undefined;
 };
 
 export function EffectPanel({

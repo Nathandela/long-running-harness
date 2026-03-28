@@ -81,13 +81,12 @@ export function createInsertChain(
     replaceInsert(id: string, input: AudioNode, output: AudioNode): void {
       const idx = inserts.findIndex((e) => e.id === id);
       if (idx === -1) {
-        // Fall back to append if not found
-        inserts.push({ id, input, output });
-      } else {
-        const old = at(inserts, idx);
-        old.output.disconnect();
-        inserts[idx] = { id, input, output };
+        throw new Error(`replaceInsert: insert "${id}" not found in chain`);
       }
+      const old = at(inserts, idx);
+      old.input.disconnect();
+      old.output.disconnect();
+      inserts[idx] = { id, input, output };
       rewire();
     },
 

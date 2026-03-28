@@ -152,16 +152,15 @@ describe("InsertChain", () => {
     expect(inserts[0]?.input).toBe(fx1New.input);
   });
 
-  it("replaceInsert falls back to append for unknown id", () => {
+  it("replaceInsert throws for unknown id", () => {
     const fx1 = mockEffectNode("fx1");
-    chain.replaceInsert(
-      fx1.id,
-      fx1.input as unknown as AudioNode,
-      fx1.output as unknown as AudioNode,
-    );
-
-    expect(chain.getInserts()).toHaveLength(1);
-    expect(chain.getInserts()[0]?.id).toBe("fx1");
+    expect(() => {
+      chain.replaceInsert(
+        fx1.id,
+        fx1.input as unknown as AudioNode,
+        fx1.output as unknown as AudioNode,
+      );
+    }).toThrow('replaceInsert: insert "fx1" not found in chain');
   });
 
   it("dispose disconnects everything", () => {

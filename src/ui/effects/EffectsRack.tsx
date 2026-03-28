@@ -35,7 +35,11 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
   const [showSelector, setShowSelector] = useState(false);
 
   const handleSwapReverb = useCallback(
-    (slotId: string, currentTypeId: string) => {
+    (
+      slotId: string,
+      currentTypeId: string,
+      currentParams: Record<string, number>,
+    ) => {
       const targetTypeId = REVERB_SWAP[currentTypeId];
       if (targetTypeId === undefined || targetTypeId === "") return;
       const targetFactory = registry.get(targetTypeId);
@@ -43,6 +47,11 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
       const newParams: Record<string, number> = {};
       for (const p of targetFactory.definition.parameters) {
         newParams[p.key] = p.default;
+      }
+      // Preserve mix level for meaningful A/B comparison
+      const currentMix = currentParams.mix;
+      if (currentMix !== undefined) {
+        newParams.mix = currentMix;
       }
       swapEffectType(trackId, slotId, targetTypeId, newParams);
     },
@@ -108,7 +117,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
             onSwapType={
               isReverbType
                 ? () => {
-                    handleSwapReverb(slot.id, slot.typeId);
+                    handleSwapReverb(slot.id, slot.typeId, slot.params);
                   }
                 : undefined
             }

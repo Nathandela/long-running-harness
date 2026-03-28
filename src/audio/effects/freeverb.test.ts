@@ -29,9 +29,18 @@ function createMockAudioContext(): AudioContext {
     disconnect: vi.fn(),
   });
 
+  const mockBiquadNode = (): object => ({
+    type: "lowpass",
+    frequency: { value: 350, setValueAtTime: vi.fn() },
+    Q: { value: 1 },
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+  });
+
   return {
     createGain: vi.fn().mockImplementation(mockGainNode),
     createDelay: vi.fn().mockImplementation(mockDelayNode),
+    createBiquadFilter: vi.fn().mockImplementation(mockBiquadNode),
     destination: { connect: vi.fn(), disconnect: vi.fn() },
     currentTime: 0,
     sampleRate: 44100,
@@ -60,9 +69,9 @@ describe("Freeverb", () => {
     const keys = factory.definition.parameters.map((p) => p.key);
     expect(keys).toContain("roomSize");
     expect(keys).toContain("damping");
-    expect(keys).toContain("width");
     expect(keys).toContain("preDelay");
     expect(keys).toContain("mix");
+    expect(keys).not.toContain("width");
   });
 
   it("all parameters have valid ranges (min < max, default in bounds)", () => {
@@ -163,10 +172,12 @@ describe("Freeverb", () => {
     expect(effect.getParam("damping")).toBe(75);
   });
 
-  it("width parameter stores correctly", () => {
+  it("creates biquad filters for comb damping", () => {
     setup();
-    effect.setParam("width", 50);
-    expect(effect.getParam("width")).toBe(50);
+    const biquadCallCount = (ctx.createBiquadFilter as ReturnType<typeof vi.fn>)
+      .mock.calls.length;
+    // 8 comb filters each get a lowpass damper
+    expect(biquadCallCount).toBe(8);
   });
 
   it("preDelay parameter stores correctly", () => {
