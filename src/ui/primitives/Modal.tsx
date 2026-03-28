@@ -21,10 +21,14 @@ export function Modal({
     if (dialog === null) return;
 
     if (open) {
-      dialog.showModal();
+      if (!dialog.open) {
+        dialog.showModal();
+      }
       dialog.setAttribute("open", "");
     } else {
-      dialog.close();
+      if (dialog.open) {
+        dialog.close();
+      }
       dialog.removeAttribute("open");
     }
   }, [open]);

@@ -6,7 +6,7 @@ type Placement = "top" | "bottom" | "left" | "right";
 interface TooltipProps {
   content: string;
   placement?: Placement;
-  children: React.ReactElement;
+  children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 }
 
 export function Tooltip({

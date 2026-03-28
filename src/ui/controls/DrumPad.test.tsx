@@ -9,10 +9,10 @@ describe("DrumPad", () => {
     expect(button).toBeInTheDocument();
   });
 
-  it("calls onTrigger on click", () => {
+  it("calls onTrigger on pointer down", () => {
     const onTrigger = vi.fn();
     render(<DrumPad label="Snare" onTrigger={onTrigger} />);
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.pointerDown(screen.getByRole("button"));
     expect(onTrigger).toHaveBeenCalledOnce();
   });
 

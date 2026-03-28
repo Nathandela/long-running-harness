@@ -18,6 +18,30 @@ type MenuPosition = {
   y: number;
 };
 
+function findNextEnabledIndex(
+  items: MenuItem[],
+  current: number,
+  direction: 1 | -1,
+): number {
+  const len = items.length;
+  for (let i = 1; i <= len; i++) {
+    const idx = (current + i * direction + len) % len;
+    if (items[idx]?.disabled !== true) return idx;
+  }
+  return current;
+}
+
+function clampToViewport(
+  menu: HTMLDivElement,
+  pos: MenuPosition,
+): MenuPosition {
+  const rect = menu.getBoundingClientRect();
+  return {
+    x: Math.min(pos.x, window.innerWidth - rect.width),
+    y: Math.min(pos.y, window.innerHeight - rect.height),
+  };
+}
+
 export function ContextMenu({
   items,
   children,
@@ -25,6 +49,7 @@ export function ContextMenu({
   const [position, setPosition] = useState<MenuPosition | null>(null);
   const [focusIndex, setFocusIndex] = useState(-1);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rawPositionRef = useRef<MenuPosition | null>(null);
 
   const isOpen = position !== null;
 
@@ -35,9 +60,25 @@ export function ContextMenu({
 
   const handleContextMenu = useCallback((e: React.MouseEvent): void => {
     e.preventDefault();
-    setPosition({ x: e.clientX, y: e.clientY });
+    const raw = { x: e.clientX, y: e.clientY };
+    rawPositionRef.current = raw;
+    setPosition(raw);
     setFocusIndex(-1);
   }, []);
+
+  // Clamp position after menu renders
+  useEffect(() => {
+    if (isOpen && menuRef.current != null && rawPositionRef.current != null) {
+      const clamped = clampToViewport(menuRef.current, rawPositionRef.current);
+      if (
+        clamped.x !== rawPositionRef.current.x ||
+        clamped.y !== rawPositionRef.current.y
+      ) {
+        setPosition(clamped);
+      }
+      rawPositionRef.current = null;
+    }
+  }, [isOpen]);
 
   const handleItemClick = useCallback(
     (item: MenuItem): void => {
@@ -56,11 +97,11 @@ export function ContextMenu({
           break;
         case "ArrowDown":
           e.preventDefault();
-          setFocusIndex((prev) => (prev + 1) % items.length);
+          setFocusIndex((prev) => findNextEnabledIndex(items, prev, 1));
           break;
         case "ArrowUp":
           e.preventDefault();
-          setFocusIndex((prev) => (prev - 1 + items.length) % items.length);
+          setFocusIndex((prev) => findNextEnabledIndex(items, prev, -1));
           break;
         case "Enter": {
           e.preventDefault();
@@ -76,7 +117,7 @@ export function ContextMenu({
     [close, focusIndex, items],
   );
 
-  // Close on outside click
+  // Close on outside click or right-click elsewhere
   useEffect(() => {
     if (!isOpen) return;
 
@@ -89,9 +130,15 @@ export function ContextMenu({
       }
     };
 
+    const handleOuterContextMenu = (): void => {
+      close();
+    };
+
     document.addEventListener("click", handleClick);
+    document.addEventListener("contextmenu", handleOuterContextMenu);
     return (): void => {
       document.removeEventListener("click", handleClick);
+      document.removeEventListener("contextmenu", handleOuterContextMenu);
     };
   }, [isOpen, close]);
 
@@ -116,7 +163,7 @@ export function ContextMenu({
         >
           {items.map((item, index) => (
             <div
-              key={item.label}
+              key={`${String(index)}-${item.label}`}
               role="menuitem"
               tabIndex={-1}
               aria-disabled={item.disabled === true ? "true" : undefined}

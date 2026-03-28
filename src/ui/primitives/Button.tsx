@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={classes}
-        aria-disabled={disabled ? "true" : undefined}
+        disabled={disabled}
         onClick={disabled ? undefined : onClick}
         {...rest}
       />

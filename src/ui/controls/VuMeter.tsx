@@ -28,7 +28,7 @@ function buildAriaLabel(level: number, clip: boolean): string {
 }
 
 export function VuMeter({
-  level,
+  level: rawLevel,
   peak,
   clip,
   width = DEFAULT_WIDTH,
@@ -37,6 +37,9 @@ export function VuMeter({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const peakHoldRef = useRef(peak ?? 0);
   const rafRef = useRef(0);
+  const animatingRef = useRef(false);
+
+  const level = Math.min(1, Math.max(0, rawLevel));
 
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D): void => {
@@ -99,23 +102,30 @@ export function VuMeter({
     draw(ctx);
 
     // Animate peak decay
-    const animate = (): void => {
-      if (peakHoldRef.current > 0) {
-        peakHoldRef.current = Math.max(
-          0,
-          peakHoldRef.current - PEAK_DECAY_RATE,
-        );
-        draw(ctx);
-        rafRef.current = requestAnimationFrame(animate);
-      }
-    };
-
-    if (peak === undefined && peakHoldRef.current > 0) {
+    if (
+      peak === undefined &&
+      peakHoldRef.current > 0 &&
+      !animatingRef.current
+    ) {
+      animatingRef.current = true;
+      const animate = (): void => {
+        if (peakHoldRef.current > 0) {
+          peakHoldRef.current = Math.max(
+            0,
+            peakHoldRef.current - PEAK_DECAY_RATE,
+          );
+          draw(ctx);
+          rafRef.current = requestAnimationFrame(animate);
+        } else {
+          animatingRef.current = false;
+        }
+      };
       rafRef.current = requestAnimationFrame(animate);
     }
 
     return (): void => {
       cancelAnimationFrame(rafRef.current);
+      animatingRef.current = false;
     };
   }, [level, peak, clip, draw]);
 

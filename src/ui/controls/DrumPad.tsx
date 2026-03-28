@@ -23,7 +23,7 @@ export function DrumPad({
       className={classes}
       aria-label={label}
       aria-pressed={active}
-      onClick={onTrigger}
+      onPointerDown={onTrigger}
       style={size !== 48 ? { width: size, height: size } : undefined}
     >
       {label}

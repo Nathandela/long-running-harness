@@ -15,7 +15,7 @@ export function useKeyboardShortcuts(
         if (IGNORED_TAGS.has(target.tagName)) {
           return;
         }
-        if (target.getAttribute("contenteditable") !== null) {
+        if (target.isContentEditable) {
           return;
         }
       }

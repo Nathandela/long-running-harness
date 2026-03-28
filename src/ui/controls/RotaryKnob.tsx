@@ -14,9 +14,14 @@ type RotaryKnobProps = {
 const START_ANGLE = 0.75 * Math.PI;
 const END_ANGLE = 2.25 * Math.PI;
 const ARC_RANGE = END_ANGLE - START_ANGLE;
+const DRAG_SENSITIVITY = 200;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+function snapToStep(raw: number, step: number): number {
+  return Math.round(raw / step) * step;
 }
 
 function drawKnob(
@@ -69,6 +74,7 @@ export function RotaryKnob({
   size = 48,
 }: RotaryKnobProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const listenersRef = useRef<AbortController | null>(null);
 
   const ratio = max === min ? 0 : (value - min) / (max - min);
 
@@ -80,11 +86,18 @@ export function RotaryKnob({
     drawKnob(ctx, size, ratio);
   }, [value, min, max, size, ratio]);
 
+  // Cleanup drag listeners on unmount
+  useEffect(() => {
+    return (): void => {
+      listenersRef.current?.abort();
+    };
+  }, []);
+
   const commit = useCallback(
     (next: number): void => {
-      onChange(clamp(next, min, max));
+      onChange(clamp(snapToStep(next, step), min, max));
     },
-    [onChange, min, max],
+    [onChange, min, max, step],
   );
 
   const handleKeyDown = useCallback(
@@ -126,21 +139,31 @@ export function RotaryKnob({
       e.preventDefault();
       const startY = e.clientY;
       const startValue = value;
+      const range = max - min;
 
-      const handleMouseMove = (moveEvent: MouseEvent): void => {
-        const delta = startY - moveEvent.clientY;
-        commit(startValue + delta * step);
-      };
+      listenersRef.current?.abort();
+      const controller = new AbortController();
+      listenersRef.current = controller;
 
-      const handleMouseUp = (): void => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-      };
+      document.addEventListener(
+        "mousemove",
+        (moveEvent: MouseEvent) => {
+          const delta = startY - moveEvent.clientY;
+          const fraction = delta / DRAG_SENSITIVITY;
+          commit(startValue + fraction * range);
+        },
+        { signal: controller.signal },
+      );
 
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener(
+        "mouseup",
+        () => {
+          controller.abort();
+        },
+        { signal: controller.signal },
+      );
     },
-    [value, step, commit],
+    [value, max, min, commit],
   );
 
   return (

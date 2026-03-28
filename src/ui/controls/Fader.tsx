@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import styles from "./Fader.module.css";
 
 type FaderProps = {
@@ -25,8 +25,16 @@ export function Fader({
   height = 128,
 }: FaderProps): React.JSX.Element {
   const trackRef = useRef<HTMLDivElement>(null);
+  const listenersRef = useRef<AbortController | null>(null);
 
   const fraction = max === min ? 0 : (value - min) / (max - min);
+
+  // Cleanup drag listeners on unmount
+  useEffect(() => {
+    return (): void => {
+      listenersRef.current?.abort();
+    };
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
@@ -78,16 +86,24 @@ export function Fader({
     (e: React.MouseEvent): void => {
       e.preventDefault();
 
-      const onMouseMove = (ev: MouseEvent): void => {
-        onChange(valueFromY(ev.clientY));
-      };
-      const onMouseUp = (): void => {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      };
+      listenersRef.current?.abort();
+      const controller = new AbortController();
+      listenersRef.current = controller;
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+      document.addEventListener(
+        "mousemove",
+        (ev: MouseEvent) => {
+          onChange(valueFromY(ev.clientY));
+        },
+        { signal: controller.signal },
+      );
+      document.addEventListener(
+        "mouseup",
+        () => {
+          controller.abort();
+        },
+        { signal: controller.signal },
+      );
     },
     [onChange, valueFromY],
   );

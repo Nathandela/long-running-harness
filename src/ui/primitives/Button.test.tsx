@@ -70,10 +70,10 @@ describe("Button", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it("has correct aria-disabled when disabled", () => {
+  it("has native disabled attribute when disabled", () => {
     render(<Button disabled>Disabled</Button>);
     const button = screen.getByRole("button");
-    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toBeDisabled();
   });
 
   it("forwards refs", () => {
