@@ -196,7 +196,6 @@ describeEffect("Chorus", createChorusFactory, ["rate", "depth", "mix"]);
 describeEffect("Freeverb", createFreeverbFactory, [
   "roomSize",
   "damping",
-  "width",
   "preDelay",
   "mix",
 ]);
