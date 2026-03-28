@@ -11,6 +11,7 @@ import { createCompressorFactory } from "./compressor";
 import { createEqFactory } from "./eq";
 import { createDistortionFactory } from "./distortion";
 import { createChorusFactory } from "./chorus";
+import { createFreeverbFactory } from "./freeverb";
 
 export function createDefaultRegistry(): EffectRegistry {
   const registry = createEffectRegistry();
@@ -20,5 +21,6 @@ export function createDefaultRegistry(): EffectRegistry {
   registry.register(createEqFactory());
   registry.register(createDistortionFactory());
   registry.register(createChorusFactory());
+  registry.register(createFreeverbFactory());
   return registry;
 }

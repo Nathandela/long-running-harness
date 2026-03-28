@@ -86,6 +86,13 @@ export type MixerEngine = {
     input: AudioNode,
     output: AudioNode,
   ): void;
+  /** Replace an effect insert in-place (preserves chain order) */
+  replaceInsert(
+    trackId: string,
+    id: string,
+    input: AudioNode,
+    output: AudioNode,
+  ): void;
   /** Remove an effect insert from a track's insert chain */
   removeInsert(trackId: string, insertId: string): void;
 

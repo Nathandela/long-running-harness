@@ -5,6 +5,7 @@ import { createCompressorFactory } from "./compressor";
 import { createEqFactory } from "./eq";
 import { createDistortionFactory } from "./distortion";
 import { createChorusFactory } from "./chorus";
+import { createFreeverbFactory } from "./freeverb";
 import type { EffectFactory, EffectInstance } from "./types";
 
 // Shared mock AudioContext
@@ -192,6 +193,13 @@ describeEffect("Distortion", createDistortionFactory, [
   "mix",
 ]);
 describeEffect("Chorus", createChorusFactory, ["rate", "depth", "mix"]);
+describeEffect("Freeverb", createFreeverbFactory, [
+  "roomSize",
+  "damping",
+  "width",
+  "preDelay",
+  "mix",
+]);
 
 // Effect-specific tests
 

@@ -127,6 +127,67 @@ describe("EffectsStore", () => {
     expect(getTrackEffects("nonexistent")).toEqual([]);
   });
 
+  it("swaps effect type on a slot preserving position", () => {
+    const { addEffect, swapEffectType } = useEffectsStore.getState();
+    addEffect("track-1", {
+      id: "fx-1",
+      typeId: "reverb",
+      bypassed: false,
+      params: { decay: 2, mix: 30 },
+    });
+    addEffect("track-1", {
+      id: "fx-2",
+      typeId: "delay",
+      bypassed: false,
+      params: {},
+    });
+
+    swapEffectType("track-1", "fx-1", "freeverb", { roomSize: 50, mix: 30 });
+
+    const slots = useEffectsStore.getState().trackEffects["track-1"];
+    expect(slots).toHaveLength(2);
+    expect(slots?.[0]?.id).toBe("fx-1");
+    expect(slots?.[0]?.typeId).toBe("freeverb");
+    expect(slots?.[0]?.params).toEqual({ roomSize: 50, mix: 30 });
+    expect(slots?.[0]?.bypassed).toBe(false);
+    // Second slot unchanged
+    expect(slots?.[1]?.typeId).toBe("delay");
+  });
+
+  it("swap preserves bypassed state", () => {
+    const { addEffect, toggleBypass, swapEffectType } =
+      useEffectsStore.getState();
+    addEffect("track-1", {
+      id: "fx-1",
+      typeId: "reverb",
+      bypassed: false,
+      params: { decay: 2 },
+    });
+
+    toggleBypass("track-1", "fx-1");
+    swapEffectType("track-1", "fx-1", "freeverb", { roomSize: 50 });
+
+    const slot = useEffectsStore.getState().trackEffects["track-1"]?.[0];
+    expect(slot?.bypassed).toBe(true);
+    expect(slot?.typeId).toBe("freeverb");
+  });
+
+  it("swap is no-op for nonexistent slot", () => {
+    const { addEffect, swapEffectType } = useEffectsStore.getState();
+    addEffect("track-1", {
+      id: "fx-1",
+      typeId: "reverb",
+      bypassed: false,
+      params: {},
+    });
+
+    swapEffectType("track-1", "nonexistent", "freeverb", {});
+
+    const slots = useEffectsStore.getState().trackEffects["track-1"];
+    expect(slots).toHaveLength(1);
+    expect(slots?.[0]?.typeId).toBe("reverb");
+  });
+
   it("reorders effects within a track", () => {
     const { addEffect, reorderEffect } = useEffectsStore.getState();
     addEffect("track-1", {

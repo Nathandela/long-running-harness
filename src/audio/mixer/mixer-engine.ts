@@ -211,6 +211,16 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       chain?.addInsert(id, input, output);
     },
 
+    replaceInsert(
+      trackId: string,
+      id: string,
+      input: AudioNode,
+      output: AudioNode,
+    ): void {
+      const chain = insertChains.get(trackId);
+      chain?.replaceInsert(id, input, output);
+    },
+
     removeInsert(trackId: string, insertId: string): void {
       const chain = insertChains.get(trackId);
       chain?.removeInsert(insertId);

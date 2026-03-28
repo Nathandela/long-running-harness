@@ -123,6 +123,47 @@ describe("InsertChain", () => {
     expect(chain.getInserts()).toEqual([]);
   });
 
+  it("replaces an insert in-place preserving order", () => {
+    const fx1 = mockEffectNode("fx1");
+    const fx2 = mockEffectNode("fx2");
+    chain.addInsert(
+      fx1.id,
+      fx1.input as unknown as AudioNode,
+      fx1.output as unknown as AudioNode,
+    );
+    chain.addInsert(
+      fx2.id,
+      fx2.input as unknown as AudioNode,
+      fx2.output as unknown as AudioNode,
+    );
+
+    const fx1New = mockEffectNode("fx1");
+    chain.replaceInsert(
+      "fx1",
+      fx1New.input as unknown as AudioNode,
+      fx1New.output as unknown as AudioNode,
+    );
+
+    const inserts = chain.getInserts();
+    expect(inserts).toHaveLength(2);
+    expect(inserts[0]?.id).toBe("fx1");
+    expect(inserts[1]?.id).toBe("fx2");
+    // The new node should be wired in
+    expect(inserts[0]?.input).toBe(fx1New.input);
+  });
+
+  it("replaceInsert falls back to append for unknown id", () => {
+    const fx1 = mockEffectNode("fx1");
+    chain.replaceInsert(
+      fx1.id,
+      fx1.input as unknown as AudioNode,
+      fx1.output as unknown as AudioNode,
+    );
+
+    expect(chain.getInserts()).toHaveLength(1);
+    expect(chain.getInserts()[0]?.id).toBe("fx1");
+  });
+
   it("dispose disconnects everything", () => {
     const fx = mockEffectNode("fx1");
     chain.addInsert(

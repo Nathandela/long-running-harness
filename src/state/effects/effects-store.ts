@@ -19,6 +19,12 @@ export type EffectsStore = {
   ) => void;
   toggleBypass: (trackId: string, effectId: string) => void;
   removeTrackEffects: (trackId: string) => void;
+  swapEffectType: (
+    trackId: string,
+    effectId: string,
+    newTypeId: string,
+    newParams: Record<string, number>,
+  ) => void;
   reorderEffect: (trackId: string, effectId: string, toIndex: number) => void;
   getTrackEffects: (trackId: string) => readonly EffectSlotState[];
 };
@@ -94,6 +100,25 @@ export const useEffectsStore = create<EffectsStore>()((set, get) => ({
         Object.entries(s.trackEffects).filter(([k]) => k !== trackId),
       ),
     }));
+  },
+
+  swapEffectType(trackId, effectId, newTypeId, newParams) {
+    set((s) => {
+      const existing = s.trackEffects[trackId];
+      if (!existing) return s;
+      const idx = existing.findIndex((e) => e.id === effectId);
+      if (idx === -1) return s;
+      const slot = existing[idx];
+      if (!slot) return s;
+      return {
+        trackEffects: {
+          ...s.trackEffects,
+          [trackId]: existing.map((e, i) =>
+            i === idx ? { ...e, typeId: newTypeId, params: newParams } : e,
+          ),
+        },
+      };
+    });
   },
 
   reorderEffect(trackId, effectId, toIndex) {

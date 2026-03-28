@@ -11,6 +11,12 @@ import { EffectPanel } from "./EffectPanel";
 
 const EMPTY_SLOTS: readonly never[] = [];
 
+// Reverb A/B: swap between convolution and algorithmic reverb
+const REVERB_SWAP: Record<string, string> = {
+  reverb: "freeverb",
+  freeverb: "reverb",
+};
+
 type EffectsRackProps = {
   trackId: string;
 };
@@ -24,8 +30,24 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
   const removeEffect = useEffectsStore((s) => s.removeEffect);
   const updateEffectParam = useEffectsStore((s) => s.updateEffectParam);
   const toggleBypass = useEffectsStore((s) => s.toggleBypass);
+  const swapEffectType = useEffectsStore((s) => s.swapEffectType);
 
   const [showSelector, setShowSelector] = useState(false);
+
+  const handleSwapReverb = useCallback(
+    (slotId: string, currentTypeId: string) => {
+      const targetTypeId = REVERB_SWAP[currentTypeId];
+      if (targetTypeId === undefined || targetTypeId === "") return;
+      const targetFactory = registry.get(targetTypeId);
+      if (!targetFactory) return;
+      const newParams: Record<string, number> = {};
+      for (const p of targetFactory.definition.parameters) {
+        newParams[p.key] = p.default;
+      }
+      swapEffectType(trackId, slotId, targetTypeId, newParams);
+    },
+    [trackId, swapEffectType, registry],
+  );
 
   const handleAdd = useCallback(
     (typeId: string) => {
@@ -61,6 +83,13 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
         const factory = registry.get(slot.typeId);
         if (!factory) return null;
 
+        const isReverbType = slot.typeId in REVERB_SWAP;
+        const swapTarget = REVERB_SWAP[slot.typeId];
+        const swapTargetFactory =
+          swapTarget !== undefined && swapTarget !== ""
+            ? registry.get(swapTarget)
+            : undefined;
+
         return (
           <EffectPanel
             key={slot.id}
@@ -76,6 +105,14 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
             onRemove={() => {
               removeEffect(trackId, slot.id);
             }}
+            onSwapType={
+              isReverbType
+                ? () => {
+                    handleSwapReverb(slot.id, slot.typeId);
+                  }
+                : undefined
+            }
+            swapLabel={swapTargetFactory?.definition.name}
           />
         );
       })}

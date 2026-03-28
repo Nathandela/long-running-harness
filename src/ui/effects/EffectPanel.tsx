@@ -15,6 +15,8 @@ type EffectPanelProps = {
   onParamChange: (key: string, value: number) => void;
   onBypassToggle: () => void;
   onRemove: () => void;
+  onSwapType?: () => void;
+  swapLabel?: string;
 };
 
 export function EffectPanel({
@@ -24,6 +26,8 @@ export function EffectPanel({
   onParamChange,
   onBypassToggle,
   onRemove,
+  onSwapType,
+  swapLabel,
 }: EffectPanelProps): React.JSX.Element {
   return (
     <div
@@ -56,6 +60,24 @@ export function EffectPanel({
           {definition.name}
         </span>
         <div style={{ display: "flex", gap: tokens.space[1] }}>
+          {onSwapType != null && (
+            <button
+              type="button"
+              aria-label="Switch reverb type"
+              onClick={onSwapType}
+              style={{
+                fontFamily: tokens.font.mono,
+                fontSize: tokens.text.xs,
+                border: "2px solid var(--color-gray-700)",
+                background: "transparent",
+                color: tokens.color.blue,
+                cursor: "pointer",
+                padding: "2px 4px",
+              }}
+            >
+              {swapLabel ?? "A/B"}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Bypass"

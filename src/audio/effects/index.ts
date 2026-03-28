@@ -24,3 +24,4 @@ export { createCompressorFactory } from "./compressor";
 export { createEqFactory } from "./eq";
 export { createDistortionFactory } from "./distortion";
 export { createChorusFactory } from "./chorus";
+export { createFreeverbFactory } from "./freeverb";

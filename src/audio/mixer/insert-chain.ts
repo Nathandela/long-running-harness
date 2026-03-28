@@ -12,6 +12,7 @@ export type InsertEntry = {
 
 export type InsertChain = {
   addInsert(id: string, input: AudioNode, output: AudioNode): void;
+  replaceInsert(id: string, input: AudioNode, output: AudioNode): void;
   removeInsert(id: string): void;
   getInserts(): readonly InsertEntry[];
   dispose(): void;
@@ -74,6 +75,19 @@ export function createInsertChain(
   return {
     addInsert(id: string, input: AudioNode, output: AudioNode): void {
       inserts.push({ id, input, output });
+      rewire();
+    },
+
+    replaceInsert(id: string, input: AudioNode, output: AudioNode): void {
+      const idx = inserts.findIndex((e) => e.id === id);
+      if (idx === -1) {
+        // Fall back to append if not found
+        inserts.push({ id, input, output });
+      } else {
+        const old = at(inserts, idx);
+        old.output.disconnect();
+        inserts[idx] = { id, input, output };
+      }
       rewire();
     },
 

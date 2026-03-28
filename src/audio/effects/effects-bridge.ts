@@ -24,9 +24,33 @@ export function createEffectsBridge(
   const instances = new Map<string, EffectInstance>();
   const effectTrackMap = new Map<string, string>();
 
+  function initInstance(
+    trackId: string,
+    slot: EffectSlotState,
+  ): EffectInstance {
+    const instance = registry.create(slot.typeId, ctx, slot.id);
+    instances.set(slot.id, instance);
+    effectTrackMap.set(slot.id, trackId);
+
+    for (const [key, value] of Object.entries(slot.params)) {
+      instance.setParam(key, value);
+    }
+    instance.setBypassed(slot.bypassed);
+    return instance;
+  }
+
   function syncSlot(trackId: string, slot: EffectSlotState): void {
     const existing = instances.get(slot.id);
     if (existing) {
+      if (existing.typeId !== slot.typeId) {
+        // Type swap: dispose old, create new, replace in-place to keep order
+        existing.dispose();
+        instances.delete(slot.id);
+        const instance = initInstance(trackId, slot);
+        mixer.replaceInsert(trackId, slot.id, instance.input, instance.output);
+        return;
+      }
+
       // Sync params
       for (const [key, value] of Object.entries(slot.params)) {
         if (existing.getParam(key) !== value) {
@@ -40,18 +64,8 @@ export function createEffectsBridge(
       return;
     }
 
-    // Create new instance via registry
-    const instance = registry.create(slot.typeId, ctx, slot.id);
-    instances.set(slot.id, instance);
-    effectTrackMap.set(slot.id, trackId);
-
-    // Apply initial state
-    for (const [key, value] of Object.entries(slot.params)) {
-      instance.setParam(key, value);
-    }
-    instance.setBypassed(slot.bypassed);
-
-    // Ensure channel strip exists, then wire insert
+    // Create new instance
+    const instance = initInstance(trackId, slot);
     mixer.getOrCreateStrip(trackId);
     mixer.addInsert(trackId, slot.id, instance.input, instance.output);
   }
