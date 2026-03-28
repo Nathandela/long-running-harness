@@ -316,34 +316,31 @@ class SynthProcessor extends AudioWorkletProcessor {
         const osc2Out = vd.osc2.next(freq2, sr) * p.osc2Level;
         let sample = osc1Out + osc2Out;
 
-        // Filter envelope -> cutoff modulation
+        // Filter envelope (must process every sample to advance state)
         const filterEnvVal = vd.filterEnv.process(this.filterParams, sr);
-        const envCutoffMod = filterEnvVal * p.filterEnvDepth;
 
-        // LFO1 -> cutoff modulation
-        const lfoCutoffMod = lfo1Val * p.lfo1Depth * 12;
+        // Control-rate filter coefficients: recompute once per block per voice
+        // (avoids expensive Math.sin/cos per-sample; block rate ~3ms at 44.1kHz)
+        if (s === 0) {
+          const envCutoffMod = filterEnvVal * p.filterEnvDepth;
+          const lfoCutoffMod = lfo1Val * p.lfo1Depth * 12;
+          const velCutoffMod = vd.velocity * 24;
+          const totalCutoffMod = envCutoffMod + lfoCutoffMod + velCutoffMod;
+          const modulatedCutoff =
+            p.filterCutoff * Math.pow(2, totalCutoffMod / 12);
+          const clampedCutoff = Math.min(
+            Math.max(modulatedCutoff, 20),
+            sr / 2 - 100,
+          );
+          computeBiquadCoeffs(
+            p.filterType,
+            clampedCutoff,
+            p.filterResonance,
+            sr,
+            vd.filter.coeffs,
+          );
+        }
 
-        // Velocity -> filter modulation
-        const velCutoffMod = vd.velocity * 24;
-
-        const totalCutoffMod = envCutoffMod + lfoCutoffMod + velCutoffMod;
-        const modulatedCutoff =
-          p.filterCutoff * Math.pow(2, totalCutoffMod / 12);
-        const clampedCutoff = Math.min(
-          Math.max(modulatedCutoff, 20),
-          sr / 2 - 100,
-        );
-
-        // S1-1: Write coefficients directly into filter's pre-allocated struct
-        computeBiquadCoeffs(
-          p.filterType,
-          clampedCutoff,
-          p.filterResonance,
-          sr,
-          vd.filter.coeffs,
-        );
-
-        // S2-6: No destructuring — filter reads from its own coeffs
         sample = vd.filter.process(sample);
 
         // Amplitude envelope

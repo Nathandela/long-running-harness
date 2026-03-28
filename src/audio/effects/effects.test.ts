@@ -9,15 +9,24 @@ import type { EffectFactory, EffectInstance } from "./types";
 
 // Shared mock AudioContext
 function createMockAudioContext(): AudioContext {
-  const mockGainNode = (): object => ({
-    gain: {
+  const mockGainNode = (): object => {
+    const gain: {
+      value: number;
+      setValueAtTime: ReturnType<typeof vi.fn>;
+      linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+    } = {
       value: 1,
       setValueAtTime: vi.fn(),
-      linearRampToValueAtTime: vi.fn(),
-    },
-    connect: vi.fn().mockReturnThis(),
-    disconnect: vi.fn(),
-  });
+      linearRampToValueAtTime: vi.fn().mockImplementation((v: number) => {
+        gain.value = v;
+      }),
+    };
+    return {
+      gain,
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+    };
+  };
 
   const mockDelayNode = (): object => ({
     delayTime: { value: 0, setValueAtTime: vi.fn() },

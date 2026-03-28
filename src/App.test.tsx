@@ -53,6 +53,31 @@ class MockAudioContext {
   createOscillator(): OscillatorNode {
     return createMockOscillatorNode();
   }
+  createDynamicsCompressor(): DynamicsCompressorNode {
+    return {
+      threshold: { value: -24, setValueAtTime: vi.fn() },
+      ratio: { value: 12, setValueAtTime: vi.fn() },
+      knee: { value: 30, setValueAtTime: vi.fn() },
+      attack: { value: 0.003, setValueAtTime: vi.fn() },
+      release: { value: 0.25, setValueAtTime: vi.fn() },
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+    } as unknown as DynamicsCompressorNode;
+  }
+  createAnalyser(): AnalyserNode {
+    return {
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      fftSize: 2048,
+    } as unknown as AnalyserNode;
+  }
+  createStereoPanner(): StereoPannerNode {
+    return {
+      pan: { value: 0, setValueAtTime: vi.fn() },
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+    } as unknown as StereoPannerNode;
+  }
   resume(): Promise<void> {
     this.state = "running";
     return Promise.resolve();

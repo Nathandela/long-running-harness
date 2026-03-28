@@ -71,22 +71,22 @@ export function hydrateStore(session: SessionSchema): void {
     masterVolume: session.mixer.masterVolume,
   });
 
-  // Restore effects state
+  // Restore effects state (always clear first to avoid stale ghost inserts)
+  const trackEffects: Record<
+    string,
+    readonly {
+      id: string;
+      typeId: string;
+      bypassed: boolean;
+      params: Record<string, number>;
+    }[]
+  > = {};
   if (session.effects) {
-    const trackEffects: Record<
-      string,
-      readonly {
-        id: string;
-        typeId: string;
-        bypassed: boolean;
-        params: Record<string, number>;
-      }[]
-    > = {};
     for (const entry of session.effects) {
       trackEffects[entry.trackId] = entry.slots;
     }
-    useEffectsStore.setState({ trackEffects });
   }
+  useEffectsStore.setState({ trackEffects });
 }
 
 type SessionPersistenceResult = {

@@ -32,7 +32,9 @@ export function EffectsBridgeProvider({
     return { registry, mixer, bridge };
   });
 
-  // Guard against StrictMode double-mount: only dispose on true unmount
+  // Guard against StrictMode double-mount: only dispose on true unmount.
+  // useState initializers are called once and cached in React 18/19,
+  // so the deferred check is sufficient — no duplicate instances are created.
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
