@@ -4,6 +4,8 @@ import {
   renderArrangement,
   type ArrangementViewState,
 } from "./arrangement-renderer";
+import { useArrangementInteractions } from "./use-arrangement-interactions";
+import type { GridSnap } from "./hit-test";
 import styles from "./ArrangementPanel.module.css";
 
 const DEFAULT_VIEW: ArrangementViewState = {
@@ -22,6 +24,8 @@ export function ArrangementPanel(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const [view, setView] = useState(DEFAULT_VIEW);
+  const [gridSnap] = useState<GridSnap>("1/4");
+  const interactions = useArrangementInteractions(view, gridSnap);
 
   const tracks = useDawStore((s) => s.tracks);
   const clips = useDawStore((s) => s.clips);
@@ -135,7 +139,12 @@ export function ArrangementPanel(): React.JSX.Element {
       <canvas
         ref={canvasRef}
         className={styles["canvas"]}
+        style={{ cursor: interactions.cursor }}
         onWheel={handleWheel}
+        onMouseDown={interactions.onMouseDown}
+        onMouseMove={interactions.onMouseMove}
+        onMouseUp={interactions.onMouseUp}
+        onDoubleClick={interactions.onDoubleClick}
       />
     </section>
   );
