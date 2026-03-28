@@ -23,7 +23,15 @@ export function DrumPad({
       className={classes}
       aria-label={label}
       aria-pressed={active}
-      onPointerDown={onTrigger}
+      onPointerDown={(e) => {
+        if (e.button === 0) onTrigger();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onTrigger();
+        }
+      }}
       style={size !== 48 ? { width: size, height: size } : undefined}
     >
       {label}

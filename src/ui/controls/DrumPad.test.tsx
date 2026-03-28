@@ -30,4 +30,25 @@ describe("DrumPad", () => {
     render(<DrumPad label="Clap" onTrigger={vi.fn()} />);
     expect(screen.getByText("Clap")).toBeInTheDocument();
   });
+
+  it("triggers on Enter key", () => {
+    const onTrigger = vi.fn();
+    render(<DrumPad label="Kick" onTrigger={onTrigger} />);
+    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
+    expect(onTrigger).toHaveBeenCalledOnce();
+  });
+
+  it("triggers on Space key", () => {
+    const onTrigger = vi.fn();
+    render(<DrumPad label="Kick" onTrigger={onTrigger} />);
+    fireEvent.keyDown(screen.getByRole("button"), { key: " " });
+    expect(onTrigger).toHaveBeenCalledOnce();
+  });
+
+  it("ignores non-primary pointer buttons", () => {
+    const onTrigger = vi.fn();
+    render(<DrumPad label="Kick" onTrigger={onTrigger} />);
+    fireEvent.pointerDown(screen.getByRole("button"), { button: 2 });
+    expect(onTrigger).not.toHaveBeenCalled();
+  });
 });
