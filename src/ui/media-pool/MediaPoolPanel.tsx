@@ -1,7 +1,6 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   MediaPool,
-  AudioSourceHandle,
   WaveformPeaks,
   MediaPoolError,
 } from "@audio/media-pool";
@@ -84,13 +83,27 @@ export function MediaPoolPanel({
   pool,
 }: MediaPoolPanelProps): React.JSX.Element {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [sources, setSources] = useState<readonly AudioSourceHandle[]>([]);
+  const [version, setVersion] = useState(0);
+  const sources = useMemo(() => pool.listSources(), [pool, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const [peaksMap, setPeaksMap] = useState(new Map<string, WaveformPeaks>());
   const [error, setError] = useState<MediaPoolError | null>(null);
 
   useEffect(() => {
-    setSources(pool.listSources());
-  }, [pool]);
+    // Load cached peaks for persisted sources
+    void Promise.all(
+      sources.map(async (source) => {
+        if (peaksMap.has(source.id)) return;
+        const peaks = await pool.getPeaks(source.id, 256);
+        if (peaks !== undefined) {
+          setPeaksMap((prev) => {
+            const next = new Map(prev);
+            next.set(source.id, peaks);
+            return next;
+          });
+        }
+      }),
+    );
+  }, [sources, pool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImport = useCallback(
     async (files: File[]) => {
@@ -110,7 +123,7 @@ export function MediaPoolPanel({
           setError(result.error);
         }
       }
-      setSources(pool.listSources());
+      setVersion((v) => v + 1);
     },
     [pool],
   );
@@ -118,7 +131,7 @@ export function MediaPoolPanel({
   const handleRemove = useCallback(
     (id: string) => {
       void pool.removeSource(id).then(() => {
-        setSources(pool.listSources());
+        setVersion((v) => v + 1);
         setPeaksMap((prev) => {
           const next = new Map(prev);
           next.delete(id);

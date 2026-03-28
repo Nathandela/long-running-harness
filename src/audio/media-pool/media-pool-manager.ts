@@ -30,9 +30,8 @@ export function createMediaPool(
 
       const { handle, buffer } = result;
 
-      // Store blob and metadata
-      const blob = new Blob([await file.arrayBuffer()], { type: file.type });
-      await storage.putBlob(handle.id, blob);
+      // Store blob and metadata (File extends Blob, no extra copy needed)
+      await storage.putBlob(handle.id, file);
       await storage.putMeta(handle.id, handle);
 
       // Compute and cache peaks at default resolution

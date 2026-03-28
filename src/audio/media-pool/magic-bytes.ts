@@ -54,11 +54,8 @@ export function detectAudioFormat(header: Uint8Array): AudioFormat | null {
     return "mp3";
   }
 
-  // MP3: Frame sync 0xFF 0xFB / 0xFF 0xF3 / 0xFF 0xF2
-  if (
-    header[0] === 0xff &&
-    (header[1] === 0xfb || header[1] === 0xf3 || header[1] === 0xf2)
-  ) {
+  // MP3: 11-bit frame sync (0xFF followed by byte with top 3 bits set)
+  if (header[0] === 0xff && ((header[1] ?? 0) & 0xe0) === 0xe0) {
     return "mp3";
   }
 

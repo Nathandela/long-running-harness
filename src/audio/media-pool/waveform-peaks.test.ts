@@ -103,4 +103,13 @@ describe("computeWaveformPeaks", () => {
 
     expect(result.sourceId).toBe("test-id");
   });
+
+  it("returns empty peaks for samplesPerPeak = 0", () => {
+    const data = new Float32Array(4);
+    const buffer = mockAudioBuffer([data]);
+    const result = computeWaveformPeaks(buffer, 0);
+
+    expect(result.length).toBe(0);
+    expect(result.peaks).toHaveLength(0);
+  });
 });

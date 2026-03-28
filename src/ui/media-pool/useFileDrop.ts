@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 type DragHandlers = {
   onDragEnter: (e: React.DragEvent<HTMLElement>) => void;
@@ -16,9 +16,11 @@ export function useFileDrop(
   onFiles: (files: File[]) => void,
 ): UseFileDropReturn {
   const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
   const onDragEnter = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
+    dragCounter.current++;
     setIsDragging(true);
   }, []);
 
@@ -28,13 +30,18 @@ export function useFileDrop(
 
   const onDragLeave = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
-    setIsDragging(false);
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    }
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent<HTMLElement>) => {
       e.preventDefault();
       e.stopPropagation();
+      dragCounter.current = 0;
       setIsDragging(false);
       const files = [...(e.dataTransfer.files as unknown as File[])];
       onFiles(files);

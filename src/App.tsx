@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isCrossOriginIsolated,
   createAudioEngine,
@@ -15,15 +15,28 @@ import { useDawStore } from "@state/index";
 export function App(): React.JSX.Element {
   const crossOriginOk = isCrossOriginIsolated();
   const [engine, setEngine] = useState<AudioEngineContext | null>(null);
+  const [pool, setPool] = useState<MediaPool | null>(null);
   const engineRef = useRef<AudioEngineContext | null>(null);
   const setEngineStatus = useDawStore((s) => s.setEngineStatus);
 
-  const pool = useMemo<MediaPool | null>(() => {
-    if (engine === null) return null;
+  useEffect(() => {
+    if (engine === null) return;
     const storage = createIndexedDBStorage();
     const p = createMediaPool(engine.ctx, storage);
-    void p.init();
-    return p;
+    let cancelled = false;
+    p.init().then(
+      () => {
+        if (!cancelled) setPool(p);
+      },
+      () => {
+        // IDB init failed -- pool works but starts empty
+        if (!cancelled) setPool(p);
+      },
+    );
+    return () => {
+      cancelled = true;
+      setPool(null);
+    };
   }, [engine]);
 
   const handleStart = useCallback((): void => {

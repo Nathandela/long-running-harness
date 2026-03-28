@@ -9,6 +9,9 @@ export function computeWaveformPeaks(
   samplesPerPeak: number,
   sourceId = "",
 ): WaveformPeaks {
+  if (samplesPerPeak <= 0) {
+    return { sourceId, samplesPerPeak, peaks: new Float32Array(0), length: 0 };
+  }
   const totalSamples = buffer.length;
   const numPeaks = Math.ceil(totalSamples / samplesPerPeak);
   const peaks = new Float32Array(numPeaks * 2);
