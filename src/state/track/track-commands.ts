@@ -1,8 +1,10 @@
 import type { UndoCommand } from "@state/undo/undo-command";
 import { useDawStore } from "@state/store";
 import { useArpeggiatorStore } from "@state/arpeggiator";
+import { useAutomationStore } from "@state/automation";
 import type { TrackModel, ClipModel } from "@state/track/types";
 import type { ArpParams } from "@audio/arpeggiator/arpeggiator-types";
+import type { AutomationLane } from "@audio/automation";
 
 function getStore(): ReturnType<typeof useDawStore.getState> {
   return useDawStore.getState();
@@ -27,6 +29,7 @@ export class AddTrackCommand implements UndoCommand {
 
   undo(): void {
     useArpeggiatorStore.getState().removeArp(this.track.id);
+    useAutomationStore.getState().removeTrackLanes(this.track.id);
     getStore().removeTrack(this.track.id);
   }
 
@@ -42,6 +45,7 @@ export class RemoveTrackCommand implements UndoCommand {
   private savedClips: readonly ClipModel[] = [];
   private savedIndex = -1;
   private savedArpParams: ArpParams | undefined;
+  private savedAutomationLanes: readonly AutomationLane[] = [];
 
   constructor(private readonly trackId: string) {}
 
@@ -59,7 +63,11 @@ export class RemoveTrackCommand implements UndoCommand {
     this.savedArpParams = useArpeggiatorStore
       .getState()
       .getParams(this.trackId);
+    this.savedAutomationLanes = useAutomationStore
+      .getState()
+      .getLanes(this.trackId);
     useArpeggiatorStore.getState().removeArp(this.trackId);
+    useAutomationStore.getState().removeTrackLanes(this.trackId);
     state.removeTrack(this.trackId);
   }
 
@@ -74,6 +82,16 @@ export class RemoveTrackCommand implements UndoCommand {
       useArpeggiatorStore
         .getState()
         .setParams(this.savedTrack.id, this.savedArpParams);
+    }
+
+    // Restore automation lanes
+    if (this.savedAutomationLanes.length > 0) {
+      useAutomationStore.setState((s) => ({
+        lanes: {
+          ...s.lanes,
+          [this.trackId]: this.savedAutomationLanes,
+        },
+      }));
     }
 
     // Re-add all clips (addClip also wires up clipIds)

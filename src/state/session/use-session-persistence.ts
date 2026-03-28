@@ -6,6 +6,7 @@ import {
   type ModulationStore,
 } from "@state/synth/modulation-store";
 import { useArpeggiatorStore, type ArpeggiatorStore } from "@state/arpeggiator";
+import { useAutomationStore, type AutomationStore } from "@state/automation";
 import type { SessionStorage } from "./session-storage";
 import { createSaveQueue } from "./save-queue";
 import { createAutoSave } from "./auto-save";
@@ -16,6 +17,7 @@ import {
   MAX_MOD_ROUTES,
   _seedRouteCounter,
 } from "@audio/synth/modulation-types";
+import { _seedLaneCounter } from "@audio/automation/automation-types";
 
 // Stored meta from the loaded session, preserved across auto-saves
 let sessionMeta: { name: string; createdAt: number } = {
@@ -87,6 +89,23 @@ function storeToSession(): SessionSchema {
         }))
       : undefined;
 
+  // Convert automation store to session schema format
+  const automationEntries = Object.entries(useAutomationStore.getState().lanes);
+  const automation =
+    automationEntries.length > 0
+      ? automationEntries.map(([trackId, lanes]) => ({
+          trackId,
+          lanes: lanes.map((l) => ({
+            id: l.id,
+            trackId: l.trackId,
+            target: l.target,
+            points: l.points.map((p) => ({ ...p })),
+            mode: l.mode,
+            armed: l.armed,
+          })),
+        }))
+      : undefined;
+
   return {
     version: SESSION_VERSION,
     meta: {
@@ -106,6 +125,7 @@ function storeToSession(): SessionSchema {
     effects: effects.length > 0 ? effects : undefined,
     modulation: serializeModulation(),
     arpeggiator,
+    automation,
   };
 }
 
@@ -176,6 +196,25 @@ export function hydrateStore(session: SessionSchema): void {
     }
   }
   useArpeggiatorStore.setState({ arps });
+
+  // Restore automation state
+  const automationLanes: AutomationStore["lanes"] = {};
+  let maxLaneNum = 0;
+  if (session.automation) {
+    for (const entry of session.automation) {
+      automationLanes[entry.trackId] = entry.lanes;
+      for (const lane of entry.lanes) {
+        const match = /^lane-(\d+)$/.exec(lane.id);
+        if (match) {
+          maxLaneNum = Math.max(maxLaneNum, Number(match[1]));
+        }
+      }
+    }
+  }
+  if (maxLaneNum > 0) {
+    _seedLaneCounter(maxLaneNum);
+  }
+  useAutomationStore.setState({ lanes: automationLanes });
 }
 
 type SessionPersistenceResult = {
@@ -240,6 +279,9 @@ export function useSessionPersistence(
     const unsubArp = useArpeggiatorStore.subscribe(() => {
       autoSave.notifyChange();
     });
+    const unsubAutomation = useAutomationStore.subscribe(() => {
+      autoSave.notifyChange();
+    });
 
     return () => {
       autoSave.stop();
@@ -247,6 +289,7 @@ export function useSessionPersistence(
       unsubEffects();
       unsubMod();
       unsubArp();
+      unsubAutomation();
     };
   }, [autoSave]);
 

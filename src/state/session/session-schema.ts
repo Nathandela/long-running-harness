@@ -3,6 +3,7 @@ import { trackSchema, clipSchema } from "@state/track/index";
 import { effectsSectionSchema } from "@state/effects/index";
 import { modulationSectionSchema } from "@state/synth/modulation-schema";
 import { arpeggiatorSectionSchema } from "@state/arpeggiator/index";
+import { automationSectionSchema } from "@state/automation/index";
 
 export const SESSION_VERSION = 1;
 
@@ -37,6 +38,7 @@ export const sessionSchema = z.object({
   effects: effectsSectionSchema.optional(),
   modulation: modulationSectionSchema.optional(),
   arpeggiator: arpeggiatorSectionSchema.optional(),
+  automation: automationSectionSchema.optional(),
 });
 
 export type SessionSchema = z.infer<typeof sessionSchema>;
