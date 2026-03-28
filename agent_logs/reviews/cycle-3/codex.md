@@ -1,1 +1,4 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] The modulation bridge still is not wired into runtime synth ownership** ([modulation-bridge.ts:17](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.ts:17), [index.ts:8](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/index.ts:8), [synth-instrument.ts:54](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/synth-instrument.ts:54), [modulation-bridge.test.ts:47](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.test.ts:47))  
+  The route-counter collision is fixed, but `subscribeModRoutes()` is still only exported and unit-tested. There is still no non-test call site that subscribes a real `SynthInstrument` to modulation-store changes, so modulation edits can remain UI/store-only state that never reaches the live AudioWorklet. Wire the bridge into whatever owns synth instrument creation and clean it up with instrument disposal, then cover that path with an integration test.

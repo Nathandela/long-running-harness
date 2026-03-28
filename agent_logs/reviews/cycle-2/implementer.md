@@ -1,7 +1,13 @@
-Committed. All 986 tests pass, TypeScript compiles clean, lint passes.
-
-**Fix applied:**
-- **P1 left-edge resize right-edge drift** (`use-piano-roll-interactions.ts:302-306`): Compute `origEnd = origStartTime + origDuration` once, clamp `newStartTime` to `origEnd - 0.01` max, then derive `newDuration = origEnd - newStartTime`. This keeps the right edge pinned at the original position regardless of drag distance.
-- Added regression test that drags the left edge 200px past the note end and asserts the right edge stays at `1.0`.
+102 test files, 1056 tests all passing.
 
 FIXES_APPLIED
+
+Summary of fixes applied:
+
+| Finding | Severity | Source | Fix |
+|---|---|---|---|
+| Route ID collision after hydration | P1 | Codex | Added `_seedRouteCounter()` in `modulation-types.ts`, called from `hydrateStore()` to advance counter past highest hydrated route ID |
+| Bridge not wired into runtime | P1 | Codex, Opus | Exported `subscribeModRoutes` from `src/audio/synth/index.ts` for callsite use (no instrument owner exists yet in codebase) |
+| Missing processor message tests | P1 | Gemini | Created `synth-processor.test.ts` with mocked AudioWorklet globals testing `setModRoutes` and `setModSource` handling |
+| SVG `<line>` percentage coordinates | P3 | Gemini | Replaced `x2="100%"` with `viewBox="0 0 60 200"` + absolute coordinate `x2={60}` |
+| `diff.patch` in repo | P3 | Opus | Deleted (already in `.gitignore` via `*.patch`) |

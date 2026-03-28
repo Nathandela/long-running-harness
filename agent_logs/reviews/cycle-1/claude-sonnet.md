@@ -1,55 +1,29 @@
+Based on my review of the modulation system changes (E12), here are my findings:
+
 REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. P1 — Left-edge resize is broken**
-`src/ui/piano-roll/use-piano-roll-interactions.ts:193-206`
+**1. P1 — Modulation routes never reach the AudioWorklet (feature is entirely non-functional)**
 
-Both `note-left-edge` and `note-right-edge` hits set `dragRef` to `kind: "resize-note"` with no field to distinguish which edge was grabbed. The move handler (`line 293`) always adds the pixel delta to `origDuration`, which is correct for the right edge but wrong for the left: a left-edge drag should move `startTime` forward by `delta` and decrease `duration` by the same amount. As implemented, dragging the left edge stretches the note rightward.
+`getWorkletRoutes()` and `instrument.setModRoutes()` are both implemented, but nothing connects the Zustand modulation store to the synth instrument. No subscriber or bridge calls `getWorkletRoutes(trackId)` and forwards the result to `instrument.setModRoutes(routes)` when routes change. The UI works, persistence works, but modulation has zero effect on audio output. This is the core deliverable of E12 and it's missing.
 
-Fix: add an `edge: "left" | "right"` field to the `resize-note` drag state; in `onPointerMove` handle the left case with `moveNoteEvent(startTime + delta)` + `resizeNoteEvent(origDuration - delta)`.
+**2. P2 — Drag state leaks when mouse released outside component**
 
----
+`ModulationMatrix.tsx`: `dragSource` is only cleared by `onMouseUp` on the container `div`. If the user drags off the component and releases, `dragSource` stays set — the next `mousedown` on any source port then reads a stale value. Needs a `document`-level `mouseup` listener (e.g. in a `useEffect`).
 
-**2. P2 — `MoveNoteCommand` lazy-capture heuristic corrupts undo for note-at-origin**
-`src/state/track/midi-commands.ts:80`
+**3. P2 — Session hydration bypasses route type safety**
 
-```typescript
-if (note && this.oldStartTime === 0 && this.oldPitch === 0) {
-```
+`hydrateStore` (`use-session-persistence.ts:131-148`) constructs `matrices` with `source: string` / `destination: string`, then calls `useModulationStore.setState({ matrices })`. The store's type expects `ModSource` / `ModDestination`. When `getWorkletRoutes` is eventually wired up, `SOURCE_INDEX[r.source]` on a `string`-typed value can produce `undefined` as `sourceIdx`, which the worklet would receive silently. The Zod validation in `recoverSession` provides runtime safety, but the types should be cast explicitly after schema parse.
 
-This guard is used to detect "caller didn't supply old values, capture them now." It fails for any note legitimately at `startTime=0, pitch=0` (MIDI note 0, C-1): `execute()` overwrites `oldStartTime` / `oldPitch` with the pre-move values, but the condition is `true` even after the user supplied `oldStartTime=0, oldPitch=0` explicitly. The check should use a sentinel (`undefined`) or a separate boolean flag instead of `=== 0`.
+**4. P2 — MAX_MOD_ROUTES not enforced on session load**
 
----
+`addRoute` guards against >32 routes, but `hydrateStore` calls `useModulationStore.setState({ matrices })` directly, bypassing that guard. A crafted session file can load unlimited routes, feeding an unbounded `modRoutes` array into `process()`.
 
-**3. P2 — `registry` useMemo re-creates on every scroll/zoom**
-`src/ui/piano-roll/PianoRollEditor.tsx:79`
+**5. P3 — `isPerVoiceSource` is dead code**
 
-```typescript
-const registry = useMemo(() => { ... }, [interactions]);
-```
+`modulation-types.ts:30-32` defines `isPerVoiceSource`, but `synth-processor.ts` hardcodes the same per-voice/global split with explicit `SOURCE_INDEX` comparisons. The function is never called. If a source is added, the processor's inline checks must be updated separately — a maintenance trap.
 
-`interactions` is a new object on every render because `usePianoRollInteractions` returns a plain object (not stabilised). `view` changes on every wheel event, which causes `interactions` to change, which recreates `registry` and re-runs `useKeyboardShortcuts` on every scroll tick. The `deleteSelectedNotes` callback (the only `interactions` dep) should be lifted out so `registry` can depend only on that stable callback.
+**6. P3 — SVG cable positions are pixel-hardcoded**
 
----
-
-**4. P3 — `pitchToY` accepts two unused parameters**
-`src/ui/piano-roll/piano-roll-renderer.ts:63-70`
-
-```typescript
-export function pitchToY(
-  pitch: number,
-  view: PianoRollViewState,
-  _height: number,
-  _velocityLaneHeight: number,
-): number {
-```
-
-`_height` and `_velocityLaneHeight` are ignored. All callers pass values to them, making the API misleading. The params should be removed; callers updated.
-
----
-
-**5. P3 — `velocity-bar` hit result has no handler**
-`src/ui/piano-roll/use-piano-roll-interactions.ts:129`
-
-`pianoRollHitTest` can return `{ kind: "velocity-bar" }` but none of the three tool handlers (`pencil`, `select`, `erase`) act on it, so clicking or dragging velocity bars does nothing silently. Either add a handler or remove the `velocity-bar` case from the hit test until it's implemented.
+`ModulationMatrix.tsx:201-202`: `srcY = 20 + srcIdx * 22` / `destY = 20 + destIdx * 22` — hardcoded pixel offsets that don't measure actual port positions. Any token or spacing change will misalign cables.

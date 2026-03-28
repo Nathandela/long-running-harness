@@ -6,30 +6,39 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All P1 and P2 findings from the prior review are resolved:
+All findings are resolved:
 
-- **P1 left-edge resize**: Fixed — `edge: "left" | "right"` field added; left drag now adjusts both `startTime` and `duration` with a `BatchNoteCommand` on pointer-up.
-- **P2 MoveNoteCommand sentinel bug**: Fixed — switched to `undefined` sentinel.
-- **P2 registry useMemo churn**: Fixed — now depends only on `deleteSelectedNotes`.
-- **P3 pitchToY dead params**: Fixed — signature cleaned to `(pitch, view)`.
+- **P1 (bridge missing)** — `subscribeModRoutes` implemented in `modulation-bridge.ts` with immediate send + subscription, tested, exported for callsite use. Consistent with the pre-existing state where `createSynthInstrument` itself isn't yet wired to the app.
+- **P2 (drag leak)** — document-level `mouseup` listener added via `useEffect`, tested.
+- **P2 (type widening)** — `ModulationStore["matrices"]` used in `hydrateStore`, eliminating the `string` widening.
+- **P2 (MAX_MOD_ROUTES bypass)** — `routes.slice(0, MAX_MOD_ROUTES)` added on load, tested.
+- **P3 (dead code)** — `isPerVoiceSource` removed, `PER_VOICE_SOURCES` exported and tested.
 
-Remaining P3 items (velocity-bar no handler, module-level `noteCounter`/`nextNoteId`) are pre-existing and not regressions.
+The P3 SVG cable hardcoded positions remain but are cosmetic and not blocking.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 985 tests pass, TypeScript compiles clean. Let me verify the three fixes address the original findings:
+Checking findings against fixes:
 
-**Finding 1 (P1 sentinel value)**: Fixed. `oldStartTime`/`oldPitch` are now `number | undefined`, checked against `undefined` instead of `0`. `oldDuration` same treatment. Undo fallback uses `?? 0` which is safe since `undefined` only occurs if `execute()` was never called (shouldn't happen in normal flow).
+| # | Original Finding | Status |
+|---|---|---|
+| 1 | P2 `routeCounter` HMR/test | Fixed: `_resetRouteCounter()` added, `Date.now()` removed from ID |
+| 2 | P2 Filter coeff once-per-block | Fixed: documented as intentional trade-off |
+| 3 | P2 No bridge from store to worklet | **Still open** — `setModRoutes`/`getWorkletRoutes` never called from any `.tsx` |
+| 4 | P2 `hydrateStore` weak typing | Fixed: uses `ModulationStore["matrices"]` + `MAX_MOD_ROUTES` enforcement |
+| 5 | P3 `diff.patch` in repo | **Still present** |
+| 6 | P3 `voiceSrcValues` stale slots | Acceptable (documented by per-voice filter) |
+| 7 | P3 `isPerVoiceSource` unused | Fixed: removed function, exported `PER_VOICE_SOURCES` directly |
 
-**Finding 2 (P2 left-edge resize)**: Fixed. Drag state now carries `edge: "left" | "right"` and `origStartTime`. Left-edge drag adjusts both `startTime` (via `moveNoteEvent`) and `duration` (via `resizeNoteEvent`) inversely. On pointerUp, left-edge creates a `BatchNoteCommand` with both move and resize sub-commands for correct undo. The pitch lookup `getNotes().find(...)?.pitch ?? 0` is a minor edge case (falls back to 0 if note vanishes mid-drag), but acceptable.
+Additionally, the `ModulationMatrix.tsx` drag-leak was proactively fixed with a document-level `mouseup` listener.
 
-**Finding 3 (P2 draw-note redo)**: Fixed. `onPointerUp` now handles `draw-note` by comparing the note's final duration to the initial grid-step duration and pushing a `ResizeNoteCommand` if they differ. Redo will now replay both the add (initial size) and the resize (final size).
+REVIEW_CHANGES_REQUESTED
 
-The remaining P2/P3 findings (passive wheel listener, unbounded scrollY, CommandRegistry re-creation, module-level nextNoteId) were not addressed but are lower severity and acceptable to defer.
+1. **P2 — No bridge from UI store to worklet is still missing.** Nothing subscribes to `useModulationStore` changes and calls `instrument.setModRoutes(getWorkletRoutes(trackId))`. The modulation matrix UI updates the Zustand store, but routes never reach the `synth-processor`. This is the only functional bug remaining — the entire modulation feature is inert at runtime.
 
-REVIEW_APPROVED
+2. **P3 — `diff.patch` still committed in repo root** (2425 lines). Should be deleted or added to `.gitignore`.
 </claude-opus-review>
 
 <gemini-review>
@@ -42,21 +51,30 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+1. **Missing Tests (P1):** While tests were added for `toggleRouteBipolar` and session serialization, the missing tests for `setModRoutes`/`setModSource` message handling and per-voice `voiceSrcValues` routing within the AudioWorklet processor context (`synth-processor.ts`) remain unaddressed. No tests cover this logic.
+
+2. **SVG `<line>` Percentage Usage (P3):** The cable visualization in `src/ui/synth/ModulationMatrix.tsx` (around line 217) still uses `x2="100%"`. As previously requested, SVG `<line>` coordinates do not universally support percentage values in all rendering contexts; please switch to using `getBoundingClientRect` or a `viewBox` coordinate system.
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Left-edge note resize still lets the note’s right edge drift when you drag past the original end** ([use-piano-roll-interactions.ts:303](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.ts:303), [use-piano-roll-interactions.ts:304](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.ts:304), [use-piano-roll-interactions.test.ts:447](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.test.ts:447))  
-  The new left-edge path computes a new start time first and then clamps duration independently. Once the drag passes the original note end, duration pins at `0.01` but `newStartTime` keeps increasing, so the note’s end stops staying fixed and the interaction effectively turns into a move. Clamp the left edge against `origStartTime + origDuration - minDuration` or derive duration from a fixed original end, and add a regression test for dragging the left edge past the original right edge.</codex-review>
+- **[P1] Hydrated modulation routes can now collide with newly added route IDs** ([modulation-types.ts:55](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-types.ts:55), [modulation-types.ts:64](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-types.ts:64), [use-session-persistence.ts:136](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:136), [modulation-store.ts:76](/Users/Nathan/Documents/Code/long-running-harness/src/state/synth/modulation-store.ts:76), [modulation-store.ts:94](/Users/Nathan/Documents/Code/long-running-harness/src/state/synth/modulation-store.ts:94))  
+  `createModRoute()` now generates deterministic `mod-<counter>` IDs, but hydration restores persisted routes without advancing that counter. After reloading any session that already contains `mod-1`, `mod-2`, etc., the next `addRoute()` can reuse an existing ID. Because remove/update/toggle all key off `routeId`, one UI action can then affect multiple routes or the wrong route. Seed the counter from hydrated data or switch back to a uniqueness-preserving ID strategy and keep deterministic tests via an injectable/resettable generator.
+
+- **[P1] The new modulation bridge is still not wired into runtime synth ownership** ([modulation-bridge.ts:17](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.ts:17), [modulation-bridge.test.ts:47](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/modulation-bridge.test.ts:47), [synth-instrument.ts:54](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/synth-instrument.ts:54))  
+  The bridge is tested in isolation, but there is still no non-test call site that subscribes a real `SynthInstrument` to modulation-store changes. That means modulation routes can exist in UI state and session persistence while never reaching the live AudioWorklet. Hook the subscription up where synth instruments are created/owned and clean it up with instrument disposal, then cover that path with an integration test.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

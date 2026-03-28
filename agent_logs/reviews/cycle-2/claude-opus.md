@@ -1,11 +1,19 @@
-All 985 tests pass, TypeScript compiles clean. Let me verify the three fixes address the original findings:
+Checking findings against fixes:
 
-**Finding 1 (P1 sentinel value)**: Fixed. `oldStartTime`/`oldPitch` are now `number | undefined`, checked against `undefined` instead of `0`. `oldDuration` same treatment. Undo fallback uses `?? 0` which is safe since `undefined` only occurs if `execute()` was never called (shouldn't happen in normal flow).
+| # | Original Finding | Status |
+|---|---|---|
+| 1 | P2 `routeCounter` HMR/test | Fixed: `_resetRouteCounter()` added, `Date.now()` removed from ID |
+| 2 | P2 Filter coeff once-per-block | Fixed: documented as intentional trade-off |
+| 3 | P2 No bridge from store to worklet | **Still open** — `setModRoutes`/`getWorkletRoutes` never called from any `.tsx` |
+| 4 | P2 `hydrateStore` weak typing | Fixed: uses `ModulationStore["matrices"]` + `MAX_MOD_ROUTES` enforcement |
+| 5 | P3 `diff.patch` in repo | **Still present** |
+| 6 | P3 `voiceSrcValues` stale slots | Acceptable (documented by per-voice filter) |
+| 7 | P3 `isPerVoiceSource` unused | Fixed: removed function, exported `PER_VOICE_SOURCES` directly |
 
-**Finding 2 (P2 left-edge resize)**: Fixed. Drag state now carries `edge: "left" | "right"` and `origStartTime`. Left-edge drag adjusts both `startTime` (via `moveNoteEvent`) and `duration` (via `resizeNoteEvent`) inversely. On pointerUp, left-edge creates a `BatchNoteCommand` with both move and resize sub-commands for correct undo. The pitch lookup `getNotes().find(...)?.pitch ?? 0` is a minor edge case (falls back to 0 if note vanishes mid-drag), but acceptable.
+Additionally, the `ModulationMatrix.tsx` drag-leak was proactively fixed with a document-level `mouseup` listener.
 
-**Finding 3 (P2 draw-note redo)**: Fixed. `onPointerUp` now handles `draw-note` by comparing the note's final duration to the initial grid-step duration and pushing a `ResizeNoteCommand` if they differ. Redo will now replay both the add (initial size) and the resize (final size).
+REVIEW_CHANGES_REQUESTED
 
-The remaining P2/P3 findings (passive wheel listener, unbounded scrollY, CommandRegistry re-creation, module-level nextNoteId) were not addressed but are lower severity and acceptable to defer.
+1. **P2 — No bridge from UI store to worklet is still missing.** Nothing subscribes to `useModulationStore` changes and calls `instrument.setModRoutes(getWorkletRoutes(trackId))`. The modulation matrix UI updates the Zustand store, but routes never reach the `synth-processor`. This is the only functional bug remaining — the entire modulation feature is inert at runtime.
 
-REVIEW_APPROVED
+2. **P3 — `diff.patch` still committed in repo root** (2425 lines). Should be deleted or added to `.gitignore`.

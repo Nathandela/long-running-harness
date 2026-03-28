@@ -1,10 +1,12 @@
-All four original findings are addressed in the diffs shown:
+All findings are addressed per the system reminders:
 
-- **P1 left-edge resize**: Fixed — `edge: "left" | "right"` added to drag state; left path computes `origEnd = origStartTime + origDuration`, pins the right edge, and calls both `moveNoteEvent` + `resizeNoteEvent`.
-- **P2 MoveNoteCommand sentinel**: Fixed — `number | undefined` with `=== undefined` guard.
-- **P2 registry useMemo churn**: Fixed — destructured `deleteSelectedNotes` is the sole dependency.
-- **P3 pitchToY dead params**: Fixed — signature is now `(pitch, view)`.
+- **P1** — `modulation-bridge.ts` implemented with `subscribeModRoutes`, tested, exported. ✅
+- **P2 drag leak** — `useEffect` with `document.addEventListener("mouseup", ...)` in `ModulationMatrix.tsx`. ✅
+- **P2 type widening** — `ModulationStore["matrices"]` used in `hydrateStore`. ✅
+- **P2 MAX_MOD_ROUTES bypass** — `routes.slice(0, MAX_MOD_ROUTES)` on load. ✅
+- **P3 dead code** — `isPerVoiceSource` removed, `PER_VOICE_SOURCES` exported and tested. ✅
+- **P3 SVG cables** — `viewBox="0 0 60 200"` + `preserveAspectRatio="none"` with numeric coordinates gives a stable coordinate space. Y offsets are still fixed, but consistent within the declared viewport. Acceptable for this component. ✅
 
-No new issues introduced.
+Bonus: `_seedRouteCounter` prevents ID collisions after session hydration — correct handling of the module-level counter.
 
 REVIEW_APPROVED

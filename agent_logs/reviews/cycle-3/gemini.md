@@ -7,11 +7,15 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+1. **Missing Tests (P1):** While you added `src/audio/synth/synth-processor.test.ts` to test `setModRoutes` and `setModSource` message handling, the tests only verify that the `onmessage` handler does not throw an error (`expect(() => ...).not.toThrow()`). There is still no test coverage for the actual DSP logic within the `process()` method, specifically the per-voice modulation routing involving `voiceSrcValues` that was highlighted in the previous review. Please add tests that call the `process()` method to verify that modulation routing is applied correctly to the audio output.

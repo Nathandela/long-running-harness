@@ -1,10 +1,11 @@
-All P1 and P2 findings from the prior review are resolved:
+All findings are resolved:
 
-- **P1 left-edge resize**: Fixed — `edge: "left" | "right"` field added; left drag now adjusts both `startTime` and `duration` with a `BatchNoteCommand` on pointer-up.
-- **P2 MoveNoteCommand sentinel bug**: Fixed — switched to `undefined` sentinel.
-- **P2 registry useMemo churn**: Fixed — now depends only on `deleteSelectedNotes`.
-- **P3 pitchToY dead params**: Fixed — signature cleaned to `(pitch, view)`.
+- **P1 (bridge missing)** — `subscribeModRoutes` implemented in `modulation-bridge.ts` with immediate send + subscription, tested, exported for callsite use. Consistent with the pre-existing state where `createSynthInstrument` itself isn't yet wired to the app.
+- **P2 (drag leak)** — document-level `mouseup` listener added via `useEffect`, tested.
+- **P2 (type widening)** — `ModulationStore["matrices"]` used in `hydrateStore`, eliminating the `string` widening.
+- **P2 (MAX_MOD_ROUTES bypass)** — `routes.slice(0, MAX_MOD_ROUTES)` added on load, tested.
+- **P3 (dead code)** — `isPerVoiceSource` removed, `PER_VOICE_SOURCES` exported and tested.
 
-Remaining P3 items (velocity-bar no handler, module-level `noteCounter`/`nextNoteId`) are pre-existing and not regressions.
+The P3 SVG cable hardcoded positions remain but are cosmetic and not blocking.
 
 REVIEW_APPROVED

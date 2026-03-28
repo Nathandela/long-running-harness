@@ -14,9 +14,12 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-Error executing tool read_file: Path not in workspace: Attempted path "/tmp/review_diff.patch" resolves outside the allowed workspace directories: /Users/Nathan/Documents/Code/long-running-harness or the project temp directory: /Users/Nathan/.gemini/tmp/long-running-harness
 REVIEW_CHANGES_REQUESTED
 
-1. **[P1 - Bug]**: Newly drawn notes lose their dragged duration upon Redo. In `use-piano-roll-interactions.ts`, `AddNoteCommand` is pushed on `pointerDown` with the default duration. Extending the note via drag updates the store but no command captures the final duration on `pointerUp`. Redo restores the original 1-grid-step note, losing the drag change. A `ResizeNoteCommand` should be pushed when finishing a `draw-note` interaction if the duration was extended.
-2. **[P2 - Bug]**: `MoveNoteCommand` uses `0` as a sentinel value to detect unset `oldStartTime` and `oldPitch`. If these are explicitly provided as `0` to the constructor, `execute()` falsely treats them as unset and overwrites them with the note's current state. This causes undo history corruption if a note actually starts at time `0` and pitch `0`. It should use `undefined` or a separate boolean flag instead of `0`.
-3. **[P2 - Bug]**: The piano roll canvas goes blank when the window is resized while the transport is stopped. In `PianoRollEditor.tsx`, the `ResizeObserver` resizes the canvas buffer (which clears it) but does not call `render()` to redraw the contents. `render` needs to be called after updating canvas dimensions.
+1. **Missing Tests (P1):** The implementer added new functionality (the `toggleRouteBipolar` action to the modulation store and session persistence serialization for modulation) but did not add any tests for them. Additionally, the previous review's findings regarding missing tests for `setModRoutes`/`setModSource` message handling, per-voice `voiceSrcValues` routing, UI drag cancellation, and session serialization round-trip remain unaddressed.
+
+2. **`routeCounter` Non-Determinism (P3):** In `src/audio/synth/modulation-types.ts`, `routeCounter` still uses a module-level mutable state combined with `Date.now()`. As flagged in the previous review, this is non-deterministic and can break snapshot testing. A crypto-based UUID or a simple incrementing counter without `Date.now()` should be used.
+
+3. **SVG `<line>` Percentage Usage (P3):** In `src/ui/synth/ModulationMatrix.tsx`, the cable visualization still uses `x2="100%"`. As noted in the previous review, SVG `<line>` coordinates do not universally support percentage values in all rendering contexts. Using `getBoundingClientRect` or a `viewBox` coordinate system is preferred.
+
+*(Note: The "No Wiring Between Store Changes and Worklet" issue flagged in the prior review cycle was correctly skipped, as `createSynthInstrument` is not instantiated anywhere in the project yet, leaving no active instrument to which `setModRoutes` could be wired.)*

@@ -7,11 +7,17 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+1. **Missing Tests (P1):** While tests were added for `toggleRouteBipolar` and session serialization, the missing tests for `setModRoutes`/`setModSource` message handling and per-voice `voiceSrcValues` routing within the AudioWorklet processor context (`synth-processor.ts`) remain unaddressed. No tests cover this logic.
+
+2. **SVG `<line>` Percentage Usage (P3):** The cable visualization in `src/ui/synth/ModulationMatrix.tsx` (around line 217) still uses `x2="100%"`. As previously requested, SVG `<line>` coordinates do not universally support percentage values in all rendering contexts; please switch to using `getBoundingClientRect` or a `viewBox` coordinate system.
