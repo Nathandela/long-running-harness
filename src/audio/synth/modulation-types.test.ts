@@ -6,7 +6,8 @@ import {
   type ModDestination,
   type ModRoute,
   createModRoute,
-  isPerVoiceSource,
+  PER_VOICE_SOURCES,
+  _resetRouteCounter,
 } from "./modulation-types";
 
 describe("Modulation Types", () => {
@@ -92,28 +93,29 @@ describe("Modulation Types", () => {
     });
   });
 
-  describe("isPerVoiceSource", () => {
-    it("returns true for velocity", () => {
-      expect(isPerVoiceSource("velocity")).toBe(true);
+  describe("PER_VOICE_SOURCES", () => {
+    it("contains velocity, ampEnv, filterEnv", () => {
+      expect(PER_VOICE_SOURCES.has("velocity")).toBe(true);
+      expect(PER_VOICE_SOURCES.has("ampEnv")).toBe(true);
+      expect(PER_VOICE_SOURCES.has("filterEnv")).toBe(true);
     });
 
-    it("returns true for ampEnv", () => {
-      expect(isPerVoiceSource("ampEnv")).toBe(true);
+    it("does not contain global sources", () => {
+      expect(PER_VOICE_SOURCES.has("lfo1")).toBe(false);
+      expect(PER_VOICE_SOURCES.has("lfo2")).toBe(false);
+      expect(PER_VOICE_SOURCES.has("aftertouch")).toBe(false);
+      expect(PER_VOICE_SOURCES.has("modWheel")).toBe(false);
+      expect(PER_VOICE_SOURCES.has("pitchBend")).toBe(false);
     });
+  });
 
-    it("returns true for filterEnv", () => {
-      expect(isPerVoiceSource("filterEnv")).toBe(true);
-    });
-
-    it("returns false for LFOs", () => {
-      expect(isPerVoiceSource("lfo1")).toBe(false);
-      expect(isPerVoiceSource("lfo2")).toBe(false);
-    });
-
-    it("returns false for MIDI global sources", () => {
-      expect(isPerVoiceSource("aftertouch")).toBe(false);
-      expect(isPerVoiceSource("modWheel")).toBe(false);
-      expect(isPerVoiceSource("pitchBend")).toBe(false);
+  describe("_resetRouteCounter", () => {
+    it("resets counter for deterministic IDs", () => {
+      _resetRouteCounter();
+      const r1 = createModRoute("lfo1", "filterCutoff");
+      _resetRouteCounter();
+      const r2 = createModRoute("lfo1", "filterCutoff");
+      expect(r1.id).toBe(r2.id);
     });
   });
 

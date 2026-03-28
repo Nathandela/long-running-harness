@@ -21,15 +21,11 @@ export const MOD_SOURCES = [
 export type ModSource = (typeof MOD_SOURCES)[number];
 
 /** Per-voice sources have a different value per active voice */
-const PER_VOICE_SOURCES: ReadonlySet<ModSource> = new Set([
+export const PER_VOICE_SOURCES: ReadonlySet<ModSource> = new Set([
   "velocity",
   "ampEnv",
   "filterEnv",
 ]);
-
-export function isPerVoiceSource(source: ModSource): boolean {
-  return PER_VOICE_SOURCES.has(source);
-}
 
 // ─── Destination Registry ───
 
@@ -65,12 +61,17 @@ export function createModRoute(
   bipolar = true,
 ): ModRoute {
   return {
-    id: `mod-${String(++routeCounter)}-${String(Date.now())}`,
+    id: `mod-${String(++routeCounter)}`,
     source,
     destination,
     amount: Math.max(-1, Math.min(1, amount)),
     bipolar,
   };
+}
+
+/** Reset counter for deterministic tests */
+export function _resetRouteCounter(): void {
+  routeCounter = 0;
 }
 
 // ─── Matrix (collection of routes) ───

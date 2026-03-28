@@ -432,7 +432,10 @@ class SynthProcessor extends AudioWorkletProcessor {
         const osc2Gain = Math.max(0, Math.min(1, 1 + modOscMix));
         let sample = osc1Out * osc1Gain + osc2Out * osc2Gain;
 
-        // Control-rate filter coefficients: recompute once per block per voice
+        // Control-rate filter coefficients: recompute once per block per voice.
+        // Trade-off: fast LFO modulation of cutoff uses only sample-0 values
+        // for the entire 128-sample block. Per-sample recomputation is too
+        // expensive; audible zipper artifacts are minimal at typical LFO rates.
         if (s === 0) {
           // Filter cutoff modulation (in semitones)
           const cutoffModSt =

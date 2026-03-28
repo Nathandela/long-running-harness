@@ -134,6 +134,34 @@ describe("ModulationStore", () => {
     });
   });
 
+  describe("toggleRouteBipolar", () => {
+    it("toggles bipolar flag on an existing route", () => {
+      const { initMatrix, addRoute, toggleRouteBipolar } =
+        useModulationStore.getState();
+      initMatrix("track-1");
+      addRoute("track-1", "lfo1", "filterCutoff", 0.5, true);
+      const id =
+        useModulationStore.getState().matrices["track-1"]?.routes[0]?.id ?? "";
+      toggleRouteBipolar("track-1", id);
+      expect(
+        useModulationStore.getState().matrices["track-1"]?.routes[0]?.bipolar,
+      ).toBe(false);
+    });
+
+    it("toggles back to true on second call", () => {
+      const { initMatrix, addRoute, toggleRouteBipolar } =
+        useModulationStore.getState();
+      initMatrix("track-1");
+      addRoute("track-1", "lfo1", "filterCutoff", 0.5, false);
+      const id =
+        useModulationStore.getState().matrices["track-1"]?.routes[0]?.id ?? "";
+      toggleRouteBipolar("track-1", id);
+      expect(
+        useModulationStore.getState().matrices["track-1"]?.routes[0]?.bipolar,
+      ).toBe(true);
+    });
+  });
+
   describe("getRoutes", () => {
     it("returns empty array for uninitialized track", () => {
       expect(useModulationStore.getState().getRoutes("track-1")).toEqual([]);

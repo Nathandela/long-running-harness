@@ -89,6 +89,37 @@ describe("ModulationMatrix", () => {
     expect(useModulationStore.getState().getRoutes(trackId)).toHaveLength(0);
   });
 
+  it("toggles bipolar flag via button", () => {
+    useModulationStore
+      .getState()
+      .addRoute(trackId, "lfo1", "filterCutoff", 0.5);
+    render(<ModulationMatrix trackId={trackId} />);
+
+    const routeId = useModulationStore.getState().getRoutes(trackId)[0]?.id;
+    const bipolarBtn = screen.getByTestId(`route-bipolar-${routeId ?? ""}`);
+    expect(bipolarBtn.textContent).toBe("BI");
+    fireEvent.click(bipolarBtn);
+    expect(useModulationStore.getState().getRoutes(trackId)[0]?.bipolar).toBe(
+      false,
+    );
+  });
+
+  it("clears drag state on document mouseup (outside component)", () => {
+    render(<ModulationMatrix trackId={trackId} />);
+
+    const srcPort = screen.getByTestId("src-port-lfo1");
+    fireEvent.mouseDown(srcPort);
+
+    // Mouse up on document (outside component)
+    fireEvent.mouseUp(document);
+
+    // Now clicking a destination should NOT create a route
+    const destPort = screen.getByTestId("dest-port-filterCutoff");
+    fireEvent.mouseUp(destPort);
+
+    expect(useModulationStore.getState().getRoutes(trackId)).toHaveLength(0);
+  });
+
   it("updates route amount via slider", () => {
     useModulationStore
       .getState()

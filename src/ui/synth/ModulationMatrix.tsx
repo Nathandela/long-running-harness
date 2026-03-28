@@ -112,6 +112,14 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
     setDragSource(null);
   }, []);
 
+  // Clear drag state when mouse released anywhere (including outside component)
+  useEffect(() => {
+    document.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      document.removeEventListener("mouseup", handleGlobalMouseUp);
+    };
+  }, [handleGlobalMouseUp]);
+
   return (
     <div
       ref={containerRef}

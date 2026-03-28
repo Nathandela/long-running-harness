@@ -26,6 +26,8 @@ Thumbs.db
 
 # Diff artifacts
 *.diff
+*.patch
+diff.txt
 
 # Dolt database files (added by bd init)
 .dolt/

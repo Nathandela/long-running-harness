@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useDawStore } from "@state/store";
 import { useEffectsStore } from "@state/effects";
-import { useModulationStore } from "@state/synth/modulation-store";
+import {
+  useModulationStore,
+  type ModulationStore,
+} from "@state/synth/modulation-store";
 import type { SessionStorage } from "./session-storage";
 import { createSaveQueue } from "./save-queue";
 import { createAutoSave } from "./auto-save";
 import { recoverSession } from "./session-recovery";
 import { SESSION_VERSION } from "./session-schema";
 import type { SessionSchema } from "./session-schema";
+import { MAX_MOD_ROUTES } from "@audio/synth/modulation-types";
 
 // Stored meta from the loaded session, preserved across auto-saves
 let sessionMeta: { name: string; createdAt: number } = {
@@ -127,22 +131,12 @@ export function hydrateStore(session: SessionSchema): void {
   }
   useEffectsStore.setState({ trackEffects });
 
-  // Restore modulation state
-  const matrices: Record<
-    string,
-    {
-      routes: readonly {
-        id: string;
-        source: string;
-        destination: string;
-        amount: number;
-        bipolar: boolean;
-      }[];
-    }
-  > = {};
+  // Restore modulation state (Zod already validated source/destination as enums)
+  const matrices: ModulationStore["matrices"] = {};
   if (session.modulation) {
     for (const [trackId, routes] of Object.entries(session.modulation)) {
-      matrices[trackId] = { routes };
+      // Enforce MAX_MOD_ROUTES on load (addRoute guard is bypassed by setState)
+      matrices[trackId] = { routes: routes.slice(0, MAX_MOD_ROUTES) };
     }
   }
   useModulationStore.setState({ matrices });

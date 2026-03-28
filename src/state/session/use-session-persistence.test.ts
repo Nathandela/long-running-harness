@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { createInMemorySessionStorage } from "./session-storage";
 import { createDefaultSession } from "./session-schema";
-import { useSessionPersistence } from "./use-session-persistence";
+import { useSessionPersistence, hydrateStore } from "./use-session-persistence";
 import { useDawStore } from "@state/store";
+import { useModulationStore } from "@state/synth/modulation-store";
 
 describe("useSessionPersistence", () => {
   beforeEach(() => {
@@ -86,5 +87,49 @@ describe("useSessionPersistence", () => {
 
     const saved = await storage.getCurrent();
     expect(saved).toBeDefined();
+  });
+
+  describe("modulation round-trip", () => {
+    it("hydrates modulation routes from session", () => {
+      const session = createDefaultSession();
+      session.modulation = {
+        "track-1": [
+          {
+            id: "mod-1",
+            source: "lfo1",
+            destination: "filterCutoff",
+            amount: 0.5,
+            bipolar: true,
+          },
+        ],
+      };
+
+      hydrateStore(session);
+
+      const routes = useModulationStore.getState().matrices["track-1"]?.routes;
+      expect(routes).toHaveLength(1);
+      expect(routes?.[0]?.source).toBe("lfo1");
+      expect(routes?.[0]?.destination).toBe("filterCutoff");
+      expect(routes?.[0]?.amount).toBe(0.5);
+    });
+
+    it("enforces MAX_MOD_ROUTES on hydration", () => {
+      const session = createDefaultSession();
+      // Create 40 routes (exceeds 32 limit)
+      const routes = Array.from({ length: 40 }, (_, i) => ({
+        id: `mod-${String(i)}`,
+        source: "lfo1" as const,
+        destination: "filterCutoff" as const,
+        amount: 0.1,
+        bipolar: true,
+      }));
+      session.modulation = { "track-1": routes };
+
+      hydrateStore(session);
+
+      expect(
+        useModulationStore.getState().matrices["track-1"]?.routes,
+      ).toHaveLength(32);
+    });
   });
 });
