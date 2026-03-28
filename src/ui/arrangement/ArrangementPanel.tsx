@@ -41,10 +41,11 @@ export function ArrangementPanel(): React.JSX.Element {
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
 
+    const rect = canvas.getBoundingClientRect();
     renderArrangement({
       ctx,
-      width: canvas.width,
-      height: canvas.height,
+      width: rect.width,
+      height: rect.height,
       view,
       tracks,
       clips,
@@ -141,9 +142,9 @@ export function ArrangementPanel(): React.JSX.Element {
         className={styles["canvas"]}
         style={{ cursor: interactions.cursor }}
         onWheel={handleWheel}
-        onMouseDown={interactions.onMouseDown}
-        onMouseMove={interactions.onMouseMove}
-        onMouseUp={interactions.onMouseUp}
+        onPointerDown={interactions.onPointerDown}
+        onPointerMove={interactions.onPointerMove}
+        onPointerUp={interactions.onPointerUp}
         onDoubleClick={interactions.onDoubleClick}
       />
     </section>

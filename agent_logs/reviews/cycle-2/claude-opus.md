@@ -1,14 +1,16 @@
-All 66 tests pass, TypeScript clean, ESLint clean. Let me verify each original finding against the fixes:
+Verified fixes against my original 6 findings:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | P0 - SaveQueue deadlock on error | Fixed: `try/finally` resets `inflight = null` |
-| 2 | P1 - RecoveryDialog never opens | Fixed: derived `showRecovery = !dismissed && recoveryWarnings.length > 0` reacts to async state |
-| 3 | P1 - storeToSession destroys metadata | Fixed: module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` |
-| 4 | P1 - "Start fresh" doesn't reset | Fixed: `onDiscard` calls `hydrateStore(createDefaultSession())` |
-| 5 | P2 - No schema range constraints | Fixed: bpm 1-999, volume 0-2, loopStart/End >= 0, loopEnd >= loopStart refinement, version literal |
-| 6 | P2 - N+1 IDB reads in listSessions | Fixed: new `idbGetAll` reads keys+values in single transaction |
+| # | Original Finding | Status |
+|---|---|---|
+| 1 | P1 clip ID collision | Fixed -- `crypto.randomUUID()` |
+| 2 | P1 drag ops bypass undo | **Not fixed** |
+| 3 | P2 trimClip negative duration | Fixed -- guard at `store.ts:271` |
+| 4 | P2 RULER_HEIGHT magic number | **Partially fixed** |
+| 5 | P2 track.color hex validation | Fixed -- schema regex + renderer fallback |
+| 6 | P3 trimClip negative sourceOffset | Fixed -- same guard |
 
-Bonus improvements in the fix commit: non-object JSON guard in recovery, draft-first loading for crash safety, IDB open retry on failure (`dbPromise = null` in catch).
+REVIEW_CHANGES_REQUESTED
 
-REVIEW_APPROVED
+1. **P1 -- Drag operations still bypass undo.** `use-arrangement-interactions.ts` still calls `state.moveClip()` (line 198), `state.trimClip()` (lines 212, 224), and `state.splitClip()` (line 276) directly on the store. The `sharedUndoManager` is never imported or used. The standard pattern: mutate the store directly during drag for visual feedback, then on `onMouseUp` push a single undo command capturing the before/after delta. Currently `onMouseUp` (line 262) just resets drag state with no undo entry, making all clip moves, trims, and splits permanently non-undoable.
+
+2. **P2 -- Hardcoded `24` remains in `use-arrangement-interactions.ts`.** Lines 192 and 238 still use the literal `24` instead of importing `RULER_HEIGHT` from `./constants`. The constant was extracted and imported correctly in `hit-test.ts` and `arrangement-renderer.ts`, but this file was missed.

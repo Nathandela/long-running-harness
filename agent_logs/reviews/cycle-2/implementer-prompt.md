@@ -6,36 +6,30 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All 9 findings verified:
+REVIEW_CHANGES_REQUESTED
 
-- **P1-1 (recovery dialog)**: Fixed — `!dismissed && recoveryWarnings.length > 0` is reactive, not captured at init.
-- **P1-2 (save queue broken on error)**: Fixed — `try/finally { inflight = null }` in the IIFE.
-- **P1-3 (draft recovery)**: Fixed — loads draft first: `draft ?? getCurrent()`, with crash-recovery warning.
-- **P2-4 (createdAt overwritten)**: Fixed — module-level `sessionMeta` preserved across saves, updated in `hydrateStore`.
-- **P2-5 (unsafe cast)**: Fixed — object type guard added before the cast.
-- **P2-6 (IDB N+1)**: Fixed — `idbGetAll` uses a single transaction with `getAllKeys()` + `getAll()`.
-- **P2-7 (version unconstrained)**: Fixed — `z.literal(SESSION_VERSION)`.
-- **P3-8 (discard doesn't reset)**: Fixed — `hydrateStore(createDefaultSession())` on discard.
-- **P3-9 (dbPromise cached on rejection)**: Fixed — `dbPromise = null` in catch before rethrowing.
+**1. P1 — Drag interactions still bypass undo system (unchanged)**
 
-REVIEW_APPROVED
+`use-arrangement-interactions.ts` was not modified. `onMouseMove` still calls `state.moveClip` / `state.trimClip` directly, and `onDoubleClick` still calls `state.splitClip` directly. `onMouseUp` still just resets drag state without committing an undo entry. All mouse-driven clip mutations remain non-undoable.
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 66 tests pass, TypeScript clean, ESLint clean. Let me verify each original finding against the fixes:
+Verified fixes against my original 6 findings:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | P0 - SaveQueue deadlock on error | Fixed: `try/finally` resets `inflight = null` |
-| 2 | P1 - RecoveryDialog never opens | Fixed: derived `showRecovery = !dismissed && recoveryWarnings.length > 0` reacts to async state |
-| 3 | P1 - storeToSession destroys metadata | Fixed: module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` |
-| 4 | P1 - "Start fresh" doesn't reset | Fixed: `onDiscard` calls `hydrateStore(createDefaultSession())` |
-| 5 | P2 - No schema range constraints | Fixed: bpm 1-999, volume 0-2, loopStart/End >= 0, loopEnd >= loopStart refinement, version literal |
-| 6 | P2 - N+1 IDB reads in listSessions | Fixed: new `idbGetAll` reads keys+values in single transaction |
+| # | Original Finding | Status |
+|---|---|---|
+| 1 | P1 clip ID collision | Fixed -- `crypto.randomUUID()` |
+| 2 | P1 drag ops bypass undo | **Not fixed** |
+| 3 | P2 trimClip negative duration | Fixed -- guard at `store.ts:271` |
+| 4 | P2 RULER_HEIGHT magic number | **Partially fixed** |
+| 5 | P2 track.color hex validation | Fixed -- schema regex + renderer fallback |
+| 6 | P3 trimClip negative sourceOffset | Fixed -- same guard |
 
-Bonus improvements in the fix commit: non-object JSON guard in recovery, draft-first loading for crash safety, IDB open retry on failure (`dbPromise = null` in catch).
+REVIEW_CHANGES_REQUESTED
 
-REVIEW_APPROVED
+1. **P1 -- Drag operations still bypass undo.** `use-arrangement-interactions.ts` still calls `state.moveClip()` (line 198), `state.trimClip()` (lines 212, 224), and `state.splitClip()` (line 276) directly on the store. The `sharedUndoManager` is never imported or used. The standard pattern: mutate the store directly during drag for visual feedback, then on `onMouseUp` push a single undo command capturing the before/after delta. Currently `onMouseUp` (line 262) just resets drag state with no undo entry, making all clip moves, trims, and splits permanently non-undoable.
+
+2. **P2 -- Hardcoded `24` remains in `use-arrangement-interactions.ts`.** Lines 192 and 238 still use the literal `24` instead of importing `RULER_HEIGHT` from `./constants`. The constant was extracted and imported correctly in `hit-test.ts` and `arrangement-renderer.ts`, but this file was missed.
 </claude-opus-review>
 
 <gemini-review>
@@ -48,14 +42,19 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+1. **P1 - Drag operations bypass the undo system.** Not fixed. `useArrangementInteractions.ts` still calls store methods directly (e.g., `state.moveClip`, `state.trimClip`) instead of pushing the corresponding `UndoCommand` instances to the undo manager.
+2. **P1 - Right-trimming can produce negative durations.** Incomplete fix. While the `trimClip` store action now guards against invalid state, the UI interaction in `useArrangementInteractions.ts` (`trim-right`) still calculates `newEnd` without clamping it to the clip's `startTime`. The `trim-right` drag state must capture `originalStart` and use it to clamp `newEnd` to prevent the drag operation from failing silently when the user drags too far left.
+3. **P2 - Drag state gets stuck if cursor leaves canvas.** Not fixed. `ArrangementPanel.tsx` and `useArrangementInteractions.ts` still rely on the canvas's `onMouseUp` handler. You must implement `setPointerCapture` (using pointer events instead of mouse events) or use a window-level `mouseup` listener to ensure drag termination works outside the canvas bounds.
 </gemini-review>
 
 <codex-review>

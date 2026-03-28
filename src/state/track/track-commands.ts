@@ -254,7 +254,12 @@ export class SplitClipCommand implements UndoCommand {
   execute(): void {
     // Capture full original clip before split
     this.originalClip = getStore().clips[this.clipId];
-    this.generatedRightId = getStore().splitClip(this.clipId, this.atTime);
+    // Pass stored ID on redo to keep clip references deterministic
+    this.generatedRightId = getStore().splitClip(
+      this.clipId,
+      this.atTime,
+      this.generatedRightId,
+    );
   }
 
   undo(): void {
@@ -333,7 +338,8 @@ export class DuplicateClipCommand implements UndoCommand {
   }
 
   execute(): void {
-    this.generatedId = getStore().duplicateClip(this.clipId);
+    // Pass stored ID on redo to keep clip references deterministic
+    this.generatedId = getStore().duplicateClip(this.clipId, this.generatedId);
   }
 
   undo(): void {

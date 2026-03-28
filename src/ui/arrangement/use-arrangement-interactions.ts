@@ -1,11 +1,17 @@
 /**
- * Mouse interaction handlers for the arrangement canvas.
- * Manages drag operations for clip move, trim, split, duplicate, and selection.
+ * Pointer interaction handlers for the arrangement canvas.
+ * Manages drag operations for clip move, trim, split, and selection.
+ * Pushes undo commands on drag completion.
  */
 import { useCallback, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
+import type { ClipModel } from "@state/track/types";
+import type { UndoCommand } from "@state/undo";
+import { sharedUndoManager } from "@state/undo";
+import { SplitClipCommand } from "@state/track/track-commands";
 import type { ArrangementViewState } from "./arrangement-renderer";
 import { hitTest, xToSeconds, snapToGrid, type GridSnap } from "./hit-test";
+import { RULER_HEIGHT } from "./constants";
 
 type DragState =
   | { kind: "idle" }
@@ -15,6 +21,7 @@ type DragState =
       originTrackId: string;
       startX: number;
       startTime: number;
+      beforeClip: ClipModel;
     }
   | {
       kind: "trim-left";
@@ -23,12 +30,15 @@ type DragState =
       originalStart: number;
       originalSourceOffset: number;
       originalDuration: number;
+      beforeClip: ClipModel;
     }
   | {
       kind: "trim-right";
       clipId: string;
       startX: number;
       originalEnd: number;
+      originalStart: number;
+      beforeClip: ClipModel;
     }
   | {
       kind: "rubber-band";
@@ -37,9 +47,9 @@ type DragState =
     };
 
 export type ArrangementInteractions = {
-  onMouseDown: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  onMouseMove: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  onMouseUp: (e: React.MouseEvent<HTMLCanvasElement>) => void;
+  onPointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
+  onPointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   onDoubleClick: (e: React.MouseEvent<HTMLCanvasElement>) => void;
   cursor: string;
 };
@@ -59,8 +69,8 @@ export function useArrangementInteractions(
     [],
   );
 
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>): void => {
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>): void => {
       const { x, y } = getCanvasPos(e);
       const state = useDawStore.getState();
       const hit = hitTest(x, y, view, state.tracks, state.clips);
@@ -71,7 +81,6 @@ export function useArrangementInteractions(
           if (clip === undefined) break;
 
           if (e.shiftKey) {
-            // Multi-select toggle
             const current = [...state.selectedClipIds];
             const idx = current.indexOf(hit.clipId);
             if (idx >= 0) {
@@ -84,12 +93,14 @@ export function useArrangementInteractions(
             state.setSelectedClipIds([hit.clipId]);
           }
 
+          e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current = {
             kind: "move-clip",
             clipId: hit.clipId,
             originTrackId: clip.trackId,
             startX: x,
             startTime: clip.startTime,
+            beforeClip: { ...clip },
           };
           break;
         }
@@ -97,6 +108,7 @@ export function useArrangementInteractions(
           const clip = state.clips[hit.clipId];
           if (clip === undefined) break;
           state.setSelectedClipIds([hit.clipId]);
+          e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current = {
             kind: "trim-left",
             clipId: hit.clipId,
@@ -104,6 +116,7 @@ export function useArrangementInteractions(
             originalStart: clip.startTime,
             originalSourceOffset: clip.sourceOffset,
             originalDuration: clip.duration,
+            beforeClip: { ...clip },
           };
           break;
         }
@@ -111,11 +124,14 @@ export function useArrangementInteractions(
           const clip = state.clips[hit.clipId];
           if (clip === undefined) break;
           state.setSelectedClipIds([hit.clipId]);
+          e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current = {
             kind: "trim-right",
             clipId: hit.clipId,
             startX: x,
             originalEnd: clip.startTime + clip.duration,
+            originalStart: clip.startTime,
+            beforeClip: { ...clip },
           };
           break;
         }
@@ -127,6 +143,7 @@ export function useArrangementInteractions(
           if (!e.shiftKey) {
             state.setSelectedClipIds([]);
           }
+          e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current = { kind: "rubber-band", startX: x, startY: y };
           break;
         }
@@ -152,13 +169,12 @@ export function useArrangementInteractions(
     [view, getCanvasPos],
   );
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>): void => {
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>): void => {
       const { x, y } = getCanvasPos(e);
       const drag = dragRef.current;
       const state = useDawStore.getState();
 
-      // Update cursor based on hover
       if (drag.kind === "idle") {
         const hit = hitTest(x, y, view, state.tracks, state.clips);
         switch (hit.kind) {
@@ -187,9 +203,8 @@ export function useArrangementInteractions(
             gridSnap,
           );
 
-          // Determine target track
           const trackIndex = Math.floor(
-            (y - 24 + view.scrollY) / view.trackHeight,
+            (y - RULER_HEIGHT + view.scrollY) / view.trackHeight,
           );
           const targetTrack = state.tracks[trackIndex];
           const targetTrackId =
@@ -216,16 +231,17 @@ export function useArrangementInteractions(
           setCursor("ew-resize");
           const deltaPx = x - drag.startX;
           const deltaSec = deltaPx / view.pixelsPerSecond;
-          const newEnd = snapToGrid(
+          const rawEnd = snapToGrid(
             Math.max(0.01, drag.originalEnd + deltaSec),
             state.bpm,
             gridSnap,
           );
+          // Clamp so the end never crosses the clip's start
+          const newEnd = Math.max(drag.originalStart + 0.01, rawEnd);
           state.trimClip(drag.clipId, undefined, newEnd);
           break;
         }
         case "rubber-band": {
-          // Rubber-band selection: select clips within the rectangle
           const left = Math.min(drag.startX, x);
           const right = Math.max(drag.startX, x);
           const top = Math.min(drag.startY, y);
@@ -235,7 +251,8 @@ export function useArrangementInteractions(
           for (let ti = 0; ti < state.tracks.length; ti++) {
             const track = state.tracks[ti];
             if (track === undefined) continue;
-            const trackTop = 24 + ti * view.trackHeight - view.scrollY;
+            const trackTop =
+              RULER_HEIGHT + ti * view.trackHeight - view.scrollY;
             const trackBottom = trackTop + view.trackHeight;
             if (trackBottom < top || trackTop > bottom) continue;
 
@@ -259,10 +276,73 @@ export function useArrangementInteractions(
     [view, gridSnap, getCanvasPos],
   );
 
-  const onMouseUp = useCallback((): void => {
-    dragRef.current = { kind: "idle" };
-    setCursor("default");
-  }, []);
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>): void => {
+      const drag = dragRef.current;
+
+      // Push undo commands for clip-mutating drags
+      if (
+        drag.kind === "move-clip" ||
+        drag.kind === "trim-left" ||
+        drag.kind === "trim-right"
+      ) {
+        const afterClip = useDawStore.getState().clips[drag.clipId];
+        const before = drag.beforeClip;
+
+        if (
+          afterClip !== undefined &&
+          (before.startTime !== afterClip.startTime ||
+            before.trackId !== afterClip.trackId ||
+            before.duration !== afterClip.duration ||
+            before.sourceOffset !== afterClip.sourceOffset)
+        ) {
+          const clipId = drag.clipId;
+          const cmd: UndoCommand =
+            drag.kind === "move-clip"
+              ? {
+                  type: "move-clip-drag",
+                  execute() {
+                    useDawStore
+                      .getState()
+                      .moveClip(clipId, afterClip.startTime, afterClip.trackId);
+                  },
+                  undo() {
+                    useDawStore
+                      .getState()
+                      .moveClip(clipId, before.startTime, before.trackId);
+                  },
+                  serialize() {
+                    return { clipId, before, after: afterClip };
+                  },
+                }
+              : {
+                  type: "trim-clip-drag",
+                  execute() {
+                    useDawStore.setState((s) => ({
+                      clips: { ...s.clips, [clipId]: afterClip },
+                    }));
+                  },
+                  undo() {
+                    useDawStore.setState((s) => ({
+                      clips: { ...s.clips, [clipId]: before },
+                    }));
+                  },
+                  serialize() {
+                    return { clipId, before, after: afterClip };
+                  },
+                };
+          sharedUndoManager.push(cmd);
+        }
+      }
+
+      if (drag.kind !== "idle") {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+      dragRef.current = { kind: "idle" };
+      setCursor("default");
+    },
+    [],
+  );
 
   const onDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>): void => {
@@ -271,18 +351,19 @@ export function useArrangementInteractions(
       const hit = hitTest(x, y, view, state.tracks, state.clips);
 
       if (hit.kind === "clip-body") {
-        // Split clip at cursor position
         const timeSec = xToSeconds(x, view);
-        state.splitClip(hit.clipId, timeSec);
+        const cmd = new SplitClipCommand(hit.clipId, timeSec);
+        cmd.execute();
+        sharedUndoManager.push(cmd);
       }
     },
     [view, getCanvasPos],
   );
 
   return {
-    onMouseDown,
-    onMouseMove,
-    onMouseUp,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
     onDoubleClick,
     cursor,
   };

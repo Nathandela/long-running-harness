@@ -1,15 +1,11 @@
-All 9 findings verified from the system reminders:
+All seven findings are resolved:
 
-- **P1-1**: `!dismissed && recoveryWarnings.length > 0` — reactive, not captured at init. ✓
-- **P1-2**: `try/catch/finally` with `queued = null` on catch + `inflight = null` in finally. ✓
-- **P1-3**: Draft-first load: `draft ?? getCurrent()`, with crash warning when draft found. ✓
-- **P2-4**: Module-level `sessionMeta` preserved across saves; `hydrateStore` updates it on load. ✓
-- **P2-5**: Object type guard added before cast in `session-recovery.ts`. ✓
-- **P2-6**: `idbGetAll` uses single transaction with `getAllKeys()` + `getAll()`. ✓
-- **P2-7**: `z.literal(SESSION_VERSION)` on version field. ✓
-- **P3-8**: `hydrateStore(createDefaultSession())` called on discard. ✓
-- **P3-9**: `dbPromise = null` in catch before rethrowing — allows retry on next call. ✓
-
-New regression test for the save-queue failure path also added.
+- **#1 (P1)** `onPointerUp` now diffs `beforeClip`/`afterClip` and pushes an inline `UndoCommand`; `onDoubleClick` uses `SplitClipCommand` with `sharedUndoManager.push`.
+- **#2 (P1)** `render` callback uses `canvas.getBoundingClientRect()` logical dimensions.
+- **#3 (P2)** `hexToRgba` validates with `/^#[0-9a-fA-F]{6}$/` and falls back to grey.
+- **#4 (P2)** `crypto.randomUUID()` replaces module-level counter.
+- **#5 (P2)** Correctness concern is fixed — one undo entry committed on drag end; live store mutations during drag are intentional preview behavior.
+- **#6 (P3)** Redundant double-spread in `duplicateClip` removed.
+- **#7 (P3)** `isBar` uses `Math.round(t / secPerBar) * secPerBar` to avoid float drift.
 
 REVIEW_APPROVED

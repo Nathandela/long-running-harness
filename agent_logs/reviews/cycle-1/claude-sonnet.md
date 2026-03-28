@@ -2,28 +2,35 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**Findings:**
+**1. P1 — Drag interactions bypass undo system**
 
-**P1 — Bugs that will break functionality**
+`use-arrangement-interactions.ts` calls store actions directly (`state.moveClip`, `state.trimClip`, `state.splitClip`) instead of dispatching `MoveClipCommand`, `TrimClipCommand`, `SplitClipCommand`. Mouse-driven moves, trims, and double-click splits are completely non-undoable despite the command infrastructure existing. `onMouseUp` just resets drag state — no final undo entry is committed.
 
-1. **Recovery dialog never shows** (`DawShell.tsx:26`): `useState(recoveryWarnings.length > 0)` captures the initial value once — before the async load completes, `recoveryWarnings` is always `[]`. Subsequent `setRecoveryWarnings(...)` calls update the returned array but React's `useState` doesn't re-initialize from it. `showRecovery` is permanently `false`. Fix: add a `useEffect` that calls `setShowRecovery(true)` when `recoveryWarnings.length > 0`.
+**2. P1 — HiDPI rendering broken (`ArrangementPanel.tsx:44-46`)**
 
-2. **Save queue permanently broken after first IDB error** (`save-queue.ts:23-30`): `inflight` is set to `null` only inside `processQueue()`, which is called via `.then()`. If `doSave` (or an inner `doSave` in the loop) throws, the `.then()` callback never runs and `inflight` stays pointing at the rejected promise. All future `enqueue` calls short-circuit on `inflight !== null` and return the stale rejection. Fix: reset `inflight = null` in a `.finally()` block or in a `try/finally` inside `processQueue`.
+`renderArrangement` receives `width: canvas.width` and `height: canvas.height` (physical pixels = `rect.width * dpr`) while a `ctx.scale(dpr, dpr)` transform is active. The renderer treats physical-pixel dimensions as logical coordinates: `fillRect(0, 0, width, height)` draws at 2× the canvas size on retina (cropped), and all visibility culling (`x > rc.width`) compares logical x against physical width — clips off-screen by logical measure still render, and clips within logical bounds get skipped at the wrong threshold. On dpr=2 displays the arrangement will appear zoomed in and clipped. Fix: pass `rect.width` / `rect.height` (logical pixels) to the renderer.
 
-3. **Draft-then-swap is incomplete** (`use-session-persistence.ts:63-64`): On mount, only `getCurrent()` is read. A crash between `putDraft` and `putCurrent` leaves a draft in IDB that is never checked or recovered. The advertised crash-safety guarantee is not implemented. Fix: on load, check for a draft first — if one exists, use it (it's the most recent write attempt).
+**3. P2 — `hexToRgba` doesn't guard against invalid/short hex colors (`arrangement-renderer.ts:59-64`)**
 
-**P2 — Correctness issues**
+`parseInt(hex.slice(1,3), 16)` on a 4-char `#rgb` string or any non-hex color (CSS named color, `hsl(...)`) returns `NaN`, producing `rgba(NaN,NaN,NaN,...)`. Canvas silently ignores invalid `fillStyle`, leaving clips invisible. No validation or fallback is present.
 
-4. **`createdAt` overwritten on every save** (`use-session-persistence.ts:13`): `storeToSession()` sets `meta.createdAt: Date.now()` unconditionally, so the original session creation time is lost after the first auto-save. The store has no `createdAt` field to round-trip this value through.
+**4. P2 — Module-level `clipIdCounter` breaks test isolation (`store.ts:63-66`)**
 
-5. **Unsafe cast in recovery** (`session-recovery.ts:38`): After `fullResult` fails, `parsed` is cast to `Record<string, unknown>`. If the JSON is `null`, `42`, `[]`, or any non-object, subsequent indexed property accesses are wrong. Each `safeParse` would fall back to defaults silently, but the cast itself is unsound. Needs an `if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))` guard before line 38.
+`let clipIdCounter = 0` is never reset. Tests that call `splitClip` or `duplicateClip` accumulate the counter across test files, making generated IDs non-deterministic relative to test order. Any test that asserts on a generated clip ID will be fragile.
 
-6. **IDB `dbPromise` cached on rejection** (`session-storage.ts:173-180`): If `openSessionDb()` rejects (e.g. storage quota, blocked by another tab), `dbPromise` is left as the rejected promise. Every subsequent call to `getDb()` returns the same rejection with no retry. A transient open failure becomes a permanent one for the tab's lifetime.
+**5. P2 — Every `mousemove` commits a store mutation during drag (`use-arrangement-interactions.ts:198, 212, 223`)**
 
-**P3 — Quality / minor**
+`state.moveClip` / `state.trimClip` are called on raw `mousemove` with no throttle or ghost-preview strategy. Each call triggers a Zustand set → React re-render → RAF re-schedule cycle. At 60fps mouse input this is dozens of full state mutations per second for the duration of a drag. Should use local preview state during drag and commit once on `mouseUp`.
 
-7. **`listSessions()` IDB N+1** (`session-storage.ts:211-229`): Fetches all keys, then issues one `idbGet` per key in a loop (separate read transactions). Use a single `getAll()` call to the object store instead.
+**6. P3 — Double spread in `duplicateClip` (`store.ts:296`)**
 
-8. **`sessionSchema.version` unconstrained** (`session-schema.ts:24`): `z.number()` accepts any number. A session from a future schema version will load without warning. Consider `z.literal(SESSION_VERSION)` or at minimum `z.number().max(SESSION_VERSION)` with a migration hook, so future version bumps are handled explicitly rather than silently.
+```ts
+const nextClips = { ...s.clips, [newId]: duplicate };   // already includes s.clips
+return { clips: { ...s.clips, ...nextClips }, tracks };  // spreads s.clips twice
+```
 
-9. **`RecoveryDialog.onDiscard` doesn't reset state** (`RecoveryDialog.tsx:17`, `DawShell.tsx:71-73`): Both "Continue" and "Discard" just hide the dialog; "Discard" should reset the store to `createDefaultSession()` defaults to match user expectation.
+`nextClips` already contains all of `s.clips`, so the outer spread is redundant. Should be `{ clips: nextClips, tracks }`.
+
+**7. P3 — Floating-point `isBar` check unreliable at large offsets (`arrangement-renderer.ts:127`)**
+
+`Math.abs(t % secPerBar) < 0.001` with `t` accumulated via repeated `+= step` will drift. At 120 BPM (step = 0.5s) at bar 1000, accumulated error can exceed the 0.001 threshold, causing bar lines to render as beat lines. Use integer bar arithmetic: `Math.round(t / secPerBar) * secPerBar` to test if `t` is on a bar.

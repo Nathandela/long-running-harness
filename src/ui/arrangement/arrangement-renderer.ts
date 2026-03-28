@@ -3,6 +3,7 @@
  * No DOM access -- only draws to the CanvasRenderingContext2D passed in.
  */
 import type { TrackModel, ClipModel } from "@state/track/types";
+import { RULER_HEIGHT, CLIP_PADDING } from "./constants";
 
 // -- Design token constants (canvas cannot read CSS vars) ---------------------
 
@@ -19,9 +20,7 @@ const FONT_MONO = "'JetBrains Mono', monospace" as const;
 const TEXT_XS = 10;
 const TEXT_SM = 12;
 const BORDER_WIDTH = 2;
-const RULER_HEIGHT = 24;
 const COLOR_STRIP_WIDTH = 4;
-const CLIP_PADDING = 2;
 
 // -- Public types -------------------------------------------------------------
 
@@ -55,8 +54,11 @@ function trackY(index: number, view: ArrangementViewState): number {
   return RULER_HEIGHT + index * view.trackHeight - view.scrollY;
 }
 
-/** Convert a hex color to rgba with given alpha (0-1). */
+/** Convert a hex color (#rrggbb) to rgba with given alpha (0-1). */
 function hexToRgba(hex: string, alpha: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    return `rgba(128,128,128,${String(alpha)})`;
+  }
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -123,8 +125,9 @@ function drawGrid(rc: RenderContext): void {
     const x = secondsToX(t, view);
     if (x < view.headerWidth || x > width) continue;
 
-    // Check if this line sits on a bar boundary
-    const isBar = Math.abs(t % secPerBar) < 0.001;
+    // Check if this line sits on a bar boundary (use integer arithmetic to avoid float drift)
+    const nearestBar = Math.round(t / secPerBar) * secPerBar;
+    const isBar = Math.abs(t - nearestBar) < 0.001;
     ctx.strokeStyle = COLOR.gray700;
     ctx.lineWidth = isBar ? 2 : 1;
 

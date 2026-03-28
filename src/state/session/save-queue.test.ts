@@ -72,6 +72,34 @@ describe("SaveQueue", () => {
     expect(await storage.getCurrent()).toBe("C");
   });
 
+  it("clears queued value when processQueue save fails", async () => {
+    const storage = createInMemorySessionStorage();
+    let callCount = 0;
+    const failOnSecond: SessionStorage = {
+      ...storage,
+      putDraft: vi.fn(async (json: string) => {
+        callCount++;
+        if (callCount === 2) {
+          throw new Error("processQueue failure");
+        }
+        return storage.putDraft(json);
+      }),
+    };
+    const queue = createSaveQueue(failOnSecond);
+
+    // A succeeds (callCount=1), B queued behind A fails in processQueue (callCount=2)
+    void queue.enqueue("A");
+    const p = queue.enqueue("B");
+
+    await expect(p).rejects.toThrow("processQueue failure");
+
+    // C should save cleanly (callCount=3)
+    await queue.enqueue("C");
+    await queue.flush();
+
+    expect(await storage.getCurrent()).toBe("C");
+  });
+
   it("reports pending state", async () => {
     const storage = createInMemorySessionStorage();
     const queue = createSaveQueue(storage);

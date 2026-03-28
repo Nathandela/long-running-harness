@@ -4,10 +4,7 @@
  */
 import type { ClipModel, TrackModel } from "@state/track/types";
 import type { ArrangementViewState } from "./arrangement-renderer";
-
-const RULER_HEIGHT = 24;
-const CLIP_PADDING = 2;
-const TRIM_HANDLE_PX = 8;
+import { RULER_HEIGHT, CLIP_PADDING, TRIM_HANDLE_PX } from "./constants";
 
 export type HitResult =
   | { kind: "none" }

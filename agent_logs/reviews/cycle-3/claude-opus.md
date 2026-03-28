@@ -1,12 +1,12 @@
-67 tests pass (up from 66 — the new stale-rollback test), TypeScript clean. Let me verify each finding:
+All 127 tests pass (3 new tests added for undo integration). Let me verify each original finding:
 
-| # | Finding | Fix | Verified |
-|---|---------|-----|----------|
-| 1 | P0 SaveQueue deadlock | `try/catch/finally` resets `inflight = null`, clears `queued` on error | OK — new test confirms recovery after failure |
-| 2 | P1 RecoveryDialog never opens | `const showRecovery = !dismissed && recoveryWarnings.length > 0` — derived, reactive | OK |
-| 3 | P1 storeToSession destroys metadata | Module-level `sessionMeta` preserved by `hydrateStore`, used in `storeToSession` | OK |
-| 4 | P1 "Start fresh" doesn't reset | `onDiscard` calls `hydrateStore(createDefaultSession())` | OK |
-| 5 | P2 No schema range constraints | bpm 1-999, volume 0-2, loop bounds >= 0, loopEnd >= loopStart refine, version literal | OK |
-| 6 | P2 N+1 IDB reads | `idbGetAll` reads keys+values in single transaction; `getDb` retries on failure | OK |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1 clip ID collision | Fixed -- `crypto.randomUUID()` at `store.ts:64` |
+| 2 | P1 drag ops bypass undo | Fixed -- `onPointerUp` pushes undo commands for move/trim drags (lines 282-338), double-click split uses `SplitClipCommand` + `sharedUndoManager.push` (lines 358-360), no-op drags correctly skipped (line 291-296) |
+| 3 | P2 trimClip negative duration | Fixed -- guard at `store.ts:271`, plus trim-right clamp at `use-arrangement-interactions.ts:225` |
+| 4 | P2 RULER_HEIGHT magic number | Fixed -- shared constant in `constants.ts`, imported in all three files (`arrangement-renderer.ts:6`, `hit-test.ts:7`, `use-arrangement-interactions.ts:14`) |
+| 5 | P2 track.color hex validation | Fixed -- schema regex at `track-schema.ts:22`, renderer fallback at `arrangement-renderer.ts:60-61` |
+| 6 | P3 trimClip negative sourceOffset | Fixed -- same guard at `store.ts:271` |
 
 REVIEW_APPROVED

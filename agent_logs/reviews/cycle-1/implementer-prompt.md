@@ -10,47 +10,56 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**Findings:**
+**1. P1 — Drag interactions bypass undo system**
 
-**P1 — Bugs that will break functionality**
+`use-arrangement-interactions.ts` calls store actions directly (`state.moveClip`, `state.trimClip`, `state.splitClip`) instead of dispatching `MoveClipCommand`, `TrimClipCommand`, `SplitClipCommand`. Mouse-driven moves, trims, and double-click splits are completely non-undoable despite the command infrastructure existing. `onMouseUp` just resets drag state — no final undo entry is committed.
 
-1. **Recovery dialog never shows** (`DawShell.tsx:26`): `useState(recoveryWarnings.length > 0)` captures the initial value once — before the async load completes, `recoveryWarnings` is always `[]`. Subsequent `setRecoveryWarnings(...)` calls update the returned array but React's `useState` doesn't re-initialize from it. `showRecovery` is permanently `false`. Fix: add a `useEffect` that calls `setShowRecovery(true)` when `recoveryWarnings.length > 0`.
+**2. P1 — HiDPI rendering broken (`ArrangementPanel.tsx:44-46`)**
 
-2. **Save queue permanently broken after first IDB error** (`save-queue.ts:23-30`): `inflight` is set to `null` only inside `processQueue()`, which is called via `.then()`. If `doSave` (or an inner `doSave` in the loop) throws, the `.then()` callback never runs and `inflight` stays pointing at the rejected promise. All future `enqueue` calls short-circuit on `inflight !== null` and return the stale rejection. Fix: reset `inflight = null` in a `.finally()` block or in a `try/finally` inside `processQueue`.
+`renderArrangement` receives `width: canvas.width` and `height: canvas.height` (physical pixels = `rect.width * dpr`) while a `ctx.scale(dpr, dpr)` transform is active. The renderer treats physical-pixel dimensions as logical coordinates: `fillRect(0, 0, width, height)` draws at 2× the canvas size on retina (cropped), and all visibility culling (`x > rc.width`) compares logical x against physical width — clips off-screen by logical measure still render, and clips within logical bounds get skipped at the wrong threshold. On dpr=2 displays the arrangement will appear zoomed in and clipped. Fix: pass `rect.width` / `rect.height` (logical pixels) to the renderer.
 
-3. **Draft-then-swap is incomplete** (`use-session-persistence.ts:63-64`): On mount, only `getCurrent()` is read. A crash between `putDraft` and `putCurrent` leaves a draft in IDB that is never checked or recovered. The advertised crash-safety guarantee is not implemented. Fix: on load, check for a draft first — if one exists, use it (it's the most recent write attempt).
+**3. P2 — `hexToRgba` doesn't guard against invalid/short hex colors (`arrangement-renderer.ts:59-64`)**
 
-**P2 — Correctness issues**
+`parseInt(hex.slice(1,3), 16)` on a 4-char `#rgb` string or any non-hex color (CSS named color, `hsl(...)`) returns `NaN`, producing `rgba(NaN,NaN,NaN,...)`. Canvas silently ignores invalid `fillStyle`, leaving clips invisible. No validation or fallback is present.
 
-4. **`createdAt` overwritten on every save** (`use-session-persistence.ts:13`): `storeToSession()` sets `meta.createdAt: Date.now()` unconditionally, so the original session creation time is lost after the first auto-save. The store has no `createdAt` field to round-trip this value through.
+**4. P2 — Module-level `clipIdCounter` breaks test isolation (`store.ts:63-66`)**
 
-5. **Unsafe cast in recovery** (`session-recovery.ts:38`): After `fullResult` fails, `parsed` is cast to `Record<string, unknown>`. If the JSON is `null`, `42`, `[]`, or any non-object, subsequent indexed property accesses are wrong. Each `safeParse` would fall back to defaults silently, but the cast itself is unsound. Needs an `if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))` guard before line 38.
+`let clipIdCounter = 0` is never reset. Tests that call `splitClip` or `duplicateClip` accumulate the counter across test files, making generated IDs non-deterministic relative to test order. Any test that asserts on a generated clip ID will be fragile.
 
-6. **IDB `dbPromise` cached on rejection** (`session-storage.ts:173-180`): If `openSessionDb()` rejects (e.g. storage quota, blocked by another tab), `dbPromise` is left as the rejected promise. Every subsequent call to `getDb()` returns the same rejection with no retry. A transient open failure becomes a permanent one for the tab's lifetime.
+**5. P2 — Every `mousemove` commits a store mutation during drag (`use-arrangement-interactions.ts:198, 212, 223`)**
 
-**P3 — Quality / minor**
+`state.moveClip` / `state.trimClip` are called on raw `mousemove` with no throttle or ghost-preview strategy. Each call triggers a Zustand set → React re-render → RAF re-schedule cycle. At 60fps mouse input this is dozens of full state mutations per second for the duration of a drag. Should use local preview state during drag and commit once on `mouseUp`.
 
-7. **`listSessions()` IDB N+1** (`session-storage.ts:211-229`): Fetches all keys, then issues one `idbGet` per key in a loop (separate read transactions). Use a single `getAll()` call to the object store instead.
+**6. P3 — Double spread in `duplicateClip` (`store.ts:296`)**
 
-8. **`sessionSchema.version` unconstrained** (`session-schema.ts:24`): `z.number()` accepts any number. A session from a future schema version will load without warning. Consider `z.literal(SESSION_VERSION)` or at minimum `z.number().max(SESSION_VERSION)` with a migration hook, so future version bumps are handled explicitly rather than silently.
+```ts
+const nextClips = { ...s.clips, [newId]: duplicate };   // already includes s.clips
+return { clips: { ...s.clips, ...nextClips }, tracks };  // spreads s.clips twice
+```
 
-9. **`RecoveryDialog.onDiscard` doesn't reset state** (`RecoveryDialog.tsx:17`, `DawShell.tsx:71-73`): Both "Continue" and "Discard" just hide the dialog; "Discard" should reset the store to `createDefaultSession()` defaults to match user expectation.
+`nextClips` already contains all of `s.clips`, so the outer spread is redundant. Should be `{ clips: nextClips, tracks }`.
+
+**7. P3 — Floating-point `isBar` check unreliable at large offsets (`arrangement-renderer.ts:127`)**
+
+`Math.abs(t % secPerBar) < 0.001` with `t` accumulated via repeated `+= step` will drift. At 120 BPM (step = 0.5s) at bar 1000, accumulated error can exceed the 0.001 threshold, causing bar lines to render as beat lines. Use integer bar arithmetic: `Math.round(t / secPerBar) * secPerBar` to test if `t` is on a bar.
 </claude-sonnet-review>
 
 <claude-opus-review>
+All 124 tests pass. Here's my analysis:
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P0 - SaveQueue deadlocks on IDB error.** `save-queue.ts:38` — if `doSave` throws (e.g., IndexedDB quota exceeded, permission error), the `.then()` chain rejects, `processQueue` never runs, and `inflight` is never reset to `null`. All subsequent `enqueue` calls return the rejected promise forever, silently killing auto-save with no user indication. The `void` in `auto-save.ts:28` swallows the rejection. Fix: wrap `doSave`/`processQueue` in try/catch, reset `inflight = null` in a finally block, and surface errors.
+1. **P1 -- Clip ID collision after session load.** `clipIdCounter` in `src/state/store.ts:63` starts at 0 on each page load. After loading a session containing clips with generated IDs (e.g. `"clip-gen-3"`), the next `splitClip`/`duplicateClip` call will generate IDs that collide with existing ones, silently overwriting clip data. Fix: either use UUIDs, or seed the counter from the max existing generated ID during `hydrateStore`.
 
-2. **P1 - RecoveryDialog never opens.** `DawShell.tsx:26` — `useState(recoveryWarnings.length > 0)` captures the *initial* value of `recoveryWarnings`, which is always `[]` (set at `use-session-persistence.ts:46`). Warnings are populated asynchronously after mount. Since `useState` only reads its initializer once, `showRecovery` stays `false` permanently. Fix: use a `useEffect` that watches `recoveryWarnings` to trigger `setShowRecovery(true)`.
+2. **P1 -- Drag operations bypass the undo system.** `src/ui/arrangement/use-arrangement-interactions.ts` calls `state.moveClip()`, `state.trimClip()`, and `state.splitClip()` directly on the store, not through the corresponding undo commands (`MoveClipCommand`, `TrimClipCommand`, `SplitClipCommand`). These user-initiated edits are not undoable.
 
-3. **P1 - `storeToSession` destroys session metadata on every save.** `use-session-persistence.ts:10-25` — `createdAt`, `updatedAt`, and `name` are hardcoded to `Date.now()` and `"Untitled"` on every call. When a session named "My Song" is loaded, the next auto-save overwrites it as "Untitled" with a fresh `createdAt`. The loaded session's meta is never preserved because `hydrateStore` only restores transport fields. Fix: store the loaded session meta (name, createdAt) in a ref or in the zustand store, and use it in `storeToSession`.
+3. **P2 -- `trimClip` allows negative duration.** The trim-right drag handler (`use-arrangement-interactions.ts:218`) clamps `newEnd >= 0.01` but doesn't check against the clip's `startTime`. Dragging the right edge past the left edge produces `duration = newEnd - startTime < 0`. The store action (`store.ts:251`) has no guard either. This creates an invalid clip state.
 
-4. **P1 - "Start fresh" button doesn't reset state.** `DawShell.tsx:71-73` — `onDiscard` only calls `setShowRecovery(false)`, leaving the partially-recovered (potentially corrupt) session hydrated in the store. The button text promises a fresh session but delivers the recovered one. Fix: call `hydrateStore(createDefaultSession())` in `onDiscard`.
+4. **P2 -- `RULER_HEIGHT` magic number duplicated and hardcoded.** The constant `24` is defined independently in `arrangement-renderer.ts:22` and `hit-test.ts:9`, then hardcoded as literal `24` in `use-arrangement-interactions.ts:192` and `238`. If changed in one place, the others silently desync. Extract to a shared constant.
 
-5. **P2 - No schema range constraints.** `session-schema.ts` — `bpm` accepts negative, zero, Infinity; `masterVolume` has no bounds; `loopEnd` can be less than `loopStart`. Add `.min()/.max()` constraints and a `loopEnd >= loopStart` refinement.
+5. **P2 -- `track.color` not validated as hex.** `trackSchema.color` is `z.string()` (`track-schema.ts:22`), accepting any string. The renderer's `hexToRgba()` (`arrangement-renderer.ts:59`) assumes `#rrggbb` format -- a non-hex value produces `NaN` in the rgba string, rendering invisible clips with no error.
 
-6. **P2 - N+1 IDB reads in `listSessions`.** `session-storage.ts:213-229` — loads all keys then fetches each entry individually. Use `getAll()` to retrieve all entries in a single transaction.
+6. **P3 -- `trimClip` left-trim can produce negative `sourceOffset`.** If `newStart < originalStart` (which can't happen via the UI clamp but can via the store API directly), `sourceOffset + delta` goes negative, referencing audio before the source begins.
 </claude-opus-review>
 
 <gemini-review>
@@ -71,10 +80,10 @@ MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
-
-1. **[P1] Incorrect initialization of UI state:** In `src/ui/DawShell.tsx`, the `showRecovery` state is initialized via `useState(recoveryWarnings.length > 0)`. Because `recoveryWarnings` populates asynchronously after IDB load, React ignores the initial state value on subsequent renders. This causes `showRecovery` to permanently remain `false`, preventing the `RecoveryDialog` from ever rendering. Use a derived boolean or a `useEffect` to synchronize visibility.
-2. **[P1] App crash on malformed session JSON:** In `src/state/session/session-recovery.ts`, if `JSON.parse(raw)` evaluates to `null` (e.g., from `raw === "null"`), `parsed` is assigned `null`. Consequently, `const obj = parsed as Record<string, unknown>;` assigns `null` to `obj`, and accessing `obj["meta"]` throws a `TypeError: Cannot read properties of null`, crashing the application initialization. Validate that `parsed` is a non-null object before attempting partial recovery.
-3. **[P2] "Start fresh" option fails to reset state:** In `src/ui/DawShell.tsx`, the `onDiscard` handler passed to `RecoveryDialog` merely dismisses the dialog via `setShowRecovery(false)`. It does not clear the partially recovered session or reset the DAW store. The user remains stuck with the broken session despite explicitly selecting "Start fresh". The handler must be updated to overwrite the store with default values and trigger a save.
+1. **P1 - Drag operations bypass the undo system.** `useArrangementInteractions.ts` calls store methods directly (`state.moveClip()`, `state.trimClip()`, `state.splitClip()`) instead of pushing the newly implemented undo commands (`MoveClipCommand`, etc.) to the `UndoManager`. User-initiated canvas edits cannot be undone.
+2. **P1 - Non-deterministic clip ID generation breaks Redo.** In `track-commands.ts`, both `SplitClipCommand` and `DuplicateClipCommand` dynamically generate new clip IDs inside their `execute()` method via store actions (`nextClipId()`). During a `redo()`, `execute()` runs again and generates a *new*, different ID. Any subsequent commands in the redo stack that reference the originally generated ID will fail to find it.
+3. **P1 - Right-trimming can produce negative durations.** In `useArrangementInteractions.ts`, the `trim-right` drag handler calculates `newEnd` without bounding it to be strictly greater than the clip's `startTime`. Dragging the right edge backwards past the left edge results in a negative duration, which breaks schema validation and rendering logic. (Note: `trim-left` correctly clamps `newStart`).
+4. **P2 - Drag state gets stuck if cursor leaves canvas.** In `ArrangementPanel.tsx`, `onMouseUp` and `onMouseMove` are attached directly to the React canvas element. If a user starts dragging, moves their cursor outside the canvas boundary, and releases the mouse, the `onMouseUp` event will never fire, leaving the app stuck in an active drag state. Use `setPointerCapture` via pointer events or window-level listeners for drag termination.
 </gemini-review>
 
 
