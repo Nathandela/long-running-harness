@@ -9,11 +9,39 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { App } from "./App";
 import { useDawStore } from "@state/store";
 
+function createMockGainNode(): GainNode {
+  return {
+    gain: { value: 1, setValueAtTime: vi.fn() },
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn(),
+  } as unknown as GainNode;
+}
+
+function createMockOscillatorNode(): OscillatorNode {
+  return {
+    type: "sine",
+    frequency: { value: 0, setValueAtTime: vi.fn() },
+    connect: vi.fn().mockReturnThis(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    disconnect: vi.fn(),
+  } as unknown as OscillatorNode;
+}
+
 class MockAudioContext {
   state: AudioContextState = "suspended";
+  readonly sampleRate = 44100;
+  currentTime = 0;
+  readonly destination = {} as AudioDestinationNode;
   readonly audioWorklet = {
     addModule: vi.fn().mockResolvedValue(undefined),
   };
+  createGain(): GainNode {
+    return createMockGainNode();
+  }
+  createOscillator(): OscillatorNode {
+    return createMockOscillatorNode();
+  }
   resume(): Promise<void> {
     this.state = "running";
     return Promise.resolve();

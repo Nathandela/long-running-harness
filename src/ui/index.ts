@@ -32,5 +32,9 @@ export { ShortcutMap } from "./keyboard/shortcut-map";
 export type { ShortcutBinding } from "./keyboard/shortcut-map";
 export { useKeyboardShortcuts } from "./keyboard/useKeyboardShortcuts";
 
+// Transport
+export { TransportBar, BpmInput, CursorDisplay } from "./transport/index";
+
 // Hooks
 export { useReducedMotion } from "./hooks/useReducedMotion";
+export { useTransportCursor } from "./hooks/useTransportCursor";

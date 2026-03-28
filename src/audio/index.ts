@@ -30,3 +30,6 @@ export {
   type SchedulerConfig,
 } from "./look-ahead-scheduler";
 export { createMetronome, type Metronome } from "./metronome";
+export { AudioEngineProvider } from "./audio-engine-provider";
+export { useAudioEngine } from "./use-audio-engine";
+export { useTransport, type UseTransportReturn } from "./use-transport";

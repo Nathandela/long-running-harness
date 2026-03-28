@@ -4,36 +4,37 @@ import {
   createAudioEngine,
   type AudioEngineContext,
 } from "@audio/index";
+import { AudioEngineProvider } from "@audio/audio-engine-provider";
 import { CrossOriginError, ClickToStart, DawShell } from "@ui/index";
 import { useDawStore } from "@state/index";
 
 export function App(): React.JSX.Element {
   const crossOriginOk = isCrossOriginIsolated();
-  const [audioStarted, setAudioStarted] = useState(false);
+  const [engine, setEngine] = useState<AudioEngineContext | null>(null);
   const engineRef = useRef<AudioEngineContext | null>(null);
   const setEngineStatus = useDawStore((s) => s.setEngineStatus);
 
   const handleStart = useCallback((): void => {
     if (engineRef.current) return;
 
-    let engine: AudioEngineContext;
+    let newEngine: AudioEngineContext;
     try {
-      engine = createAudioEngine();
+      newEngine = createAudioEngine();
     } catch {
       setEngineStatus("error");
       return;
     }
 
-    engineRef.current = engine;
-    engine.resume().then(
+    engineRef.current = newEngine;
+    newEngine.resume().then(
       () => {
-        if (engineRef.current !== engine) return;
+        if (engineRef.current !== newEngine) return;
         setEngineStatus("running");
-        setAudioStarted(true);
+        setEngine(newEngine);
       },
       () => {
-        void engine.close();
-        if (engineRef.current === engine) {
+        void newEngine.close();
+        if (engineRef.current === newEngine) {
           engineRef.current = null;
         }
         setEngineStatus("error");
@@ -52,9 +53,13 @@ export function App(): React.JSX.Element {
     return <CrossOriginError />;
   }
 
-  if (!audioStarted) {
+  if (engine === null) {
     return <ClickToStart onStart={handleStart} />;
   }
 
-  return <DawShell />;
+  return (
+    <AudioEngineProvider engine={engine}>
+      <DawShell />
+    </AudioEngineProvider>
+  );
 }
