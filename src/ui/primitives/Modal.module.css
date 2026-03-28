@@ -1,0 +1,25 @@
+.dialog {
+  border: var(--border-width) solid var(--color-black);
+  border-radius: 0;
+  background: var(--color-gray-900);
+  color: var(--color-white);
+  font-family: var(--font-mono);
+  padding: 0;
+  min-width: 320px;
+  max-width: 90vw;
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.titleBar {
+  padding: var(--space-4);
+  border-bottom: var(--border);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.body {
+  padding: var(--space-4);
+}

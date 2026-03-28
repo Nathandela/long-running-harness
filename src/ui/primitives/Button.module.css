@@ -1,0 +1,101 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width) solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+/* -- Sizes -- */
+
+.sm {
+  height: 24px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.md {
+  height: 32px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.lg {
+  height: 40px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-base);
+}
+
+/* -- Primary variant -- */
+
+.primary {
+  background-color: var(--color-blue);
+  border-color: var(--color-blue);
+  color: var(--color-white);
+}
+
+.primary:hover {
+  background-color: var(--color-white);
+  color: var(--color-blue);
+}
+
+.primary:active {
+  background-color: var(--color-black);
+  color: var(--color-blue);
+}
+
+/* -- Secondary variant -- */
+
+.secondary {
+  background-color: transparent;
+  border-color: var(--color-white);
+  color: var(--color-white);
+}
+
+.secondary:hover {
+  background-color: var(--color-white);
+  color: var(--color-black);
+}
+
+.secondary:active {
+  background-color: var(--color-gray-700);
+  color: var(--color-white);
+}
+
+/* -- Ghost variant -- */
+
+.ghost {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--color-white);
+}
+
+.ghost:hover {
+  color: var(--color-blue);
+}
+
+.ghost:active {
+  color: var(--color-gray-500);
+}
+
+/* -- Focus visible -- */
+
+.button:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+/* -- Disabled -- */
+
+.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
