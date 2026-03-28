@@ -183,6 +183,33 @@ describe("Track commands", () => {
       cmd.undo();
       expect(useArpeggiatorStore.getState().arps["t1"]).toBeDefined();
     });
+
+    it("undo restores non-default arpeggiator params", () => {
+      getStore().addTrack(makeTrack({ id: "t1" }));
+      useArpeggiatorStore.getState().initArp("t1");
+      useArpeggiatorStore.getState().setParams("t1", {
+        enabled: true,
+        pattern: "down",
+        rateDivision: "1/16",
+        octaveRange: 3,
+        octaveDirection: "up-down",
+        gate: 0.5,
+        swing: 0.6,
+        latch: true,
+      });
+
+      const cmd = new RemoveTrackCommand("t1");
+      cmd.execute();
+      cmd.undo();
+
+      const restored = useArpeggiatorStore.getState().getParams("t1");
+      expect(restored.pattern).toBe("down");
+      expect(restored.rateDivision).toBe("1/16");
+      expect(restored.octaveRange).toBe(3);
+      expect(restored.gate).toBe(0.5);
+      expect(restored.swing).toBe(0.6);
+      expect(restored.latch).toBe(true);
+    });
   });
 
   describe("UpdateTrackCommand", () => {
