@@ -38,6 +38,9 @@ export function createSaveQueue(storage: SessionStorage): SaveQueue {
         try {
           await doSave(sessionJson);
           await processQueue();
+        } catch (err) {
+          queued = null;
+          throw err;
         } finally {
           inflight = null;
         }

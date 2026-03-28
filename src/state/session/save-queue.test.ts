@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createSaveQueue } from "./save-queue";
-import { createInMemorySessionStorage } from "./session-storage";
+import {
+  createInMemorySessionStorage,
+  type SessionStorage,
+} from "./session-storage";
 
 describe("SaveQueue", () => {
   it("saves via draft-then-swap pattern", async () => {
@@ -37,6 +40,36 @@ describe("SaveQueue", () => {
 
     // The final current should be the last enqueued value
     expect(await storage.getCurrent()).toBe("v3");
+  });
+
+  it("does not roll back to stale queued value after failed save", async () => {
+    const storage = createInMemorySessionStorage();
+    let failNext = true;
+    const failingStorage: SessionStorage = {
+      ...storage,
+      putDraft: vi.fn(async (json: string) => {
+        if (failNext) {
+          throw new Error("simulated write failure");
+        }
+        return storage.putDraft(json);
+      }),
+    };
+    const queue = createSaveQueue(failingStorage);
+
+    // enqueue A (will fail), then B queues behind it
+    const p = queue.enqueue("A");
+    void queue.enqueue("B");
+
+    await expect(p).rejects.toThrow("simulated write failure");
+
+    // Allow writes to succeed now
+    failNext = false;
+
+    // enqueue C — should be the final stored value
+    await queue.enqueue("C");
+    await queue.flush();
+
+    expect(await storage.getCurrent()).toBe("C");
   });
 
   it("reports pending state", async () => {
