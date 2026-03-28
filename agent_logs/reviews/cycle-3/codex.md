@@ -1,1 +1,4 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] Negative seeks still desynchronize the UI store from the transport clock** ([use-transport.ts:136](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:136), [transport-clock.ts:116](/Users/Nathan/Documents/Code/long-running-harness/src/audio/transport-clock.ts:116))  
+  The new clock-level clamp is correct, but `useTransport.seek()` still writes the raw `seconds` value into Zustand after calling `clock.seek(seconds)`. For `seek(-5)`, the clock and SAB end up at `0`, while the UI store keeps `-5`, so the transport cursor can render a position the audio engine will never play. Store the clamped value instead, or read back `clock.getCursorSeconds()` after seeking, and add a hook-level regression test for negative seeks.

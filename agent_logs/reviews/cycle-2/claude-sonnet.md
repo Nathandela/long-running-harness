@@ -1,11 +1,11 @@
-All 7 previously flagged issues are fixed:
+All five findings resolved:
 
-- **P1** `useKeyboardShortcuts`: now uses `target.isContentEditable` ✓
-- **P2** `Button`: passes native `disabled={disabled}` ✓
-- **P2** `Modal`: guards `showModal()`/`close()` with `dialog.open` check ✓
-- **P2** `ContextMenu`: viewport clamping via post-render effect, index-based keys, disabled-item arrow nav skip, outer contextmenu close ✓
-- **P2** `RotaryKnob`: range-based drag with `snapToStep`, AbortController cleanup ✓
-- **P3** `VuMeter`: `rawLevel` clamped to [0,1], `animatingRef` prevents rAF stacking ✓
-- **P3** `ContextMenu` keys: now `${index}-${label}` ✓
+- **P0**: `TransportProvider` wraps `DawShellInner`, providing a single `useTransportInit()` instance via context. `useTransport()` is now a context consumer — no more double instantiation.
+- **P1**: `look-ahead-scheduler.ts::advance()` now calls `clock.updateCursor()` on every tick, driving continuous SAB writes during playback.
+- **P2 (shortcuts churn)**: `stateRef` pattern eliminates `transportState` from `useEffect` deps.
+- **P2 (getter side-effect)**: `getCursorSeconds()` is a pure read; `updateCursor()` owns SAB writes and loop-wrap state.
+- **P3**: `secondsToSamples` uses `Math.round`.
+
+Bonus fixes also landed: `seek()` clamps negatives to 0, oscillator nodes self-disconnect via `onended`, `dispose()` fades out gracefully, `beatsPerBar` read dynamically per tick, and `syncToPosition()` provides phase-correct beat alignment on play/resume.
 
 REVIEW_APPROVED

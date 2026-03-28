@@ -14,7 +14,7 @@ import { TransportLayout } from "./shared-buffer-layout";
 
 function createMockAudioContext(): AudioContext & { currentTime: number } {
   const mockGain = {
-    gain: { value: 1, setValueAtTime: vi.fn() },
+    gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
   };

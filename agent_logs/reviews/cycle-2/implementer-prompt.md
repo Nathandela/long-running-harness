@@ -6,38 +6,34 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All 7 previously flagged issues are fixed:
+All five findings resolved:
 
-- **P1** `useKeyboardShortcuts`: now uses `target.isContentEditable` ✓
-- **P2** `Button`: passes native `disabled={disabled}` ✓
-- **P2** `Modal`: guards `showModal()`/`close()` with `dialog.open` check ✓
-- **P2** `ContextMenu`: viewport clamping via post-render effect, index-based keys, disabled-item arrow nav skip, outer contextmenu close ✓
-- **P2** `RotaryKnob`: range-based drag with `snapToStep`, AbortController cleanup ✓
-- **P3** `VuMeter`: `rawLevel` clamped to [0,1], `animatingRef` prevents rAF stacking ✓
-- **P3** `ContextMenu` keys: now `${index}-${label}` ✓
+- **P0**: `TransportProvider` wraps `DawShellInner`, providing a single `useTransportInit()` instance via context. `useTransport()` is now a context consumer — no more double instantiation.
+- **P1**: `look-ahead-scheduler.ts::advance()` now calls `clock.updateCursor()` on every tick, driving continuous SAB writes during playback.
+- **P2 (shortcuts churn)**: `stateRef` pattern eliminates `transportState` from `useEffect` deps.
+- **P2 (getter side-effect)**: `getCursorSeconds()` is a pure read; `updateCursor()` owns SAB writes and loop-wrap state.
+- **P3**: `secondsToSamples` uses `Math.round`.
+
+Bonus fixes also landed: `seek()` clamps negatives to 0, oscillator nodes self-disconnect via `onended`, `dispose()` fades out gracefully, `beatsPerBar` read dynamically per tick, and `syncToPosition()` provides phase-correct beat alignment on play/resume.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 177 tests pass, TypeScript compiles clean. Let me verify each original finding against the fixes:
+All 8 findings verified against the current code:
 
-| # | Original Finding | Status |
-|---|---|---|
-| 1 | P1 VuMeter rAF stacking | Fixed -- `animatingRef` guards against duplicate loops (line 40, 108-110, 120, 128) |
-| 2 | P1 Fader drag listener leak | Fixed -- `AbortController` in ref, cleaned up on unmount (lines 28, 33-37, 89-106) |
-| 3 | P1 RotaryKnob drag listener leak | Fixed -- same `AbortController` pattern (lines 77, 90-94, 144-164) |
-| 4 | P2 Modal showModal on already-open | Fixed -- guarded with `if (!dialog.open)` (line 24) |
-| 5 | P2 ContextMenu off-screen | Fixed -- `clampToViewport` helper + post-render position correction (lines 34-43, 70-81) |
-| 6 | P2 ContextMenu arrow skips disabled | Fixed -- `findNextEnabledIndex` helper (lines 21-32, 100, 104) |
-| 7 | P2 Token duplication | Not addressed -- acceptable as P2, low risk for now |
-| 8 | P2 useReducedMotion SSR | Not addressed -- acceptable, DAW is browser-only |
-| 9 | P3 Button native disabled | Fixed -- now uses `disabled={disabled}` (line 39) |
-| 10 | P3 Tooltip cloneElement | Fixed -- type narrowed to `React.ReactElement<React.HTMLAttributes<HTMLElement>>` (Tooltip.tsx line 9) |
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1 tick overflow 480 | Fixed — `Math.floor` at `tempo-map.ts:68`, test added |
+| 2 | P1 shortcut re-register | Fixed — `stateRef` pattern at `useTransportShortcuts.ts:17-18`, `transportState` removed from deps |
+| 3 | P2 negative seek | Fixed — `Math.max(0, seconds)` at `transport-clock.ts:111` |
+| 4 | P2 stale beatsPerBar | Fixed — read inside callback at `use-transport.ts:73` |
+| 5 | P2 oscillator disconnect | Fixed — `osc.onended` at `metronome.ts:44`, plus fade-out in `dispose()` |
+| 6 | P2 getCursorSeconds side effects | Fixed — split into pure `getCursorSeconds()` and mutating `updateCursor()`/`didLoopWrap()` |
+| 7 | P3 SAB non-atomic | Acknowledged, not expected to fix now |
+| 8 | P3 tick overflow test | Fixed — test at `tempo-map.test.ts:68-76` |
 
-The RotaryKnob also gained `DRAG_SENSITIVITY` constant and `snapToStep` for better drag UX -- good addition. The ContextMenu key now uses `${index}-${label}` which handles duplicate labels correctly.
-
-Items 7 and 8 were P2/P2 and are acceptable to defer: token duplication is a build-tooling concern, and SSR doesn't apply to a DAW app.
+Bonus: the implementer also improved the scheduler with `syncToPosition()` for phase-correct beat alignment and loop-wrap resync, and extracted `TransportProvider`/`TransportCtx` to properly share a single transport instance via React context. Both are clean additions.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -65,8 +61,11 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] `DrumPad` no longer supports native keyboard activation, and it now triggers on any pointer button** ([DrumPad.tsx:21](/Users/Nathan/Documents/Code/long-running-harness/src/ui/controls/DrumPad.tsx:21), [DrumPad.test.tsx:12](/Users/Nathan/Documents/Code/long-running-harness/src/ui/controls/DrumPad.test.tsx:12))  
-  Changing the control from `onClick` to `onPointerDown` improves pointer latency, but it drops the built-in `Enter`/`Space` activation path that a real `<button>` gets through `click`, so focused pads are no longer keyboard-operable. It also fires for non-primary pointer buttons unless `event.button` is filtered. Keep the low-latency pointer path if needed, but preserve keyboard activation and primary-button semantics, and add a regression test that triggers a pad via keyboard.</codex-review>
+- **[P1] `useTransportShortcuts` mutates a ref during render, which both fails the lint gate and risks stale/uncommitted transport state in the shortcut handler** ([useTransportShortcuts.ts:17](/Users/Nathan/Documents/Code/long-running-harness/src/ui/transport/useTransportShortcuts.ts:17))  
+  `stateRef.current = transportState` now runs on every render. The React refs rule rejects this, and the underlying issue is real: render-time ref writes can publish state from a render that never commits. Move the sync into an effect or switch to a React 19 pattern like `useEffectEvent`, then keep the command registration effect stable.
+
+- **[P2] `metronome.ts` still breaks `pnpm lint` on two shorthand void-return callbacks** ([metronome.ts:44](/Users/Nathan/Documents/Code/long-running-harness/src/audio/metronome.ts:44), [metronome.ts:54](/Users/Nathan/Documents/Code/long-running-harness/src/audio/metronome.ts:54))  
+  `pnpm test` passes, but `pnpm lint` fails because `osc.onended = () => osc.disconnect()` and `setTimeout(() => gainNode.disconnect(), 50)` violate `@typescript-eslint/no-confusing-void-expression`. Wrap both bodies in braces so the branch can pass the project quality gate.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

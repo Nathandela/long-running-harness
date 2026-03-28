@@ -1,70 +1,35 @@
+Now I have enough context. Let me compile findings.
+
 REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P1] `useKeyboardShortcuts`: `contenteditable="false"` incorrectly blocks shortcuts**
-`src/ui/keyboard/useKeyboardShortcuts.ts:18`
+**1. [P0] Double `useTransport()` instantiation — keyboard shortcuts and UI operate on separate clocks**
 
-`getAttribute("contenteditable") !== null` returns `true` for `contenteditable="false"` — explicitly non-editable elements will silently swallow shortcuts. Fix:
-```ts
-if (target.isContentEditable) {
-```
+`DawShell` calls `useTransportShortcuts(registry, shortcuts)` (line 13 in `DawShell.tsx`), which internally calls `useTransport()`. It also renders `<Toolbar />` → `<TransportBar />` which calls `useTransport()` independently. Each `useTransport()` call creates its own `TransportClock`, `LookAheadScheduler`, `Metronome`, and `SharedArrayBuffer` via the `useEffect` on mount. The spacebar shortcut operates on clock A; the UI play/stop buttons operate on clock B. They're completely independent — two metronomes will fire, two schedulers will run. `useTransport()` must be lifted to context or the shortcut hook must accept the transport as a prop.
 
 ---
 
-**2. [P2] `Button`: native `disabled` attribute never set on underlying `<button>`**
-`src/ui/primitives/Button.tsx:39`
+**2. [P1] Cursor display stuck at 0 during playback**
 
-`disabled` is destructured and excluded from `...rest`. The `<button>` only gets `aria-disabled`. This means:
-- `type="submit"` buttons bypass disability on form Enter-key submission
-- Other event handlers from `...rest` (e.g. `onKeyDown`) still fire when disabled
+`useTransportCursor` (`src/ui/hooks/useTransportCursor.ts:24`) reads `CURSOR_SECONDS` from the SAB in an RAF loop. But `writeSABCursor` is only called inside `getCursorSeconds()`, `pause()`, `stop()`, and `seek()`. Nothing calls `getCursorSeconds()` periodically during playback — the `use-transport.ts` play callback calls `clock.play()` and `storePlay()` but no RAF or interval that drives the SAB write. The cursor display reads a stale SAB value (0 or the last pause position) for the entire play duration.
 
-Either pass `disabled={disabled}` explicitly to the `<button>`, or document clearly that this is an intentional visually-only pattern.
+Fix: drive the SAB cursor write from the same RAF loop that reads it, or add an RAF in `use-transport.ts` while playing that calls `getCursorSeconds()` (which already writes the SAB as a side-effect).
 
 ---
 
-**3. [P2] `Modal`: `showModal()` throws `InvalidStateError` if called when already open**
-`src/ui/primitives/Modal.tsx:24`
+**3. [P2] `useTransportShortcuts` re-registers and rebinds on every state transition**
 
-If the parent re-renders with `open=true` twice (or the dialog is opened externally), `showModal()` on an already-open `<dialog>` throws. Add a guard:
-```ts
-if (open && !dialog.open) {
-  dialog.showModal();
-}
-```
-Similarly, `dialog.close()` on a never-opened dialog is a no-op in modern browsers but the `dialog.open` check would be cleaner defensive code.
+`transportState` is in the `useEffect` dependency array (`useTransportShortcuts.ts:37`). Every play/pause/stop triggers an unregister + re-register + rebind cycle. The command's `execute` closure already captures the current state correctly; `transportState` only needs to be in the closure, not the deps. Use a ref for `transportState` or restructure the command to delegate to transport functions that check state internally.
 
 ---
 
-**4. [P2] `ContextMenu`: no viewport overflow protection**
-`src/ui/primitives/ContextMenu.tsx:114`
+**4. [P2] `getCursorSeconds()` mutates SAB and re-anchors playback state as a side-effect**
 
-Menu position is raw `clientX/clientY` with no bounds check. Near screen edges the menu clips off-screen. Need to clamp against `window.innerWidth` / `window.innerHeight` after measuring `menuRef`.
-
----
-
-**5. [P2] `RotaryKnob`: mouse drag doesn't snap to `step`**
-`src/ui/controls/RotaryKnob.tsx:132`
-
-```ts
-commit(startValue + delta * step);
-```
-
-This produces continuous float values regardless of `step`. `Fader.valueFromY` correctly does `Math.round(raw / step) * step`. Apply the same rounding here.
+`transport-clock.ts:143-145` re-anchors `playStartContextTime` and `playStartCursorSeconds` on loop wrap inside a read-only accessor. Side-effecting getters are a correctness hazard: calling the function for display purposes alters the reference frame for all subsequent timing calculations. If two callers invoke `getCursorSeconds()` at different `ctx.currentTime` values within the same frame (once from the future RAF, once from scheduler), the second call computes position relative to the re-anchor made by the first. Separate the display-read path from the loop-wrap state mutation.
 
 ---
 
-**6. [P3] `VuMeter`: `level` prop unclamped — out-of-range values corrupt rendering**
-`src/ui/controls/VuMeter.tsx:51`
+**5. [P3] `TempoMap.secondsToSamples()` returns a float**
 
-`level > 1` makes `barTop` negative (bar exceeds canvas height). `level < 0` draws nothing but `buildAriaLabel` shows a negative percentage. Clamp at the top of the component:
-```ts
-const clampedLevel = Math.min(1, Math.max(0, level));
-```
-
----
-
-**7. [P3] `ContextMenu`: duplicate item labels produce duplicate React keys**
-`src/ui/primitives/ContextMenu.tsx:118`
-
-`key={item.label}` — use array index or a unique `id` field on `MenuItem`.
+`tempo-map.ts:53`: `return seconds * sampleRate` — returns a non-integer for most inputs. Any consumer expecting an integer sample offset will silently get a float. Should return `Math.round(seconds * sampleRate)` or callers must document the truncation responsibility. Currently unused, but will bite when wired to the scheduler.

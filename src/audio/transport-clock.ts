@@ -28,7 +28,12 @@ export type TransportClock = {
   setBpm(bpm: number): void;
   setLoop(region: LoopRegion): void;
   getLoop(): LoopRegion;
+  /** Pure read — computes current cursor position without side effects. */
   getCursorSeconds(): number;
+  /** Advances playback state: handles loop wrap, writes SAB. Call from scheduler. */
+  updateCursor(): number;
+  /** Returns true if the last updateCursor() call triggered a loop wrap. */
+  didLoopWrap(): boolean;
   getTempoMap(): TempoMap;
   dispose(): void;
 };
@@ -60,6 +65,7 @@ export function createTransportClock(
     rate,
   );
   let loop: LoopRegion = { enabled: false, start: 0, end: 0 };
+  let loopWrapped = false;
 
   // Write initial values to SAB
   stateView[0] = STATE_STOPPED;
@@ -108,12 +114,13 @@ export function createTransportClock(
     },
 
     seek(seconds: number): void {
-      cursorSeconds = seconds;
+      const clamped = Math.max(0, seconds);
+      cursorSeconds = clamped;
       if (currentState === "playing") {
         playStartContextTime = ctx.currentTime;
-        playStartCursorSeconds = seconds;
+        playStartCursorSeconds = clamped;
       }
-      writeSABCursor(seconds);
+      writeSABCursor(clamped);
     },
 
     setBpm(bpm: number): void {
@@ -135,19 +142,40 @@ export function createTransportClock(
         const elapsed = ctx.currentTime - playStartContextTime;
         let pos = playStartCursorSeconds + elapsed;
 
-        // Loop wrapping
+        // Apply loop wrap (pure computation, no mutation)
         if (loop.enabled && loop.end > loop.start && pos >= loop.end) {
           const loopLen = loop.end - loop.start;
           pos = loop.start + ((pos - loop.start) % loopLen);
-          // Re-anchor so future calls compute correctly
-          playStartContextTime = ctx.currentTime;
-          playStartCursorSeconds = pos;
         }
 
+        return pos;
+      }
+      return cursorSeconds;
+    },
+
+    updateCursor(): number {
+      loopWrapped = false;
+      if (currentState === "playing") {
+        const elapsed = ctx.currentTime - playStartContextTime;
+        let pos = playStartCursorSeconds + elapsed;
+
+        if (loop.enabled && loop.end > loop.start && pos >= loop.end) {
+          const loopLen = loop.end - loop.start;
+          pos = loop.start + ((pos - loop.start) % loopLen);
+          playStartContextTime = ctx.currentTime;
+          playStartCursorSeconds = pos;
+          loopWrapped = true;
+        }
+
+        cursorSeconds = pos;
         writeSABCursor(pos);
         return pos;
       }
       return cursorSeconds;
+    },
+
+    didLoopWrap(): boolean {
+      return loopWrapped;
     },
 
     getTempoMap(): TempoMap {

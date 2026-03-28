@@ -32,9 +32,10 @@ describe("createTempoMap", () => {
       expect(map120.samplesToSeconds(44100)).toBe(1.0);
     });
 
-    it("round-trips samples", () => {
+    it("round-trips samples (integer result)", () => {
       const samples = map120.secondsToSamples(1.234);
-      expect(map120.samplesToSeconds(samples)).toBeCloseTo(1.234, 6);
+      expect(Number.isInteger(samples)).toBe(true);
+      expect(map120.samplesToSeconds(samples)).toBeCloseTo(1.234, 4);
     });
 
     it("works at 48000 sample rate", () => {
@@ -63,6 +64,16 @@ describe("createTempoMap", () => {
     it("handles fractional beats as ticks", () => {
       // At 120 BPM, 0.25s = half a beat = 240 ticks (480 PPQ)
       expect(map120.secondsToBBT(0.25)).toEqual({ bar: 1, beat: 1, tick: 240 });
+    });
+
+    it("tick never overflows to 480 (uses floor, not round)", () => {
+      // At 120 BPM, a value just before a beat boundary should give tick < 480
+      // 0.4999s / 0.5 spb = 0.9998 beats, fractional = 0.9998
+      // Math.round(0.9998 * 480) would be 480 (overflow!)
+      // Math.floor(0.9998 * 480) = 479 (correct)
+      const bbt = map120.secondsToBBT(0.4999);
+      expect(bbt.tick).toBeLessThan(480);
+      expect(bbt.tick).toBeGreaterThanOrEqual(0);
     });
 
     it("handles 3/4 time signature", () => {

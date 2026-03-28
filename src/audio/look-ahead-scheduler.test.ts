@@ -57,9 +57,7 @@ describe("createLookAheadScheduler", () => {
     clock.play();
     scheduler.start();
 
-    // First interval fires immediately
-    vi.advanceTimersByTime(25);
-    // The first beat at time 0 should be in the window [0, 0.1)
+    // start() calls advance() immediately — first beat at time 0 is within [0, 0.1)
     expect(onTick).toHaveBeenCalled();
 
     scheduler.stop();
@@ -78,8 +76,8 @@ describe("createLookAheadScheduler", () => {
     clock.play();
     scheduler.start();
 
-    // With 600ms look-ahead, at time 0 we should see beat at t=0 and t=0.5 (120 BPM)
-    vi.advanceTimersByTime(25);
+    // start() calls advance() immediately
+    // With 600ms look-ahead, beats at t=0 and t=0.5 (120 BPM) are both in window
     expect(onTick).toHaveBeenCalledTimes(2);
     // First call: beat at 0, beat number 0
     expect(onTick.mock.calls[0]?.[0]).toBeCloseTo(0, 3);
@@ -103,8 +101,9 @@ describe("createLookAheadScheduler", () => {
     ctx.currentTime = 0;
     clock.play();
     scheduler.start();
-    vi.advanceTimersByTime(25);
+    // start() calls advance() immediately, scheduling beat at t=0
     const callCount = onTick.mock.calls.length;
+    expect(callCount).toBeGreaterThan(0);
 
     scheduler.stop();
     expect(scheduler.isRunning).toBe(false);

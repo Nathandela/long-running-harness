@@ -1,9 +1,12 @@
 /**
  * Controller hook that bridges the transport audio layer to the Zustand store.
  * Creates and manages TransportClock, LookAheadScheduler, and Metronome.
+ *
+ * useTransportInit() — initialization (used only by TransportProvider)
+ * useTransport()     — context consumer (used by all other components)
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
 import { useAudioEngine } from "./use-audio-engine";
 import { createTransportClock, type TransportClock } from "./transport-clock";
 import {
@@ -16,6 +19,7 @@ import {
   type SharedArrayBufferLayout,
 } from "./shared-buffer-layout";
 import { useDawStore } from "@state/index";
+import { TransportCtx } from "./transport-ctx";
 
 export type UseTransportReturn = {
   play(): void;
@@ -28,7 +32,10 @@ export type UseTransportReturn = {
   getClock(): TransportClock | null;
 };
 
-export function useTransport(): UseTransportReturn {
+/**
+ * Initializes the transport audio stack. Used only by TransportProvider.
+ */
+export function useTransportInit(): UseTransportReturn {
   const engine = useAudioEngine();
   const clockRef = useRef<TransportClock | null>(null);
   const schedulerRef = useRef<LookAheadScheduler | null>(null);
@@ -65,12 +72,12 @@ export function useTransport(): UseTransportReturn {
     const met = createMetronome(engine.ctx);
     metronomeRef.current = met;
 
-    const beatsPerBar = clock.getTempoMap().timeSignature.numerator;
     const scheduler = createLookAheadScheduler(
       engine.ctx,
       clock,
       undefined,
       (beatTime: number, beatNumber: number) => {
+        const beatsPerBar = clock.getTempoMap().timeSignature.numerator;
         const isDownbeat = beatNumber % beatsPerBar === 0;
         met.scheduleTick(beatTime, isDownbeat);
       },
@@ -170,4 +177,15 @@ export function useTransport(): UseTransportReturn {
     getTransportSAB,
     getClock,
   };
+}
+
+/**
+ * Context consumer hook. Must be used within a TransportProvider.
+ */
+export function useTransport(): UseTransportReturn {
+  const transport = useContext(TransportCtx);
+  if (transport === null) {
+    throw new Error("useTransport must be used within TransportProvider");
+  }
+  return transport;
 }

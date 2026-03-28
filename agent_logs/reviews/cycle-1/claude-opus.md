@@ -1,21 +1,19 @@
+I have all the information I need. Here's my consolidated review:
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 - VuMeter: Runaway rAF loop when `peak` is undefined and level > 0.** In `VuMeter.tsx:63-75`, the `draw` callback is in the `useEffect` dependency array. Each `draw` call triggers `requestAnimationFrame(animate)`, but `draw` is recreated every render (it depends on `level`). When the peak decays to 0 the loop stops, but if a parent re-renders frequently (e.g., real-time audio metering), each render creates a new effect that starts a new rAF chain before the previous one's cleanup fires, potentially stacking animation frames. Fix: gate the rAF start more carefully, or track whether an animation is already running via a `boolean` ref.
+1. **P1 — `secondsToBBT` tick overflow to 480** (`src/audio/tempo-map.ts:68`). `Math.round(fractionalBeat * 480)` produces 480 when `fractionalBeat` is close to 1.0 (e.g., 0.999). Tick must be 0–479. Fix: use `Math.floor()`, or handle the 480 case by incrementing beat/bar.
 
-2. **P1 - Fader: Mouse drag leaks event listeners on unmount.** `Fader.tsx:60-75` registers `mousemove`/`mouseup` on `document` inside `handleMouseDown`, but if the component unmounts mid-drag, the effect cleanup won't remove these listeners (they're not tracked by any `useEffect`). Fix: store the listeners in a ref and clean them up in a `useEffect` return, or use `AbortController`.
+2. **P1 — `useTransportShortcuts` re-registers command on every state change** (`src/ui/transport/useTransportShortcuts.ts:37`). `transportState` is in the dependency array, so every play/stop unregisters+re-registers the shortcut binding. During the brief gap, a keypress could be dropped. Fix: store `transportState` in a ref, read from ref inside `execute`, remove from deps.
 
-3. **P1 - RotaryKnob: Same mouse drag listener leak on unmount.** `RotaryKnob.tsx:99-118` has the identical pattern — `mousemove`/`mouseup` listeners on `document` with no cleanup on unmount.
+3. **P2 — `seek()` accepts negative seconds** (`src/audio/transport-clock.ts:110`). No clamp to `>= 0`. Negative cursor produces garbage BBT (negative bars). Add `Math.max(0, seconds)`.
 
-4. **P2 - Modal: `showModal()` called on already-open dialog throws.** `Modal.tsx:23-29` calls `dialog.showModal()` every time `open` changes to `true`, but if the dialog is already open (e.g. parent re-renders with `open=true`), the browser throws `InvalidStateError`. Fix: guard with `if (!dialog.open) dialog.showModal()`.
+4. **P2 — `beatsPerBar` captured once at init** (`src/audio/use-transport.ts:68`). `const beatsPerBar = clock.getTempoMap().timeSignature.numerator` is closed over in the scheduler callback. If time signature or BPM changes, `beatsPerBar` stays stale — downbeat detection breaks after a `setBpm` call since `setBpm` creates a new `TempoMap` but the callback still reads the old numerator.
 
-5. **P2 - ContextMenu: Menu can render off-screen.** `ContextMenu.tsx:85` positions the menu at raw `clientX`/`clientY` without clamping to viewport bounds. Right-clicking near the bottom-right corner will clip the menu.
+5. **P2 — Metronome oscillators never disconnected** (`src/audio/metronome.ts:39-43`). Stopped oscillators remain connected to the gain node. The Web Audio spec will eventually GC them, but explicit cleanup via `osc.onended = () => osc.disconnect()` reduces GC pressure in long sessions with hundreds of ticks/minute.
 
-6. **P2 - ContextMenu: Arrow key navigation doesn't skip disabled items.** `ContextMenu.tsx:72-81` cycles `focusIndex` over all items including disabled ones. Users can focus and Enter on non-disabled items, but keyboard navigation lands on disabled items with no visual distinction beyond opacity.
+6. **P2 — `getCursorSeconds()` mutates anchor state as a side effect** (`src/audio/transport-clock.ts:142-144`). A "get" method silently re-anchors `playStartContextTime` and `playStartCursorSeconds` during loop wrap. If called multiple times in the same frame (e.g., by both the scheduler and cursor display), the second call computes from a re-anchored baseline — the position will be subtly different. Either document explicitly or split into `getCursorSeconds()` (pure read) and `advanceCursor()` (mutating).
 
-7. **P2 - Token duplication between `tokens.ts` and `tokens.css`.** The same values exist in two places with no generation step. These will inevitably drift. Consider generating one from the other or at minimum adding a test that asserts parity.
+7. **P3 — SAB Float64 cursor writes are non-atomic** (`src/audio/transport-clock.ts:73-74`, documented at `shared-buffer-layout.ts:29-31`). Currently safe because reads happen on the same thread. When an AudioWorklet reads the SAB in the future, torn reads on Float64 are possible. Tracking issue recommended.
 
-8. **P2 - `useReducedMotion` SSR incompatibility.** `useReducedMotion.ts:5` calls `window.matchMedia` in the `useState` initializer. This will throw in SSR or any environment without `window`. May not matter for this DAW app, but worth noting.
-
-9. **P3 - Button: `disabled` prop uses `aria-disabled` + strips `onClick`, but does not set native `disabled`.** `Button.tsx:36-38` relies on `pointer-events: none` CSS and `aria-disabled` instead of the native `disabled` attribute. This means the button remains in tab order and screen readers may not announce it as properly disabled in all contexts.
-
-10. **P3 - Tooltip: `cloneElement` usage.** `Tooltip.tsx:27` uses the deprecated `cloneElement` API. React docs recommend render props or composition instead. Not urgent but will trigger warnings in future React versions.
+8. **P3 — No test for tick=480 edge case** (`src/audio/tempo-map.test.ts`). The round-trip test at line 106 uses clean values (0.25, 0.5, etc.) that never trigger the rounding boundary. Add a test with a value like `0.4999s` at 120 BPM to catch the overflow.

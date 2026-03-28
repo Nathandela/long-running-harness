@@ -16,10 +16,22 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] Type Error / Build Failure:** `src/ui/primitives/Tooltip.tsx` fails to compile with `TS2769` on `cloneElement` because `aria-describedby` is not a statically known prop on the generic `React.ReactElement` `children` type in React 19 typings.
-2. **[P1] Accessibility / Focusability:** `src/ui/primitives/Button.tsx` accepts a custom `disabled` prop but omits passing the native `disabled={disabled}` attribute down to the underlying `<button>`. This leaves the button fully focusable and activatable via keyboard events (e.g. Enter).
-3. **[P1] Audio Trigger Latency:** `src/ui/controls/DrumPad.tsx` binds the trigger event to `onClick`. For a DAW drum pad, `onClick` introduces significant perceptible latency as it fires on pointer *up*. It must bind to `onPointerDown` or `onMouseDown` for immediate audio playback.
-4. **[P1] Memory Leak / Stale Closures:** `src/ui/controls/Fader.tsx` and `src/ui/controls/RotaryKnob.tsx` attach global `mousemove` and `mouseup` listeners to the `document` during dragging, but lack `useEffect` cleanup. If either component unmounts while the user is actively dragging, the event listeners are leaked and will throw errors when invoked.
-5. **[P2] Drag UX / Sensitivity:** `src/ui/controls/RotaryKnob.tsx` calculates its drag entirely via `delta * step` instead of mapping the pixel drag distance against a logical fraction of the `max - min` range. This UX flaw makes the control unusable for large ranges (e.g., requires moving the mouse 2000+ pixels to span a frequency range if `step` is small relative to the range).
-6. **[P2] Floating State Issue:** `src/ui/primitives/ContextMenu.tsx` uses a global `click` listener to close when clicking outside, but it misses the global `contextmenu` event. Right-clicking elsewhere on the page opens the native context menu while leaving the custom context menu visibly stuck open.
-7. **[P3] Incorrect Editable Check:** `src/ui/keyboard/useKeyboardShortcuts.ts` checks for editable elements by checking `target.getAttribute("contenteditable") !== null`. This erroneously excludes elements with `contenteditable="false"`. It should use the native `target.isContentEditable` boolean.
+1. **[P0] Transport cursor freezes during playback**  
+   The `SharedArrayBuffer` for the UI cursor is only updated inside `TransportClock.getCursorSeconds()`. However, `getCursorSeconds()` is never called continuously (e.g., inside the scheduler loop or a RAF). As a result, `useTransportCursor` reads a static value and the UI playhead never advances.  
+   *Action:* Call `clock.getCursorSeconds()` periodically (e.g., inside `LookAheadScheduler.advance()`) to ensure the `SharedArrayBuffer` receives continuous updates.
+
+2. **[P0] `LookAheadScheduler` loses metronome phase on resume/seek**  
+   `scheduler.start()` unconditionally sets `nextBeatTime = ctx.currentTime` and `currentBeat = 0`. If playback is paused at beat 3.5 and resumed (or if a user seeks), the metronome instantly plays a downbeat at the current context time, losing complete synchronization with the project's actual phase and BBT tempo map.  
+   *Action:* Modify `start()` to calculate the initial `nextBeatTime` and `currentBeat` based on the transport clock's actual playhead position.
+
+3. **[P0] `LookAheadScheduler` ignores the loop region**  
+   The loop wrapping logic is encapsulated inside `TransportClock.getCursorSeconds()`. Since the scheduler independently loops via `nextBeatTime += spb` and ignores the clock's boundaries, scheduled audio events continue linearly to infinity and fail to wrap when the end of the loop is reached.  
+   *Action:* Ensure the scheduler checks the active loop boundaries (`clock.getLoop()`) and recalculates `nextBeatTime`/`currentBeat` when the playhead wraps.
+
+4. **[P2] `Metronome.dispose()` prematurely disconnects output**  
+   `dispose()` immediately calls `gainNode.disconnect()`. If playback is stopped while a 30ms tick is playing, this hard disconnect will cause an immediate audio pop.  
+   *Action:* Apply a short linear fade-out (e.g., `setTargetAtTime(0, ctx.currentTime, 0.01)`) in `silence()` and wait for ticks to decay before fully disconnecting nodes.
+
+5. **[P3] `TransportClock.seek()` accepts negative values**  
+   Seeking to negative seconds is not clamped. Negative positions will cause `TempoMap.secondsToBBT()` to calculate negative bars/beats (e.g., `-1.-1.000`), breaking the UI text display.  
+   *Action:* Clamp the `seconds` argument in `seek()` using `Math.max(0, seconds)`.

@@ -4,23 +4,23 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-0ph ● P0 task SharedArrayBuffer layout + MessagePort protocol types
 ✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
 ✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
+├── ✓ long-running-harness-8ew ● P0 epic E3: Transport & Scheduling Engine
 └── ✓ long-running-harness-5he ● P1 epic E2: Neo-Brutalist Design System
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 
 --------------------------------------------------------------------------------
-Total: 6 issues (0 open, 0 in progress)
+Total: 7 issues (0 open, 0 in progress)
 
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-c5ecf9c Fix DrumPad keyboard activation and pointer button filtering
-f685789 Fix P0-P2 issues from multi-reviewer code review
-91d44a3 chore: auto-commit uncommitted changes from long-running-harness-5he
-4a58609 E2: Update barrel exports and fix formatting
-ecdacf1 E2: Add DAW controls, keyboard shortcut system, and useReducedMotion hook
-5145b6a E2: Add standard UI primitives (Button, Toggle, Select, Modal, Tooltip, ContextMenu)
-f955b0a E2: Add design tokens, global CSS, and migrate to CSS custom properties
+6a718c1 Fix lint errors from review: ref-during-render and void expressions
+ede5ba1 chore: auto-commit uncommitted changes from long-running-harness-8ew
+8cf33e4 E3: Add transport integration tests
+129f8b6 E3: Add loop support, keyboard shortcuts, and transport wiring
+0b7ec6f E3: Add transport bar UI, AudioEngine provider, and useTransport controller
+adebe56 E3: Add transport engine audio layer (TempoMap, TransportClock, Scheduler, Metronome)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

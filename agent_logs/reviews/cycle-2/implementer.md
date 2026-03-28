@@ -1,13 +1,11 @@
-Committed. 180 tests pass, TypeScript clean, lint clean.
+All fixes applied and committed. Lint passes, 259 tests pass.
 
-**Summary of fixes applied:**
+**Summary of fixes:**
 
 | Finding | Severity | Fix |
-|---|---|---|
-| DrumPad lost keyboard activation (Enter/Space) | P1 | Added `onKeyDown` handler for Enter and Space keys |
-| DrumPad fires on non-primary pointer buttons | P1 | Filtered `onPointerDown` to `e.button === 0` (primary only) |
-| Regression tests | -- | Added 3 tests: Enter key, Space key, right-click ignored |
-
-All other P1/P2 issues from previous cycles were already confirmed fixed by the reviewers (Sonnet, Opus, Gemini all approved). The remaining unaddressed items (token duplication P2, SSR P2) are deferred as agreed -- token duplication is a build-tooling concern and SSR doesn't apply to a browser-only DAW app.
+|---------|----------|-----|
+| `useTransportShortcuts` mutates ref during render | P1 | Moved `stateRef.current = transportState` into a `useEffect`, keeping command registration effect stable with no `transportState` dep |
+| `metronome.ts` void-return shorthand (`osc.onended`) | P2 | Wrapped arrow body in braces |
+| `metronome.ts` void-return shorthand (`setTimeout`) | P2 | Wrapped arrow body in braces |
 
 FIXES_APPLIED

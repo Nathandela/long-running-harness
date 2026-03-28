@@ -51,7 +51,7 @@ export function createTempoMap(
     },
 
     secondsToSamples(seconds: number): number {
-      return seconds * sampleRate;
+      return Math.round(seconds * sampleRate);
     },
 
     samplesToSeconds(samples: number): number {
@@ -65,7 +65,7 @@ export function createTempoMap(
 
       const bar = Math.floor(wholeBeat / beatsPerBar) + 1;
       const beat = (wholeBeat % beatsPerBar) + 1;
-      const tick = Math.round(fractionalBeat * TICKS_PER_BEAT);
+      const tick = Math.floor(fractionalBeat * TICKS_PER_BEAT);
 
       return { bar, beat, tick };
     },

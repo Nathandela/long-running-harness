@@ -39,8 +39,32 @@ export function createLookAheadScheduler(
   let nextBeatTime = 0;
   let currentBeat = 0;
 
+  function syncToPosition(cursorSec: number): void {
+    const spb = clock.getTempoMap().secondsPerBeat();
+    const totalBeats = cursorSec / spb;
+    const wholeBeat = Math.floor(totalBeats + 1e-9);
+    const remainder = totalBeats - wholeBeat;
+
+    if (remainder < 1e-6) {
+      // On a beat boundary — schedule this beat now
+      currentBeat = wholeBeat;
+      nextBeatTime = ctx.currentTime;
+    } else {
+      // Between beats — schedule next beat
+      currentBeat = wholeBeat + 1;
+      nextBeatTime = ctx.currentTime + (currentBeat * spb - cursorSec);
+    }
+  }
+
   function advance(): void {
     if (clock.state !== "playing") return;
+
+    // Drive SAB cursor updates and detect loop wraps
+    clock.updateCursor();
+
+    if (clock.didLoopWrap()) {
+      syncToPosition(clock.getCursorSeconds());
+    }
 
     const scheduleUntil = ctx.currentTime + lookAheadSec;
     const spb = clock.getTempoMap().secondsPerBeat();
@@ -60,11 +84,11 @@ export function createLookAheadScheduler(
     start(): void {
       if (timerId !== null) return;
 
-      // Anchor the first beat to the current context time
-      nextBeatTime = ctx.currentTime;
-      currentBeat = 0;
+      // Phase-correct: sync beat position to current cursor
+      syncToPosition(clock.getCursorSeconds());
 
       timerId = setInterval(advance, intervalMs);
+      advance();
     },
 
     stop(): void {

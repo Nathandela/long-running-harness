@@ -171,18 +171,24 @@ describe("createTransportClock", () => {
       clock.dispose();
     });
 
-    it("writes cursor to SAB on getCursorSeconds", () => {
+    it("writes cursor to SAB on updateCursor (not getCursorSeconds)", () => {
       const clock = createTransportClock(ctx, sab);
       ctx.currentTime = 1.0;
       clock.play();
       ctx.currentTime = 2.5;
-      clock.getCursorSeconds();
 
       const cursorView = new Float64Array(
         sab,
         TransportLayout.CURSOR_SECONDS,
         1,
       );
+
+      // getCursorSeconds is a pure read — SAB not updated
+      clock.getCursorSeconds();
+      expect(cursorView[0]).toBe(0);
+
+      // updateCursor writes SAB
+      clock.updateCursor();
       expect(cursorView[0]).toBeCloseTo(1.5, 6);
       clock.dispose();
     });
@@ -195,6 +201,70 @@ describe("createTransportClock", () => {
       expect(map.bpm).toBe(120);
       expect(map.sampleRate).toBe(44100);
       expect(map.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+      clock.dispose();
+    });
+  });
+
+  it("seek clamps negative seconds to 0", () => {
+    const clock = createTransportClock(ctx, sab);
+    clock.seek(-5.0);
+    expect(clock.getCursorSeconds()).toBe(0);
+    clock.dispose();
+  });
+
+  describe("updateCursor / didLoopWrap", () => {
+    it("updateCursor returns position and writes SAB during playback", () => {
+      const clock = createTransportClock(ctx, sab);
+      ctx.currentTime = 1.0;
+      clock.play();
+      ctx.currentTime = 3.0;
+
+      const pos = clock.updateCursor();
+      expect(pos).toBeCloseTo(2.0, 6);
+
+      const cursorView = new Float64Array(
+        sab,
+        TransportLayout.CURSOR_SECONDS,
+        1,
+      );
+      expect(cursorView[0]).toBeCloseTo(2.0, 6);
+      clock.dispose();
+    });
+
+    it("didLoopWrap returns false when no wrap", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 0, end: 10.0 });
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 5.0;
+      clock.updateCursor();
+      expect(clock.didLoopWrap()).toBe(false);
+      clock.dispose();
+    });
+
+    it("didLoopWrap returns true after a loop wrap", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 0, end: 2.0 });
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 2.5;
+      clock.updateCursor();
+      expect(clock.didLoopWrap()).toBe(true);
+      clock.dispose();
+    });
+
+    it("didLoopWrap resets on next updateCursor call", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 0, end: 2.0 });
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 2.5;
+      clock.updateCursor();
+      expect(clock.didLoopWrap()).toBe(true);
+
+      ctx.currentTime = 2.6;
+      clock.updateCursor();
+      expect(clock.didLoopWrap()).toBe(false);
       clock.dispose();
     });
   });
