@@ -1,0 +1,109 @@
+.matrix {
+  background-color: var(--color-gray-900);
+  border-top: var(--border);
+  padding: var(--space-2);
+  overflow: auto;
+}
+
+.empty {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-gray-500);
+  text-align: center;
+  padding: var(--space-4);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.header {
+  text-align: center;
+  color: var(--color-gray-300);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bus-target {
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  font-weight: normal;
+}
+
+.track-name {
+  color: var(--color-gray-300);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 100px;
+}
+
+.send-cell {
+  text-align: center;
+  padding: var(--space-1);
+  border-bottom: var(--border);
+}
+
+.send-cell-active {
+  composes: send-cell;
+  background-color: var(--color-gray-800);
+}
+
+.add-send {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: transparent;
+  border: var(--border);
+  color: var(--color-gray-500);
+  cursor: pointer;
+  padding: 1px 6px;
+}
+
+.add-send:hover {
+  background-color: var(--color-gray-700);
+  color: var(--color-gray-300);
+}
+
+.send-slider {
+  width: 48px;
+  display: block;
+  margin: 0 auto;
+}
+
+.pre {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: transparent;
+  border: none;
+  color: var(--color-gray-500);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.pre-active {
+  composes: pre;
+  color: var(--color-amber);
+}
+
+.sc-cell {
+  text-align: center;
+  padding: var(--space-1);
+  border-bottom: var(--border);
+}
+
+.sc-badge {
+  display: inline-block;
+  font-size: 9px;
+  color: var(--color-cyan, #06b6d4);
+  background-color: var(--color-gray-800);
+  padding: 0 4px;
+  border-radius: 2px;
+  margin: 1px;
+}
