@@ -8,6 +8,7 @@ import { useCallback } from "react";
 import { tokens } from "@ui/tokens/tokens";
 import { useSynthStore } from "@state/synth";
 import { VirtualKeyboard } from "./VirtualKeyboard";
+import { ModulationMatrix } from "./ModulationMatrix";
 import type { SynthParameterMap } from "@audio/synth/synth-types";
 import {
   WAVEFORM_TYPES,
@@ -559,6 +560,9 @@ export function SynthEditor({
           </div>
         </section>
       </div>
+
+      {/* Modulation Matrix */}
+      <ModulationMatrix trackId={trackId} />
 
       {/* Virtual Keyboard */}
       <VirtualKeyboard onNoteOn={handleNoteOn} onNoteOff={handleNoteOff} />
