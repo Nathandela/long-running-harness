@@ -36,4 +36,27 @@ export {
 export { createMetronome, type Metronome } from "./metronome";
 export { AudioEngineProvider } from "./audio-engine-provider";
 export { useAudioEngine } from "./use-audio-engine";
-export { useTransport, type UseTransportReturn } from "./use-transport";
+export {
+  useTransport,
+  useTransportInit,
+  type UseTransportReturn,
+} from "./use-transport";
+export { TransportProvider } from "./transport-provider";
+export type {
+  MediaPool,
+  AudioSourceHandle,
+  WaveformPeaks,
+  AudioFormat,
+  MediaPoolError,
+  DecodeResult,
+  MediaPoolStorage,
+} from "./media-pool";
+export {
+  detectAudioFormat,
+  createMediaPool,
+  createInMemoryStorage,
+  createIndexedDBStorage,
+  computeWaveformPeaks,
+} from "./media-pool";
+export { MediaPoolProvider } from "./media-pool/media-pool-provider";
+export { useMediaPool } from "./media-pool/use-media-pool";

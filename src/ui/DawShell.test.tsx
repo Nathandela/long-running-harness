@@ -2,6 +2,14 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { DawShell } from "./DawShell";
 
+vi.mock("@audio/transport-provider", () => ({
+  TransportProvider: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }): React.ReactNode => children,
+}));
+
 vi.mock("@audio/use-transport", () => ({
   useTransport: (): object => ({
     play: vi.fn(),
@@ -19,6 +27,19 @@ vi.mock("@ui/hooks/useTransportCursor", () => ({
   useTransportCursor: (): { current: number } => ({ current: 0 }),
 }));
 
+vi.mock("@audio/media-pool/use-media-pool", () => ({
+  useMediaPool: (): object => ({
+    importFile: vi.fn(),
+    getSource: () => undefined,
+    getAudioBuffer: vi.fn().mockResolvedValue(undefined),
+    getPeaks: vi.fn().mockResolvedValue(undefined),
+    listSources: () => [],
+    removeSource: vi.fn(),
+    count: 0,
+    init: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 describe("DawShell", () => {
   it("renders the complete layout structure", () => {
     render(<DawShell />);
@@ -27,5 +48,6 @@ describe("DawShell", () => {
     expect(screen.getByTestId("arrangement-panel")).toBeInTheDocument();
     expect(screen.getByTestId("mixer-panel")).toBeInTheDocument();
     expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("media-pool-panel")).toBeInTheDocument();
   });
 });

@@ -8,10 +8,21 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { App } from "./App";
 import { useDawStore } from "@state/store";
+import { createInMemoryStorage } from "@audio/media-pool/idb-storage";
+
+vi.mock("@audio/media-pool/idb-storage", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@audio/media-pool/idb-storage")>();
+  return {
+    ...actual,
+    createIndexedDBStorage: (): ReturnType<typeof createInMemoryStorage> =>
+      actual.createInMemoryStorage(),
+  };
+});
 
 function createMockGainNode(): GainNode {
   return {
-    gain: { value: 1, setValueAtTime: vi.fn() },
+    gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
   } as unknown as GainNode;
