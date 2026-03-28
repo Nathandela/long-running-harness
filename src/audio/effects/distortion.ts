@@ -86,10 +86,15 @@ export function createDistortionFactory(): EffectFactory {
       let shaper: WaveShaperNode;
       let currentDrive = 20;
       let currentCurveType = 0;
+      let curveTimer: ReturnType<typeof setTimeout> | undefined;
 
       function updateCurve(): void {
-        const gen = curveGenerators[currentCurveType] ?? makeSoftClipCurve;
-        shaper.curve = gen(currentDrive);
+        // Debounce curve recalculation during rapid knob changes
+        clearTimeout(curveTimer);
+        curveTimer = setTimeout(() => {
+          const gen = curveGenerators[currentCurveType] ?? makeSoftClipCurve;
+          shaper.curve = gen(currentDrive);
+        }, 30);
       }
 
       return createBaseEffect({
@@ -100,11 +105,14 @@ export function createDistortionFactory(): EffectFactory {
         buildChain(inputNode, outputNode) {
           shaper = ctx.createWaveShaper();
           shaper.oversample = "4x";
-          updateCurve();
+          // Immediate curve on init (no debounce)
+          const gen = curveGenerators[currentCurveType] ?? makeSoftClipCurve;
+          shaper.curve = gen(currentDrive);
           inputNode.connect(shaper);
           shaper.connect(outputNode);
         },
         disposeChain() {
+          clearTimeout(curveTimer);
           shaper.disconnect();
         },
         applyParam(key, value, setMix) {

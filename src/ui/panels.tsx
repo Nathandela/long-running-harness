@@ -1,3 +1,6 @@
+import { useDawStore } from "@state/store";
+import { SynthEditor } from "@ui/synth";
+
 const panelStyle: React.CSSProperties = {
   border: "var(--border)",
   backgroundColor: "var(--color-gray-900)",
@@ -11,12 +14,28 @@ const panelStyle: React.CSSProperties = {
 };
 
 export function InstrumentPanel(): React.JSX.Element {
+  const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
+  const tracks = useDawStore((s) => s.tracks);
+  const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
+
+  // Show synth editor for instrument tracks
+  if (selectedTrack?.type === "instrument") {
+    return (
+      <section
+        data-testid="instrument-panel"
+        style={{ height: "240px", overflow: "auto" }}
+      >
+        <SynthEditor trackId={selectedTrack.id} />
+      </section>
+    );
+  }
+
   return (
     <section
       data-testid="instrument-panel"
       style={{ ...panelStyle, height: "240px" }}
     >
-      INSTRUMENT
+      {selectedTrack ? "AUDIO TRACK" : "INSTRUMENT"}
     </section>
   );
 }

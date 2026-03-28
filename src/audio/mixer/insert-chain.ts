@@ -17,38 +17,55 @@ export type InsertChain = {
   dispose(): void;
 };
 
+/** Safe array access for the insert chain */
+function at(entries: InsertEntry[], i: number): InsertEntry {
+  const e = entries[i];
+  if (!e) throw new Error("Insert index out of bounds");
+  return e;
+}
+
 export function createInsertChain(
   source: AudioNode,
   dest: AudioNode,
 ): InsertChain {
   const inserts: InsertEntry[] = [];
 
+  // Track the node source currently connects to, so we can disconnect
+  // only our connection instead of severing all outgoing connections.
+  let sourceTarget: AudioNode = dest;
+
   function rewire(): void {
-    // Disconnect everything in the chain
-    source.disconnect();
+    // Disconnect only the chain's own connections
+    try {
+      source.disconnect(sourceTarget);
+    } catch {
+      // Target already disconnected — safe to ignore
+    }
     for (const entry of inserts) {
       entry.output.disconnect();
     }
 
     if (inserts.length === 0) {
       source.connect(dest);
+      sourceTarget = dest;
       return;
     }
 
     // source -> first insert input
-    const first = inserts[0];
-    if (first) source.connect(first.input);
+    const first = at(inserts, 0);
+    source.connect(first.input);
+    sourceTarget = first.input;
 
     // Chain inserts: each output -> next input
     for (let i = 0; i < inserts.length - 1; i++) {
-      const current = inserts[i];
-      const next = inserts[i + 1];
-      if (current && next) current.output.connect(next.input);
+      const current = at(inserts, i);
+      const next = at(inserts, i + 1);
+      current.output.connect(next.input);
     }
 
     // Last insert output -> dest
-    const last = inserts[inserts.length - 1];
-    if (last) last.output.connect(dest);
+    const last = at(inserts, inserts.length - 1);
+    last.output.connect(dest);
   }
 
   // Initial wiring: source -> dest
@@ -63,6 +80,8 @@ export function createInsertChain(
     removeInsert(id: string): void {
       const idx = inserts.findIndex((e) => e.id === id);
       if (idx === -1) return;
+      const removed = at(inserts, idx);
+      removed.output.disconnect();
       inserts.splice(idx, 1);
       rewire();
     },
@@ -72,7 +91,11 @@ export function createInsertChain(
     },
 
     dispose(): void {
-      source.disconnect();
+      try {
+        source.disconnect(sourceTarget);
+      } catch {
+        // Already disconnected
+      }
       for (const entry of inserts) {
         entry.output.disconnect();
       }

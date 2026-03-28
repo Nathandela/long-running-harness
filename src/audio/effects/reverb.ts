@@ -61,6 +61,7 @@ export function createReverbFactory(): EffectFactory {
     create(ctx, id) {
       let convolver: ConvolverNode;
       let preDelayNode: DelayNode;
+      let irTimer: ReturnType<typeof setTimeout> | undefined;
 
       return createBaseEffect({
         ctx,
@@ -77,13 +78,18 @@ export function createReverbFactory(): EffectFactory {
           convolver.connect(outputNode);
         },
         disposeChain() {
+          clearTimeout(irTimer);
           preDelayNode.disconnect();
           convolver.disconnect();
         },
         applyParam(key, value, setMix) {
           switch (key) {
             case "decay":
-              convolver.buffer = generateImpulseResponse(ctx, value);
+              // Debounce IR generation — expensive at high decay values
+              clearTimeout(irTimer);
+              irTimer = setTimeout(() => {
+                convolver.buffer = generateImpulseResponse(ctx, value);
+              }, 80);
               break;
             case "preDelay":
               preDelayNode.delayTime.value = value / 1000;

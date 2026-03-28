@@ -72,13 +72,25 @@ export function createBaseEffect(opts: CreateEffectOptions): EffectInstance {
   let bypassed = false;
   let mixLevel = 1; // 0 = fully dry, 1 = fully wet
 
+  // 5ms ramp avoids audible clicks on gain changes
+  const RAMP_TIME = 0.005;
+
+  function rampTo(param: AudioParam, value: number): void {
+    if (typeof param.linearRampToValueAtTime === "function") {
+      param.setValueAtTime(param.value, ctx.currentTime);
+      param.linearRampToValueAtTime(value, ctx.currentTime + RAMP_TIME);
+    } else {
+      param.value = value;
+    }
+  }
+
   function applyMix(): void {
     if (bypassed) {
-      dryGain.gain.value = 1;
-      wetGain.gain.value = 0;
+      rampTo(dryGain.gain, 1);
+      rampTo(wetGain.gain, 0);
     } else {
-      dryGain.gain.value = 1 - mixLevel;
-      wetGain.gain.value = mixLevel;
+      rampTo(dryGain.gain, 1 - mixLevel);
+      rampTo(wetGain.gain, mixLevel);
     }
   }
 

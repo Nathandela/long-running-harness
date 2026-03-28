@@ -1,7 +1,29 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { EffectsRack } from "./EffectsRack";
 import { useEffectsStore } from "@state/effects";
+import {
+  createEffectRegistry,
+  createReverbFactory,
+  createDelayFactory,
+  createCompressorFactory,
+  createEqFactory,
+  createDistortionFactory,
+  createChorusFactory,
+} from "@audio/effects";
+
+// Build a registry outside the mock factory to keep types happy
+const testRegistry = createEffectRegistry();
+testRegistry.register(createReverbFactory());
+testRegistry.register(createDelayFactory());
+testRegistry.register(createCompressorFactory());
+testRegistry.register(createEqFactory());
+testRegistry.register(createDistortionFactory());
+testRegistry.register(createChorusFactory());
+
+vi.mock("@audio/effects/EffectsBridgeProvider", () => ({
+  useEffectsBridgeContext: () => ({ registry: testRegistry }),
+}));
 
 describe("EffectsRack", () => {
   beforeEach(() => {
@@ -33,7 +55,6 @@ describe("EffectsRack", () => {
   it("shows effect type selector when add button clicked", () => {
     render(<EffectsRack trackId="track-1" />);
     fireEvent.click(screen.getByLabelText("Add effect"));
-    // Should show available effect types
     expect(screen.getByText("Delay")).toBeDefined();
     expect(screen.getByText("Compressor")).toBeDefined();
   });

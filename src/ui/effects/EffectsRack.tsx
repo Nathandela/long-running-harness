@@ -5,34 +5,20 @@
 
 import { useState, useCallback } from "react";
 import { useEffectsStore } from "@state/effects";
-import {
-  createReverbFactory,
-  createDelayFactory,
-  createCompressorFactory,
-  createEqFactory,
-  createDistortionFactory,
-  createChorusFactory,
-  type EffectFactory,
-} from "@audio/effects";
+import { useEffectsBridgeContext } from "@audio/effects/EffectsBridgeProvider";
 import { tokens } from "@ui/tokens/tokens";
 import { EffectPanel } from "./EffectPanel";
 
 const EMPTY_SLOTS: readonly never[] = [];
-
-const AVAILABLE_EFFECTS: readonly EffectFactory[] = [
-  createReverbFactory(),
-  createDelayFactory(),
-  createCompressorFactory(),
-  createEqFactory(),
-  createDistortionFactory(),
-  createChorusFactory(),
-];
 
 type EffectsRackProps = {
   trackId: string;
 };
 
 export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
+  const { registry } = useEffectsBridgeContext();
+  const availableEffects = registry.getAll();
+
   const slots = useEffectsStore((s) => s.trackEffects[trackId] ?? EMPTY_SLOTS);
   const addEffect = useEffectsStore((s) => s.addEffect);
   const removeEffect = useEffectsStore((s) => s.removeEffect);
@@ -43,7 +29,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
 
   const handleAdd = useCallback(
     (typeId: string) => {
-      const factory = AVAILABLE_EFFECTS.find((f) => f.definition.id === typeId);
+      const factory = registry.get(typeId);
       if (!factory) return;
 
       const id = `${typeId}-${crypto.randomUUID().slice(0, 8)}`;
@@ -55,7 +41,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
       addEffect(trackId, { id, typeId, bypassed: false, params });
       setShowSelector(false);
     },
-    [trackId, addEffect],
+    [trackId, addEffect, registry],
   );
 
   return (
@@ -72,9 +58,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
       }}
     >
       {slots.map((slot) => {
-        const factory = AVAILABLE_EFFECTS.find(
-          (f) => f.definition.id === slot.typeId,
-        );
+        const factory = registry.get(slot.typeId);
         if (!factory) return null;
 
         return (
@@ -104,7 +88,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
             gap: tokens.space[1],
           }}
         >
-          {AVAILABLE_EFFECTS.map((f) => (
+          {availableEffects.map((f) => (
             <button
               key={f.definition.id}
               type="button"

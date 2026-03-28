@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useDawStore } from "@state/store";
+import { useEffectsStore } from "@state/effects";
 import type { SessionStorage } from "./session-storage";
 import { createSaveQueue } from "./save-queue";
 import { createAutoSave } from "./auto-save";
@@ -15,6 +16,21 @@ let sessionMeta: { name: string; createdAt: number } = {
 
 function storeToSession(): SessionSchema {
   const state = useDawStore.getState();
+  const effectsState = useEffectsStore.getState();
+
+  // Convert effects store to session schema format
+  const effects = Object.entries(effectsState.trackEffects).map(
+    ([trackId, slots]) => ({
+      trackId,
+      slots: slots.map((s) => ({
+        id: s.id,
+        typeId: s.typeId,
+        bypassed: s.bypassed,
+        params: { ...s.params },
+      })),
+    }),
+  );
+
   return {
     version: SESSION_VERSION,
     meta: {
@@ -31,6 +47,7 @@ function storeToSession(): SessionSchema {
     tracks: state.tracks.map((t) => ({ ...t })),
     clips: Object.values(state.clips),
     mixer: { masterVolume: state.masterVolume },
+    effects: effects.length > 0 ? effects : undefined,
   };
 }
 
@@ -53,6 +70,23 @@ export function hydrateStore(session: SessionSchema): void {
     clips,
     masterVolume: session.mixer.masterVolume,
   });
+
+  // Restore effects state
+  if (session.effects) {
+    const trackEffects: Record<
+      string,
+      readonly {
+        id: string;
+        typeId: string;
+        bypassed: boolean;
+        params: Record<string, number>;
+      }[]
+    > = {};
+    for (const entry of session.effects) {
+      trackEffects[entry.trackId] = entry.slots;
+    }
+    useEffectsStore.setState({ trackEffects });
+  }
 }
 
 type SessionPersistenceResult = {
@@ -105,13 +139,17 @@ export function useSessionPersistence(
   useEffect(() => {
     autoSave.start();
 
-    const unsub = useDawStore.subscribe(() => {
+    const unsubDaw = useDawStore.subscribe(() => {
+      autoSave.notifyChange();
+    });
+    const unsubEffects = useEffectsStore.subscribe(() => {
       autoSave.notifyChange();
     });
 
     return () => {
       autoSave.stop();
-      unsub();
+      unsubDaw();
+      unsubEffects();
     };
   }, [autoSave]);
 
