@@ -120,6 +120,7 @@ describe("MixerEngine", () => {
       const strip = mixer.getOrCreateStrip("track-1");
       expect(strip.trackId).toBe("track-1");
       expect(strip.inputGain).toBeDefined();
+      expect(strip.preFaderTap).toBeDefined();
       expect(strip.faderGain).toBeDefined();
       expect(strip.panner).toBeDefined();
       expect(strip.muteGain).toBeDefined();
@@ -133,10 +134,13 @@ describe("MixerEngine", () => {
       expect(a).toBe(b);
     });
 
-    it("connects strip chain: inputGain -> faderGain -> panner -> muteGain -> analyser -> master input", () => {
+    it("connects strip chain: inputGain -> preFaderTap -> faderGain -> panner -> muteGain -> analyser -> master input", () => {
       const strip = mixer.getOrCreateStrip("track-1");
       const master = mixer.getMaster();
       expect(asMock(strip.inputGain).connect).toHaveBeenCalledWith(
+        strip.preFaderTap,
+      );
+      expect(asMock(strip.preFaderTap).connect).toHaveBeenCalledWith(
         strip.faderGain,
       );
       expect(asMock(strip.faderGain).connect).toHaveBeenCalledWith(

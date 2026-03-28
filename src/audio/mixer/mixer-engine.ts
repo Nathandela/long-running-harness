@@ -56,13 +56,15 @@ function createChannelStrip(
   masterInput: GainNode,
 ): ChannelStrip {
   const inputGain = ctx.createGain();
+  const preFaderTap = ctx.createGain(); // Unity gain tap for pre-fader sends
   const faderGain = ctx.createGain();
   const panner = ctx.createStereoPanner();
   const muteGain = ctx.createGain();
   const analyser = ctx.createAnalyser();
 
-  // Chain: inputGain -> [insert chain] -> faderGain -> panner -> muteGain -> analyser -> master input
-  // Note: inputGain -> faderGain connection is managed by the insert chain
+  // Chain: inputGain -> [insert chain] -> preFaderTap -> faderGain -> panner -> muteGain -> analyser -> master input
+  // Note: inputGain -> preFaderTap connection is managed by the insert chain
+  preFaderTap.connect(faderGain);
   faderGain.connect(panner);
   panner.connect(muteGain);
   muteGain.connect(analyser);
@@ -72,6 +74,7 @@ function createChannelStrip(
     trackId,
     inputGain,
     inserts: [],
+    preFaderTap,
     faderGain,
     panner,
     muteGain,
@@ -114,8 +117,8 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
 
       const strip = createChannelStrip(ctx, trackId, master.inputGain);
       strips.set(trackId, strip);
-      // Insert chain between inputGain and faderGain
-      const chain = createInsertChain(strip.inputGain, strip.faderGain);
+      // Insert chain between inputGain and preFaderTap
+      const chain = createInsertChain(strip.inputGain, strip.preFaderTap);
       insertChains.set(trackId, chain);
       return strip;
     },
@@ -129,6 +132,7 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       insertChains.delete(trackId);
 
       strip.inputGain.disconnect();
+      strip.preFaderTap.disconnect();
       strip.faderGain.disconnect();
       strip.panner.disconnect();
       strip.muteGain.disconnect();
@@ -227,6 +231,7 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
       insertChains.clear();
       for (const strip of strips.values()) {
         strip.inputGain.disconnect();
+        strip.preFaderTap.disconnect();
         strip.faderGain.disconnect();
         strip.panner.disconnect();
         strip.muteGain.disconnect();

@@ -189,6 +189,26 @@ describe("RoutingEngine", () => {
       expect(engine.getBus("bus-1")?.outputTarget).toBe("master");
     });
 
+    it("removes sends sourced from the removed bus", () => {
+      engine.createBus("bus-1");
+      engine.createBus("bus-2");
+      engine.addSend("bus-1", "bus-2");
+      expect(engine.getSends("bus-1")).toHaveLength(1);
+      engine.removeBus("bus-1");
+      expect(engine.getSends("bus-1")).toHaveLength(0);
+    });
+
+    it("cleans up graph edges for sends sourced from removed bus", () => {
+      engine.createBus("bus-1");
+      engine.createBus("bus-2");
+      engine.addSend("bus-1", "bus-2");
+      engine.removeBus("bus-1");
+      // bus-2 should still be reachable but bus-1 gone
+      expect(engine.getBus("bus-1")).toBeUndefined();
+      expect(engine.getBus("bus-2")).toBeDefined();
+      expect(engine.getRenderOrder()).not.toContain("bus-1");
+    });
+
     it("removes sidechains referencing removed bus", () => {
       engine.createBus("bus-1");
       engine.addSidechain("bus-1", "track-1");

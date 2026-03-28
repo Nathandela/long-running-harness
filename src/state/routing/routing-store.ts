@@ -51,6 +51,7 @@ export const useRoutingStore = create<RoutingStore>()((set, get) => ({
       );
       const sends = Object.fromEntries(
         Object.entries(s.sends)
+          .filter(([trackId]) => trackId !== id) // Remove sends FROM this bus
           .map(
             ([trackId, trackSends]) =>
               [

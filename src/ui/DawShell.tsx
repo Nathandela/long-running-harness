@@ -12,6 +12,7 @@ import { useSessionShortcuts } from "./session/useSessionShortcuts";
 import { RecoveryDialog } from "./session/RecoveryDialog";
 import { TransportProvider } from "@audio/transport-provider";
 import { EffectsBridgeProvider } from "@audio/effects/EffectsBridgeProvider";
+import { RoutingBridgeProvider } from "@audio/mixer/RoutingBridgeProvider";
 import { useMediaPool } from "@audio/media-pool/use-media-pool";
 import { sharedUndoManager } from "@state/undo/shared-undo-manager";
 import { useSessionPersistence } from "@state/session/use-session-persistence";
@@ -86,7 +87,9 @@ export function DawShell(): React.JSX.Element {
   return (
     <TransportProvider>
       <EffectsBridgeProvider>
-        <DawShellInner />
+        <RoutingBridgeProvider>
+          <DawShellInner />
+        </RoutingBridgeProvider>
       </EffectsBridgeProvider>
     </TransportProvider>
   );

@@ -157,6 +157,16 @@ export function createRoutingEngine(ctx: AudioContext): RoutingEngine {
         }
       }
 
+      // Remove sends FROM this bus (bus was a send source)
+      const busSends = sends.get(id);
+      if (busSends) {
+        for (const send of busSends) {
+          send.sendGain.disconnect();
+          graph.removeEdge(id, send.busId);
+        }
+        sends.delete(id);
+      }
+
       // Remove all sends targeting this bus
       for (const [sourceId, trackSends] of sends.entries()) {
         const filtered = trackSends.filter((s) => {

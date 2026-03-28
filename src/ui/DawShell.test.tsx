@@ -18,6 +18,14 @@ vi.mock("@audio/effects/EffectsBridgeProvider", () => ({
   }): React.ReactNode => children,
 }));
 
+vi.mock("@audio/mixer/RoutingBridgeProvider", () => ({
+  RoutingBridgeProvider: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }): React.ReactNode => children,
+}));
+
 vi.mock("@audio/use-transport", () => ({
   useTransport: (): object => ({
     play: vi.fn(),

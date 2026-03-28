@@ -72,6 +72,21 @@ describe("RoutingStore", () => {
       );
     });
 
+    it("removes sends sourced from the removed bus", () => {
+      useRoutingStore
+        .getState()
+        .addBus({ id: "bus-1", name: "Bus 1", outputTarget: "master" });
+      useRoutingStore
+        .getState()
+        .addBus({ id: "bus-2", name: "Bus 2", outputTarget: "master" });
+      useRoutingStore
+        .getState()
+        .addSend("bus-1", { busId: "bus-2", level: 0.5, preFader: false });
+      expect(useRoutingStore.getState().getSends("bus-1")).toHaveLength(1);
+      useRoutingStore.getState().removeBus("bus-1");
+      expect(useRoutingStore.getState().getSends("bus-1")).toHaveLength(0);
+    });
+
     it("removes sidechains referencing removed bus", () => {
       useRoutingStore
         .getState()

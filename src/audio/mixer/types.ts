@@ -15,6 +15,8 @@ export type ChannelStrip = {
   readonly inputGain: GainNode;
   /** Ordered insert chain (empty initially) */
   readonly inserts: readonly InsertSlot[];
+  /** Pre-fader tap point for pre-fader sends (after inserts, before fader) */
+  readonly preFaderTap: GainNode;
   /** Post-insert fader (logarithmic taper via GainNode) */
   readonly faderGain: GainNode;
   /** Stereo panner */
