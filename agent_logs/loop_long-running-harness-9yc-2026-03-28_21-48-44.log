@@ -1,0 +1,42 @@
+Let me explore the codebase to understand the existing synthesizer engine and project structure.Good, I have a comprehensive understanding of the codebase. Now let me read the key files I'll need to work with, then begin the plan phase.Now let me look at the existing test patterns and check the vitest config.Now I have a thorough understanding of the codebase. Let me claim the epic and start planning.Now let me create the sub-tasks for this epic and start the TDD implementation.Good. Now let me start implementing. I'll follow TDD: write tests first, then implement.
+
+## Task 1: Modulation Types and Registry### Phase 1: Write tests first### Phase 2: Verify tests fail (Red)Good - fails because the module doesn't exist yet. Let me implement.
+
+### Phase 3: Implement (Green)All 20 tests pass. Task 1 complete.## Task 2: Modulation DSP Engine### Phase 1: Write tests first for modulation engine### Phase 3: Implement modulation engineAll 9 tests pass. Now I need to integrate into the synth processor. Let me update the processor to use the modulation engine instead of hardwired modulation.Now let me modify the synth processor to support the modulation matrix. I need to:
+1. Add a `setModRoutes` command type
+2. Add `setModSource` command for aftertouch/modwheel/pitchbend
+3. Replace hardwired modulation with route-based modulation
+4. Pre-allocate route storage and accumulatorsNow update the synth-processor to import and use the modulation engine:Now add modulation state to the processor class:Now add the new command handlers:Now replace the hardwired modulation in the `process()` method with route-based modulation. This is the key change:Now let's make sure the LFO rate modulation is also applied (we need to feed effective rates back):I see the LFO rate modulation variables are computed but need to check that LFO process uses them. Let me look at how LFOs are called currently:I need to make LFOs use the effective rates (with modulation applied from previous sample). But since the LFO rate modulation depends on the current global accumulation which happens after LFO processing, I'll use the effective rates computed from the previous quantum's modulation. This is standard practice in synthesizers - one-sample delay is inaudible.
+
+Actually, let me think about this more carefully. The LFO rate modulation feeds back into itself. The simplest approach: compute LFOs first with their base rates, then apply mod routes. The LFO rate destinations just don't take effect until the next sample. This one-sample delay is negligible.
+
+Let me remove the `effectiveLfo1Rate`/`effectiveLfo2Rate` variables since they're not used by the LFO.process calls (which already happened). Instead, I'll track the mod accumulator from the previous quantum and apply it next time.
+
+Actually, let me simplify: I'll just use the accumulated LFO rate modulation from the previous sample. The LFOs already processed with `p.lfo1Rate`, and the modulation will be applied to the next sample. For a cleaner approach, I'll move the global accumulation to before the LFO processing and use accumulated values from the previous iteration.
+
+Let me refactor this to be cleaner:Now update the osc mix calculation. Currently with no modulation routes, the osc mix should work as before (50/50 = osc1Out + osc2Out). Let me verify: `mixBalance = 0.5 + 0 = 0.5`, so `osc1Out * 0.5 + osc2Out * 0.5`. But before, it was `osc1Out + osc2Out`. This changes the gain! Let me fix:Now let me run the existing synth tests to make sure nothing is broken:All 90 synth tests pass. Let me also update the synth-instrument to forward mod routes and mod sources:Now run all synth tests again:All 90 tests pass. Task 2 complete.Let me commit the progress so far.Let me fix the lint errors:Now fix the synth-processor lint errors:Now fix the non-null assertion errors at lines 319 and 384. Let me check the exact lines:I need to replace `!` non-null assertions. Let me use the `at()` helper that's already in the file, or use a safe access pattern:Now try committing again:## Task 3: Modulation Zustand Store### Phase 1: Write tests firstGood - fails because module doesn't exist. Let me check the existing index file:### Phase 3: Implement modulation storeAll 13 tests pass. Now update the index file:## Task 5: Session Serialization (doing before UI since it's simpler)Let me first check the existing session schema tests:I need to add a modulation section to the session schema. Let me write a test first:Now add the modulation section to the session schema:## Task 4: Modulation Matrix UI PanelLet me look at the design tokens and existing UI patterns for reference:Now let me look at how the SynthEditor test is structured:### Phase 1: Write UI tests### Phase 3: Implement the ModulationMatrix componentAll 8 UI tests pass. Now integrate the ModulationMatrix into the SynthEditor:Run all related tests:There are test failures. Let me see which ones:The SynthEditor tests are failing because the ModulationMatrix component uses `useModulationStore` but the test doesn't initialize it. Let me check the error:The issue is the `getRoutes` function returning a new array each time, causing infinite re-renders. Let me fix the selector in the component:I need to add the EMPTY_ROUTES constant:All 12 tests pass. Now run all synth-related tests:All 138 tests pass. Let me close task 4 and commit.Now commit all remaining changes:Now fix the test file non-null assertions:Now try committing again:Now let me run the full test suite to make sure nothing is broken:All 1042 tests pass across 100 test files. Now let me run the /compound:review phase to verify quality.Good review. Let me fix the critical issues.
+
+### Fix 1: Zero-allocation violation - Move voiceSrcValues to pre-allocated fieldNow update the references to `voiceSrcValues` to use `this.voiceSrcValues`:There's one more reference at line 394:### Fix 2: Scale LFO output by depth parameter### Fix 3: Add bipolar toggle to store and UINow add the bipolar toggle to the UI:Now add the bipolar toggle button in the route list, before the delete button:### Fix 4: Auto-init matrix when component mounts### Fix 5: Session persistence hydration
+
+Let me check the existing persistence code:Now I need to add modulation serialization and hydration:Now add the serialization helper and hydration code:Now add hydration for modulation in `hydrateStore`:Now subscribe to modulation store changes for auto-save:Now run the full tests to make sure everything still works:All 1042 tests pass. Let me commit the review fixes:All commits are clean. Let me run the full test suite one final time and then close the epic:All 1042 tests pass. Let me close the epic and push:EPIC_COMPLETE
+
+## Summary
+
+Successfully implemented **E12: Modulation Matrix** for the DAW synthesizer. Here's what was built:
+
+**New files (7):**
+- `src/audio/synth/modulation-types.ts` - Type system with 8 sources, 8 destinations, ModRoute, ModulationMatrix
+- `src/audio/synth/modulation-engine.ts` - Zero-allocation DSP engine with pre-allocated accumulators
+- `src/state/synth/modulation-store.ts` - Zustand store with CRUD for per-track routes
+- `src/state/synth/modulation-schema.ts` - Zod validation schema for serialization
+- `src/ui/synth/ModulationMatrix.tsx` - Drag-to-connect UI with SVG cables
+- Plus test files for types, engine, store, schema, and UI (56 new tests)
+
+**Modified files (5):**
+- `synth-processor.ts` - Replaced hardwired modulation with route-based system
+- `synth-instrument.ts` - Added setModRoutes/setModSource API
+- `synth-types.ts` - Extended voice commands
+- `session-schema.ts` - Added modulation section
+- `use-session-persistence.ts` - Serialize/hydrate modulation routes
+
+**All 1042 tests pass across 100 test files.**

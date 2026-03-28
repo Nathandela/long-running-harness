@@ -1,1 +1,4 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] Left-edge note resize still lets the note’s right edge drift when you drag past the original end** ([use-piano-roll-interactions.ts:303](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.ts:303), [use-piano-roll-interactions.ts:304](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.ts:304), [use-piano-roll-interactions.test.ts:447](/Users/Nathan/Documents/Code/long-running-harness/src/ui/piano-roll/use-piano-roll-interactions.test.ts:447))  
+  The new left-edge path computes a new start time first and then clamps duration independently. Once the drag passes the original note end, duration pins at `0.01` but `newStartTime` keeps increasing, so the note’s end stops staying fixed and the interaction effectively turns into a move. Clamp the left edge against `origStartTime + origDuration - minDuration` or derive duration from a fixed original end, and add a regression test for dragging the left edge past the original right edge.

@@ -1,14 +1,19 @@
-All 60 tests pass across 5 test files. FIXES_APPLIED
+All pre-commit hooks (lint, format, tsc) pass. Committed successfully.
 
-**Summary of fixes:**
+FIXES_APPLIED
 
-| # | Sev | Fix | File |
-|---|-----|-----|------|
-| 1 | P1 | `disconnectFromMixer` now disconnects from specific strip via `output.disconnect(strip.inputGain)` | drum-kit.ts:146 |
-| 2 | P1 | `activeOH` cleared in "ended" callback when OH decays naturally | drum-kit.ts:83-86 |
-| 3 | P1 | `peakGain` clamped to `Math.max(0.001, ...)` preventing `exponentialRampToValueAtTime` crash on zero volume | drum-kit.ts:65 |
-| 4 | P2 | Velocity clamped to `Math.min(1, velocity)` at engine boundary | drum-kit.ts:65 |
-| 5 | P2 | Dead `onSetFlam` prop removed from `DrumMachinePanelProps` | DrumMachinePanel.tsx |
-| 6 | P2 | Knob min/max derived from `PARAM_RANGES` instead of hardcoded literals | DrumMachinePanel.tsx:142-182 |
-| 7 | P2 | `completedSteals.length` truncation replaced with `{data, count}` `StealResult` pair to preserve pre-allocated array | voice-allocator.ts |
-| 8 | P3 | OH flam voice tracked in `activeOHFlam` so CH properly chokes both primary and flam tails | drum-kit.ts |
+**Summary of all fixes:**
+
+| Severity | Issue | Fix |
+|----------|-------|-----|
+| **P1** | Left-edge resize broken (stretched rightward) | Added `edge` field to drag state; left-edge now moves `startTime` and shrinks `duration` inversely; batch undo command for left-edge |
+| **P1** | Draw-note redo loses dragged duration | Push `ResizeNoteCommand` on `pointerUp` when duration differs from initial grid-step |
+| **P2** | `MoveNoteCommand` sentinel 0 corrupts undo at origin | Changed sentinel from `0` to `undefined` |
+| **P2** | `ResizeNoteCommand` same sentinel issue | Changed sentinel from `0` to `undefined` |
+| **P2** | `handleWheel` `preventDefault()` no-op on passive listener | Replaced React `onWheel` with `useEffect` + `addEventListener({ passive: false })` |
+| **P2** | `scrollY` unbounded | Clamped to `[PR_MIN_NOTE, PR_MAX_NOTE]` (0-127) |
+| **P2** | Canvas blank on resize while stopped | `ResizeObserver` callback now calls `render()` after resizing |
+| **P2** | `registry` useMemo recreated every render | Depends on stable `deleteSelectedNotes` instead of `interactions` object |
+| **P3** | `pitchToY` unused params | Removed `_height` and `_velocityLaneHeight`; updated all callers |
+
+985/985 tests pass. TypeScript, ESLint, Prettier all clean.

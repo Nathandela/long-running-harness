@@ -19,12 +19,12 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-0jm ● P1 task E9.5: Synth state store and instrument track type
-✓ long-running-harness-5ys ● P1 task E9.3: AudioWorklet synth processor
-✓ long-running-harness-6ac ● P1 task E9.2: Voice allocator (16-voice pool, oldest-steal, legato)
-✓ long-running-harness-7nk ● P1 task E9.4: SynthInstrument main-thread controller
-✓ long-running-harness-adf ● P1 task E9.6: Virtual keyboard and synth editor UI
-✓ long-running-harness-oef ● P1 task E9.1: Core DSP functions (PolyBLEP, ADSR, biquad, LFO)
+✓ long-running-harness-3ag ● P1 task E11-T3: Piano roll interactions, hit testing, and quantization
+✓ long-running-harness-gsm ● P1 task E11-T4: MIDI input validation and Web MIDI API integration
+✓ long-running-harness-gv4 ● P1 task Review: E11 Piano Roll & MIDI Editor
+✓ long-running-harness-jr8 ● P1 task E11-T2: Piano roll canvas renderer
+✓ long-running-harness-utg ● P1 task E11-T5: PianoRollEditor panel component and keyboard shortcuts
+✓ long-running-harness-yiu ● P1 task Compound: E11 Piano Roll & MIDI Editor
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,11 +32,14 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-426f9d1 Fix review findings: test contracts, session hydration, filter perf
-9e28e55 Fix synth review findings: xorshift range, steal cancel, hot-path perf
-67b4f13 chore: auto-commit uncommitted changes from long-running-harness-13h
-62eaae8 Fix synth review findings: voice stealing, zero-allocation, idle check
-ff78c01 E9: Add synthesizer engine - PolyBLEP oscillators, voice allocator, AudioWorklet processor, UI
+0a0f0b3 Fix left-edge resize: pin right edge when dragging past note end
+b7c4f09 Fix review findings: left-edge resize, draw-note redo, sentinel bugs
+79032c4 chore: auto-commit uncommitted changes from long-running-harness-nl5
+c51ecd9 Fix review findings: undo corruption, store clamping, recorder bugs
+9a349c7 E11-T5: Add PianoRollEditor component with interactions and shortcuts
+c307815 E11-T3: Add piano roll hit testing, interactions, and quantization
+2a4d8b3 E11-T2/T4: Add piano roll renderer and MIDI input validation
+76f6899 E11-T1: Add MIDI note data model, store extensions, and undo commands
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

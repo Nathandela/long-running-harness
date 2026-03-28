@@ -1,0 +1,2425 @@
+diff --git a/src/audio/midi/index.ts b/src/audio/midi/index.ts
+new file mode 100644
+index 0000000..9b998f1
+--- /dev/null
++++ b/src/audio/midi/index.ts
+@@ -0,0 +1,22 @@
++export {
++  validateMidiMessage,
++  validateSysEx,
++  clampMidi7Bit,
++  clampMidi14Bit,
++} from "./midi-input-validator";
++export type {
++  ValidatedNoteOn,
++  ValidatedNoteOff,
++  ValidatedCC,
++  ValidatedPitchBend,
++  ValidatedMidiMessage,
++  MidiValidationResult,
++} from "./midi-input-validator";
++export { createMidiDeviceManager } from "./midi-device-manager";
++export type {
++  MidiDeviceInfo,
++  MidiDeviceCallback,
++  MidiDeviceManager,
++} from "./midi-device-manager";
++export { createMidiRecorder } from "./midi-recorder";
++export type { MidiRecorderState, MidiRecorder } from "./midi-recorder";
+diff --git a/src/audio/midi/midi-device-manager.ts b/src/audio/midi/midi-device-manager.ts
+new file mode 100644
+index 0000000..bd24add
+--- /dev/null
++++ b/src/audio/midi/midi-device-manager.ts
+@@ -0,0 +1,123 @@
++/**
++ * Web MIDI API device manager.
++ * R-OPT-01: Accept MIDI note and CC messages from connected input devices.
++ */
++
++import {
++  validateMidiMessage,
++  type ValidatedMidiMessage,
++} from "./midi-input-validator";
++
++export type MidiDeviceInfo = {
++  readonly id: string;
++  readonly name: string;
++  readonly manufacturer: string;
++  readonly state: "connected" | "disconnected";
++};
++
++export type MidiDeviceCallback = (message: ValidatedMidiMessage) => void;
++
++export type MidiDeviceManager = {
++  initialize(): Promise<boolean>;
++  getInputDevices(): readonly MidiDeviceInfo[];
++  onMessage(callback: MidiDeviceCallback): () => void;
++  connectDevice(deviceId: string): boolean;
++  disconnect(): void;
++  dispose(): void;
++};
++
++export function createMidiDeviceManager(): MidiDeviceManager {
++  let midiAccess: MIDIAccess | null = null;
++  let connectedInput: MIDIInput | null = null;
++  const listeners = new Set<MidiDeviceCallback>();
++
++  function handleMidiMessage(event: MIDIMessageEvent): void {
++    if (!event.data) return;
++    const result = validateMidiMessage(event.data);
++    if (!result.valid) return;
++    for (const cb of listeners) {
++      cb(result.message);
++    }
++  }
++
++  function handleStateChange(): void {
++    // Re-check connection state; if connected device is disconnected, clean up
++    if (connectedInput && connectedInput.state === "disconnected") {
++      connectedInput.onmidimessage = null;
++      connectedInput = null;
++    }
++  }
++
++  return {
++    async initialize(): Promise<boolean> {
++      if (
++        typeof navigator === "undefined" ||
++        !("requestMIDIAccess" in navigator)
++      ) {
++        return false;
++      }
++      try {
++        midiAccess = await navigator.requestMIDIAccess();
++        midiAccess.onstatechange = handleStateChange;
++        return true;
++      } catch {
++        return false;
++      }
++    },
++
++    getInputDevices(): readonly MidiDeviceInfo[] {
++      if (!midiAccess) return [];
++      const devices: MidiDeviceInfo[] = [];
++      for (const input of midiAccess.inputs.values()) {
++        devices.push({
++          id: input.id,
++          name: input.name ?? "Unknown",
++          manufacturer: input.manufacturer ?? "Unknown",
++          state: input.state,
++        });
++      }
++      return devices;
++    },
++
++    onMessage(callback: MidiDeviceCallback): () => void {
++      listeners.add(callback);
++      return () => {
++        listeners.delete(callback);
++      };
++    },
++
++    connectDevice(deviceId: string): boolean {
++      if (!midiAccess) return false;
++      const input = midiAccess.inputs.get(deviceId);
++      if (!input) return false;
++
++      // Disconnect previous
++      if (connectedInput) {
++        connectedInput.onmidimessage = null;
++      }
++
++      connectedInput = input;
++      connectedInput.onmidimessage = handleMidiMessage;
++      return true;
++    },
++
++    disconnect(): void {
++      if (connectedInput) {
++        connectedInput.onmidimessage = null;
++        connectedInput = null;
++      }
++    },
++
++    dispose(): void {
++      if (connectedInput) {
++        connectedInput.onmidimessage = null;
++        connectedInput = null;
++      }
++      listeners.clear();
++      if (midiAccess) {
++        midiAccess.onstatechange = null;
++        midiAccess = null;
++      }
++    },
++  };
++}
+diff --git a/src/audio/midi/midi-input-validator.ts b/src/audio/midi/midi-input-validator.ts
+new file mode 100644
+index 0000000..5ea1cc6
+--- /dev/null
++++ b/src/audio/midi/midi-input-validator.ts
+@@ -0,0 +1,172 @@
++/**
++ * MIDI input validation and clamping.
++ * NFR-16: All MIDI input values clamped to valid ranges.
++ * All external input treated as untrusted.
++ */
++
++// -- Validated message types --
++
++export type ValidatedNoteOn = {
++  readonly type: "note-on";
++  readonly note: number; // 0-127
++  readonly velocity: number; // 1-127 (0 is note-off)
++  readonly channel: number; // 0-15
++};
++
++export type ValidatedNoteOff = {
++  readonly type: "note-off";
++  readonly note: number; // 0-127
++  readonly channel: number; // 0-15
++};
++
++export type ValidatedCC = {
++  readonly type: "cc";
++  readonly controller: number; // 0-127
++  readonly value: number; // 0-127
++  readonly channel: number; // 0-15
++};
++
++export type ValidatedPitchBend = {
++  readonly type: "pitch-bend";
++  readonly value: number; // 0-16383
++  readonly channel: number; // 0-15
++};
++
++export type ValidatedMidiMessage =
++  | ValidatedNoteOn
++  | ValidatedNoteOff
++  | ValidatedCC
++  | ValidatedPitchBend;
++
++export type MidiValidationResult =
++  | { readonly valid: true; readonly message: ValidatedMidiMessage }
++  | { readonly valid: false; readonly reason: string };
++
++// -- Constants --
++
++const SYSEX_MAX_BYTES = 1024; // 1 KB
++const SYSEX_START = 0xf0;
++const SYSEX_END = 0xf7;
++
++// Status byte high nibble ranges
++const NOTE_OFF_MIN = 0x80;
++const NOTE_OFF_MAX = 0x8f;
++const NOTE_ON_MIN = 0x90;
++const NOTE_ON_MAX = 0x9f;
++const CC_MIN = 0xb0;
++const CC_MAX = 0xbf;
++const PITCH_BEND_MIN = 0xe0;
++const PITCH_BEND_MAX = 0xef;
++
++// -- Clamp functions --
++
++/** Clamp a value to 7-bit MIDI range (0-127). */
++export function clampMidi7Bit(value: number): number {
++  return Math.min(127, Math.max(0, Math.floor(value)));
++}
++
++/** Clamp a value to 14-bit MIDI range (0-16383). */
++export function clampMidi14Bit(value: number): number {
++  return Math.min(16383, Math.max(0, Math.floor(value)));
++}
++
++// -- Validation --
++
++/** Safe byte read -- returns 0 for out-of-bounds indices. */
++function byte(data: Uint8Array, index: number): number {
++  return data[index] ?? 0;
++}
++
++/** Validate raw MIDI bytes (Uint8Array) from Web MIDI API. */
++export function validateMidiMessage(data: Uint8Array): MidiValidationResult {
++  if (data.length === 0) {
++    return { valid: false, reason: "Empty MIDI message" };
++  }
++
++  const status = byte(data, 0);
++  const channel = status & 0x0f;
++
++  if (status >= NOTE_OFF_MIN && status <= NOTE_OFF_MAX) {
++    if (data.length < 3)
++      return { valid: false, reason: "Note Off requires 3 bytes" };
++    return {
++      valid: true,
++      message: {
++        type: "note-off",
++        note: clampMidi7Bit(byte(data, 1)),
++        channel,
++      },
++    };
++  }
++
++  if (status >= NOTE_ON_MIN && status <= NOTE_ON_MAX) {
++    if (data.length < 3)
++      return { valid: false, reason: "Note On requires 3 bytes" };
++    const note = clampMidi7Bit(byte(data, 1));
++    const velocity = clampMidi7Bit(byte(data, 2));
++    // Note-on with velocity 0 is conventionally note-off
++    if (velocity === 0) {
++      return { valid: true, message: { type: "note-off", note, channel } };
++    }
++    return {
++      valid: true,
++      message: { type: "note-on", note, velocity, channel },
++    };
++  }
++
++  if (status >= CC_MIN && status <= CC_MAX) {
++    if (data.length < 3) return { valid: false, reason: "CC requires 3 bytes" };
++    return {
++      valid: true,
++      message: {
++        type: "cc",
++        controller: clampMidi7Bit(byte(data, 1)),
++        value: clampMidi7Bit(byte(data, 2)),
++        channel,
++      },
++    };
++  }
++
++  if (status >= PITCH_BEND_MIN && status <= PITCH_BEND_MAX) {
++    if (data.length < 3)
++      return { valid: false, reason: "Pitch Bend requires 3 bytes" };
++    const lsb = clampMidi7Bit(byte(data, 1));
++    const msb = clampMidi7Bit(byte(data, 2));
++    return {
++      valid: true,
++      message: {
++        type: "pitch-bend",
++        value: clampMidi14Bit(msb * 128 + lsb),
++        channel,
++      },
++    };
++  }
++
++  return {
++    valid: false,
++    reason: `Unsupported MIDI status byte: 0x${status.toString(16)}`,
++  };
++}
++
++/** Validate SysEx message size (max 1KB) and framing. */
++export function validateSysEx(data: Uint8Array): {
++  valid: boolean;
++  reason?: string;
++} {
++  if (data.length === 0) {
++    return { valid: false, reason: "Empty SysEx message" };
++  }
++  if (byte(data, 0) !== SYSEX_START) {
++    return { valid: false, reason: "SysEx must start with 0xF0" };
++  }
++  if (byte(data, data.length - 1) !== SYSEX_END) {
++    return { valid: false, reason: "SysEx must end with 0xF7" };
++  }
++  if (data.length > SYSEX_MAX_BYTES) {
++    return {
++      valid: false,
++      reason: `SysEx exceeds max size: ${String(data.length)} > ${String(SYSEX_MAX_BYTES)} bytes`,
++    };
++  }
++  return { valid: true };
++}
+diff --git a/src/audio/midi/midi-recorder.ts b/src/audio/midi/midi-recorder.ts
+new file mode 100644
+index 0000000..6399d2b
+--- /dev/null
++++ b/src/audio/midi/midi-recorder.ts
+@@ -0,0 +1,126 @@
++/**
++ * Live MIDI recording -- captures validated MIDI messages into MIDINoteEvents.
++ * Uses an open-note map to pair note-on/note-off events.
++ */
++
++import type { MIDINoteEvent } from "@state/track/types";
++import type { ValidatedMidiMessage } from "./midi-input-validator";
++
++export type MidiRecorderState = "idle" | "armed" | "recording";
++
++export type MidiRecorder = {
++  readonly state: MidiRecorderState;
++  arm(): void;
++  startRecording(transportTimeSeconds: number): void;
++  recordMessage(
++    message: ValidatedMidiMessage,
++    transportTimeSeconds: number,
++  ): void;
++  stopRecording(): readonly MIDINoteEvent[];
++  disarm(): void;
++};
++
++type OpenNote = {
++  readonly id: string;
++  readonly pitch: number;
++  readonly velocity: number;
++  readonly startTime: number; // relative to recording start
++  readonly startAbsolute: number; // absolute transport time
++};
++
++let nextNoteId = 0;
++function generateNoteId(): string {
++  return `rec-${String(Date.now())}-${String(nextNoteId++)}`;
++}
++
++export function createMidiRecorder(): MidiRecorder {
++  let currentState: MidiRecorderState = "idle";
++  let recordingStartTime = 0;
++  let lastMessageTime = 0;
++  const openNotes = new Map<number, OpenNote>(); // keyed by channel * 128 + note
++  const completedNotes: MIDINoteEvent[] = [];
++
++  function reset(): void {
++    openNotes.clear();
++    completedNotes.length = 0;
++    recordingStartTime = 0;
++    lastMessageTime = 0;
++  }
++
++  return {
++    get state(): MidiRecorderState {
++      return currentState;
++    },
++
++    arm(): void {
++      currentState = "armed";
++    },
++
++    startRecording(transportTimeSeconds: number): void {
++      if (currentState !== "armed") return;
++      reset();
++      currentState = "recording";
++      recordingStartTime = transportTimeSeconds;
++      lastMessageTime = transportTimeSeconds;
++    },
++
++    recordMessage(
++      message: ValidatedMidiMessage,
++      transportTimeSeconds: number,
++    ): void {
++      if (currentState !== "recording") return;
++      lastMessageTime = transportTimeSeconds;
++
++      if (message.type === "note-on") {
++        const key = message.channel * 128 + message.note;
++        openNotes.set(key, {
++          id: generateNoteId(),
++          pitch: message.note,
++          velocity: message.velocity,
++          startTime: transportTimeSeconds - recordingStartTime,
++          startAbsolute: transportTimeSeconds,
++        });
++      } else if (message.type === "note-off") {
++        const key = message.channel * 128 + message.note;
++        const open = openNotes.get(key);
++        if (open) {
++          completedNotes.push({
++            id: open.id,
++            pitch: open.pitch,
++            velocity: open.velocity,
++            startTime: open.startTime,
++            duration: Math.max(0.01, transportTimeSeconds - open.startAbsolute),
++          });
++          openNotes.delete(key);
++        }
++      }
++      // CC and pitch-bend are ignored for note recording
++    },
++
++    stopRecording(): readonly MIDINoteEvent[] {
++      if (currentState !== "recording") return [];
++
++      // Close any open notes at the last known message time
++      for (const open of openNotes.values()) {
++        completedNotes.push({
++          id: open.id,
++          pitch: open.pitch,
++          velocity: open.velocity,
++          startTime: open.startTime,
++          duration: Math.max(0.01, lastMessageTime - open.startAbsolute),
++        });
++      }
++      openNotes.clear();
++
++      const result = [...completedNotes];
++      completedNotes.length = 0;
++      currentState = "idle";
++      return result;
++    },
++
++    disarm(): void {
++      currentState = "idle";
++      reset();
++    },
++  };
++}
+diff --git a/src/audio/mixer/clip-scheduler.ts b/src/audio/mixer/clip-scheduler.ts
+index 6a927fc..9349a10 100644
+--- a/src/audio/mixer/clip-scheduler.ts
++++ b/src/audio/mixer/clip-scheduler.ts
+@@ -8,7 +8,7 @@
+  *   audioContextTime = arrangementTime + timeOffset
+  */
+ 
+-import type { ClipModel } from "@state/track/types";
++import type { AudioClipModel } from "@state/track/types";
+ 
+ type ScheduledClip = {
+   source: AudioBufferSourceNode;
+@@ -30,7 +30,7 @@ export type ClipScheduler = {
+    * @param destination - Node to connect scheduled clips to
+    */
+   scheduleClips(
+-    clips: readonly ClipModel[],
++    clips: readonly AudioClipModel[],
+     windowStart: number,
+     windowEnd: number,
+     timeOffset: number,
+@@ -50,7 +50,7 @@ export function createClipScheduler(ctx: AudioContext): ClipScheduler {
+ 
+   return {
+     scheduleClips(
+-      clips: readonly ClipModel[],
++      clips: readonly AudioClipModel[],
+       windowStart: number,
+       windowEnd: number,
+       timeOffset: number,
+diff --git a/src/state/store.ts b/src/state/store.ts
+index 8440b95..e95e2bf 100644
+--- a/src/state/store.ts
++++ b/src/state/store.ts
+@@ -1,5 +1,11 @@
+ import { create } from "zustand";
+-import type { TrackModel, ClipModel } from "./track/types";
++import type {
++  TrackModel,
++  ClipModel,
++  MidiClipModel,
++  MIDINoteEvent,
++} from "./track/types";
++import { isAudioClip, isMidiClip } from "./track/types";
+ 
+ export type TransportState = "stopped" | "playing" | "paused";
+ 
+@@ -29,6 +35,7 @@ export type DawStore = {
+   clips: Record<string, ClipModel>;
+   selectedTrackIds: readonly string[];
+   selectedClipIds: readonly string[];
++  selectedNoteIds: readonly string[];
+ 
+   // Transport actions
+   play: () => void;
+@@ -62,9 +69,32 @@ export type DawStore = {
+   trimClip: (id: string, newStart?: number, newEnd?: number) => void;
+   duplicateClip: (id: string, providedId?: string) => string | undefined;
+ 
++  // MIDI clip actions
++  addMidiClip: (clip: MidiClipModel) => void;
++  removeMidiClip: (id: string) => void;
++  addNoteEvent: (clipId: string, note: MIDINoteEvent) => void;
++  removeNoteEvent: (clipId: string, noteId: string) => void;
++  moveNoteEvent: (
++    clipId: string,
++    noteId: string,
++    newStartTime: number,
++    newPitch: number,
++  ) => void;
++  resizeNoteEvent: (
++    clipId: string,
++    noteId: string,
++    newDuration: number,
++  ) => void;
++  updateNoteVelocity: (
++    clipId: string,
++    noteId: string,
++    velocity: number,
++  ) => void;
++
+   // Selection actions
+   setSelectedTrackIds: (ids: readonly string[]) => void;
+   setSelectedClipIds: (ids: readonly string[]) => void;
++  setSelectedNoteIds: (ids: readonly string[]) => void;
+ 
+   // Query
+   queryClipsAtTime: (time: number) => readonly ClipModel[];
+@@ -94,6 +124,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
+   clips: {},
+   selectedTrackIds: [],
+   selectedClipIds: [],
++  selectedNoteIds: [],
+ 
+   // Transport actions
+   play: () => {
+@@ -240,6 +271,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
+     const state = get();
+     const clip = state.clips[id];
+     if (!clip) return undefined;
++    if (!isAudioClip(clip)) return undefined;
+ 
+     const clipEnd = clip.startTime + clip.duration;
+     if (atTime <= clip.startTime || atTime >= clipEnd) return undefined;
+@@ -274,6 +306,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
+     set((state) => {
+       const clip = state.clips[id];
+       if (!clip) return state;
++      if (!isAudioClip(clip)) return state;
+ 
+       let { startTime, sourceOffset, duration } = clip;
+       const clipEnd = startTime + duration;
+@@ -324,6 +357,117 @@ export const useDawStore = create<DawStore>()((set, get) => ({
+     return newId;
+   },
+ 
++  // MIDI clip actions
++  addMidiClip: (clip: MidiClipModel) => {
++    set((state) => {
++      const nextClips = { ...state.clips, [clip.id]: clip };
++      const tracks = state.tracks.map((t) =>
++        t.id === clip.trackId ? { ...t, clipIds: [...t.clipIds, clip.id] } : t,
++      );
++      return { clips: nextClips, tracks };
++    });
++  },
++
++  removeMidiClip: (id: string) => {
++    set((state) => {
++      const clip = state.clips[id];
++      if (!clip) return state;
++      const nextClips = Object.fromEntries(
++        Object.entries(state.clips).filter(([k]) => k !== id),
++      );
++      const tracks = state.tracks.map((t) =>
++        t.id === clip.trackId
++          ? { ...t, clipIds: t.clipIds.filter((cid) => cid !== id) }
++          : t,
++      );
++      return { clips: nextClips, tracks };
++    });
++  },
++
++  addNoteEvent: (clipId: string, note: MIDINoteEvent) => {
++    set((state) => {
++      const clip = state.clips[clipId];
++      if (!clip || !isMidiClip(clip)) return state;
++      const clamped: MIDINoteEvent = {
++        ...note,
++        pitch: Math.max(0, Math.min(127, Math.round(note.pitch))),
++        velocity: Math.max(0, Math.min(127, Math.round(note.velocity))),
++        startTime: Math.max(0, note.startTime),
++        duration: Math.max(0.01, note.duration),
++      };
++      const updated: MidiClipModel = {
++        ...clip,
++        noteEvents: [...clip.noteEvents, clamped],
++      };
++      return { clips: { ...state.clips, [clipId]: updated } };
++    });
++  },
++
++  removeNoteEvent: (clipId: string, noteId: string) => {
++    set((state) => {
++      const clip = state.clips[clipId];
++      if (!clip || !isMidiClip(clip)) return state;
++      const updated: MidiClipModel = {
++        ...clip,
++        noteEvents: clip.noteEvents.filter((n) => n.id !== noteId),
++      };
++      return { clips: { ...state.clips, [clipId]: updated } };
++    });
++  },
++
++  moveNoteEvent: (
++    clipId: string,
++    noteId: string,
++    newStartTime: number,
++    newPitch: number,
++  ) => {
++    set((state) => {
++      const clip = state.clips[clipId];
++      if (!clip || !isMidiClip(clip)) return state;
++      const clampedPitch = Math.max(0, Math.min(127, Math.round(newPitch)));
++      const clampedStartTime = Math.max(0, newStartTime);
++      const updated: MidiClipModel = {
++        ...clip,
++        noteEvents: clip.noteEvents.map((n) =>
++          n.id === noteId
++            ? { ...n, startTime: clampedStartTime, pitch: clampedPitch }
++            : n,
++        ),
++      };
++      return { clips: { ...state.clips, [clipId]: updated } };
++    });
++  },
++
++  resizeNoteEvent: (clipId: string, noteId: string, newDuration: number) => {
++    set((state) => {
++      const clip = state.clips[clipId];
++      if (!clip || !isMidiClip(clip)) return state;
++      const clampedDuration = Math.max(0.01, newDuration);
++      const updated: MidiClipModel = {
++        ...clip,
++        noteEvents: clip.noteEvents.map((n) =>
++          n.id === noteId ? { ...n, duration: clampedDuration } : n,
++        ),
++      };
++      return { clips: { ...state.clips, [clipId]: updated } };
++    });
++  },
++
++  updateNoteVelocity: (clipId: string, noteId: string, velocity: number) => {
++    set((state) => {
++      const clip = state.clips[clipId];
++      if (!clip || !isMidiClip(clip)) return state;
++      const clampedVelocity = Math.max(0, Math.min(127, Math.round(velocity)));
++      const updated: MidiClipModel = {
++        ...clip,
++        noteEvents: clip.noteEvents.map((n) =>
++          n.id === noteId ? { ...n, velocity: clampedVelocity } : n,
++        ),
++      };
++      return { clips: { ...state.clips, [clipId]: updated } };
++    });
++  },
++
+   // Selection
+   setSelectedTrackIds: (ids: readonly string[]) => {
+     set({ selectedTrackIds: ids });
+@@ -331,6 +475,9 @@ export const useDawStore = create<DawStore>()((set, get) => ({
+   setSelectedClipIds: (ids: readonly string[]) => {
+     set({ selectedClipIds: ids });
+   },
++  setSelectedNoteIds: (ids: readonly string[]) => {
++    set({ selectedNoteIds: ids });
++  },
+ 
+   // Query
+   queryClipsAtTime: (time: number): readonly ClipModel[] => {
+diff --git a/src/state/track/index.ts b/src/state/track/index.ts
+index eb7b245..a6f6e81 100644
+--- a/src/state/track/index.ts
++++ b/src/state/track/index.ts
+@@ -1,5 +1,19 @@
+-export type { TrackType, TrackModel, ClipModel } from "./types";
+-export { trackSchema, clipSchema } from "./track-schema";
++export type {
++  TrackType,
++  TrackModel,
++  ClipModel,
++  AudioClipModel,
++  MidiClipModel,
++  MIDINoteEvent,
++} from "./types";
++export { isAudioClip, isMidiClip } from "./types";
++export {
++  trackSchema,
++  clipSchema,
++  noteEventSchema,
++  midiClipSchema,
++  audioClipSchema,
++} from "./track-schema";
+ export type { TrackSchema, ClipSchema } from "./track-schema";
+ export {
+   AddTrackCommand,
+@@ -13,3 +27,10 @@ export {
+   TrimClipCommand,
+   DuplicateClipCommand,
+ } from "./track-commands";
++export {
++  AddNoteCommand,
++  RemoveNoteCommand,
++  MoveNoteCommand,
++  ResizeNoteCommand,
++  BatchNoteCommand,
++} from "./midi-commands";
+diff --git a/src/state/track/midi-commands.ts b/src/state/track/midi-commands.ts
+new file mode 100644
+index 0000000..6f4d39f
+--- /dev/null
++++ b/src/state/track/midi-commands.ts
+@@ -0,0 +1,174 @@
++import type { UndoCommand } from "@state/undo/undo-command";
++import { useDawStore } from "@state/store";
++import type { MIDINoteEvent } from "@state/track/types";
++import { isMidiClip } from "@state/track/types";
++
++function getStore(): ReturnType<typeof useDawStore.getState> {
++  return useDawStore.getState();
++}
++
++export class AddNoteCommand implements UndoCommand {
++  readonly type = "add-note";
++
++  constructor(
++    private readonly clipId: string,
++    private readonly note: MIDINoteEvent,
++  ) {}
++
++  execute(): void {
++    getStore().addNoteEvent(this.clipId, this.note);
++  }
++
++  undo(): void {
++    getStore().removeNoteEvent(this.clipId, this.note.id);
++  }
++
++  serialize(): Record<string, unknown> {
++    return { clipId: this.clipId, note: this.note };
++  }
++}
++
++export class RemoveNoteCommand implements UndoCommand {
++  readonly type = "remove-note";
++
++  private savedNote: MIDINoteEvent | undefined;
++
++  constructor(
++    private readonly clipId: string,
++    private readonly noteId: string,
++  ) {}
++
++  execute(): void {
++    const clip = getStore().clips[this.clipId];
++    if (clip && isMidiClip(clip)) {
++      this.savedNote = clip.noteEvents.find((n) => n.id === this.noteId);
++    }
++    getStore().removeNoteEvent(this.clipId, this.noteId);
++  }
++
++  undo(): void {
++    if (this.savedNote) getStore().addNoteEvent(this.clipId, this.savedNote);
++  }
++
++  serialize(): Record<string, unknown> {
++    return { clipId: this.clipId, noteId: this.noteId };
++  }
++}
++
++export class MoveNoteCommand implements UndoCommand {
++  readonly type = "move-note";
++
++  private oldStartTime: number;
++  private oldPitch: number;
++
++  constructor(
++    private readonly clipId: string,
++    private readonly noteId: string,
++    private readonly newStartTime: number,
++    private readonly newPitch: number,
++    oldStartTime?: number,
++    oldPitch?: number,
++  ) {
++    this.oldStartTime = oldStartTime ?? 0;
++    this.oldPitch = oldPitch ?? 0;
++  }
++
++  execute(): void {
++    const clip = getStore().clips[this.clipId];
++    if (clip && isMidiClip(clip)) {
++      const note = clip.noteEvents.find((n) => n.id === this.noteId);
++      if (note && this.oldStartTime === 0 && this.oldPitch === 0) {
++        this.oldStartTime = note.startTime;
++        this.oldPitch = note.pitch;
++      }
++    }
++    getStore().moveNoteEvent(
++      this.clipId,
++      this.noteId,
++      this.newStartTime,
++      this.newPitch,
++    );
++  }
++
++  undo(): void {
++    getStore().moveNoteEvent(
++      this.clipId,
++      this.noteId,
++      this.oldStartTime,
++      this.oldPitch,
++    );
++  }
++
++  serialize(): Record<string, unknown> {
++    return {
++      clipId: this.clipId,
++      noteId: this.noteId,
++      newStartTime: this.newStartTime,
++      newPitch: this.newPitch,
++      oldStartTime: this.oldStartTime,
++      oldPitch: this.oldPitch,
++    };
++  }
++}
++
++export class ResizeNoteCommand implements UndoCommand {
++  readonly type = "resize-note";
++
++  private oldDuration: number;
++
++  constructor(
++    private readonly clipId: string,
++    private readonly noteId: string,
++    private readonly newDuration: number,
++    oldDuration?: number,
++  ) {
++    this.oldDuration = oldDuration ?? 0;
++  }
++
++  execute(): void {
++    const clip = getStore().clips[this.clipId];
++    if (clip && isMidiClip(clip)) {
++      const note = clip.noteEvents.find((n) => n.id === this.noteId);
++      if (note && this.oldDuration === 0) {
++        this.oldDuration = note.duration;
++      }
++    }
++    getStore().resizeNoteEvent(this.clipId, this.noteId, this.newDuration);
++  }
++
++  undo(): void {
++    getStore().resizeNoteEvent(this.clipId, this.noteId, this.oldDuration);
++  }
++
++  serialize(): Record<string, unknown> {
++    return {
++      clipId: this.clipId,
++      noteId: this.noteId,
++      newDuration: this.newDuration,
++      oldDuration: this.oldDuration,
++    };
++  }
++}
++
++export class BatchNoteCommand implements UndoCommand {
++  readonly type = "batch-note";
++
++  constructor(private readonly commands: UndoCommand[]) {}
++
++  execute(): void {
++    for (const cmd of this.commands) cmd.execute();
++  }
++
++  undo(): void {
++    for (let i = this.commands.length - 1; i >= 0; i--) {
++      const cmd = this.commands[i];
++      if (cmd) cmd.undo();
++    }
++  }
++
++  serialize(): Record<string, unknown> {
++    return {
++      commands: this.commands.map((c) => ({ type: c.type, ...c.serialize() })),
++    };
++  }
++}
+diff --git a/src/state/track/track-schema.ts b/src/state/track/track-schema.ts
+index 1d77a0d..d0039cb 100644
+--- a/src/state/track/track-schema.ts
++++ b/src/state/track/track-schema.ts
+@@ -1,6 +1,15 @@
+ import { z } from "zod/v4";
+ 
+-export const clipSchema = z.object({
++export const noteEventSchema = z.object({
++  id: z.string(),
++  pitch: z.number().int().min(0).max(127),
++  velocity: z.number().int().min(0).max(127),
++  startTime: z.number().min(0),
++  duration: z.number().gt(0),
++});
++
++export const audioClipSchema = z.object({
++  type: z.literal("audio"),
+   id: z.string(),
+   trackId: z.string(),
+   sourceId: z.string(),
+@@ -13,6 +22,21 @@ export const clipSchema = z.object({
+   name: z.string(),
+ });
+ 
++export const midiClipSchema = z.object({
++  type: z.literal("midi"),
++  id: z.string(),
++  trackId: z.string(),
++  startTime: z.number().min(0),
++  duration: z.number().min(0),
++  noteEvents: z.array(noteEventSchema),
++  name: z.string(),
++});
++
++export const clipSchema = z.discriminatedUnion("type", [
++  audioClipSchema,
++  midiClipSchema,
++]);
++
+ export type ClipSchema = z.infer<typeof clipSchema>;
+ 
+ export const trackSchema = z.object({
+diff --git a/src/state/track/types.ts b/src/state/track/types.ts
+index 5900674..d0facdb 100644
+--- a/src/state/track/types.ts
++++ b/src/state/track/types.ts
+@@ -1,25 +1,21 @@
+ /**
+  * Core types for the track system.
+- * Tracks contain clips; clips are non-destructive references to audio sources.
++ * Tracks contain clips; clips are non-destructive references to audio sources
++ * or containers for MIDI note events.
+  */
+ 
+ export type TrackType = "audio" | "instrument";
+ 
+-export type TrackModel = {
++export type MIDINoteEvent = {
+   readonly id: string;
+-  readonly name: string;
+-  readonly type: TrackType;
+-  readonly color: string;
+-  readonly muted: boolean;
+-  readonly solo: boolean;
+-  readonly armed: boolean;
+-  readonly soloIsolate: boolean;
+-  readonly volume: number; // 0..2
+-  readonly pan: number; // -1..1
+-  readonly clipIds: readonly string[];
++  readonly pitch: number; // 0-127
++  readonly velocity: number; // 0-127
++  readonly startTime: number; // seconds, relative to clip start
++  readonly duration: number; // seconds
+ };
+ 
+-export type ClipModel = {
++export type AudioClipModel = {
++  readonly type: "audio";
+   readonly id: string;
+   readonly trackId: string;
+   readonly sourceId: string;
+@@ -31,3 +27,37 @@ export type ClipModel = {
+   readonly fadeOut: number; // seconds
+   readonly name: string;
+ };
++
++export type MidiClipModel = {
++  readonly type: "midi";
++  readonly id: string;
++  readonly trackId: string;
++  readonly startTime: number; // seconds on timeline
++  readonly duration: number; // seconds
++  readonly noteEvents: readonly MIDINoteEvent[];
++  readonly name: string;
++};
++
++export type ClipModel = AudioClipModel | MidiClipModel;
++
++export function isAudioClip(clip: ClipModel): clip is AudioClipModel {
++  return clip.type === "audio";
++}
++
++export function isMidiClip(clip: ClipModel): clip is MidiClipModel {
++  return clip.type === "midi";
++}
++
++export type TrackModel = {
++  readonly id: string;
++  readonly name: string;
++  readonly type: TrackType;
++  readonly color: string;
++  readonly muted: boolean;
++  readonly solo: boolean;
++  readonly armed: boolean;
++  readonly soloIsolate: boolean;
++  readonly volume: number; // 0..2
++  readonly pan: number; // -1..1
++  readonly clipIds: readonly string[];
++};
+diff --git a/src/ui/arrangement/use-arrangement-interactions.ts b/src/ui/arrangement/use-arrangement-interactions.ts
+index 8465c25..2b675e6 100644
+--- a/src/ui/arrangement/use-arrangement-interactions.ts
++++ b/src/ui/arrangement/use-arrangement-interactions.ts
+@@ -6,6 +6,7 @@
+ import { useCallback, useRef, useState } from "react";
+ import { useDawStore } from "@state/store";
+ import type { ClipModel } from "@state/track/types";
++import { isAudioClip } from "@state/track/types";
+ import type { UndoCommand } from "@state/undo";
+ import { sharedUndoManager } from "@state/undo";
+ import { SplitClipCommand } from "@state/track/track-commands";
+@@ -114,7 +115,7 @@ export function useArrangementInteractions(
+             clipId: hit.clipId,
+             startX: x,
+             originalStart: clip.startTime,
+-            originalSourceOffset: clip.sourceOffset,
++            originalSourceOffset: isAudioClip(clip) ? clip.sourceOffset : 0,
+             originalDuration: clip.duration,
+             beforeClip: { ...clip },
+           };
+@@ -294,7 +295,9 @@ export function useArrangementInteractions(
+           (before.startTime !== afterClip.startTime ||
+             before.trackId !== afterClip.trackId ||
+             before.duration !== afterClip.duration ||
+-            before.sourceOffset !== afterClip.sourceOffset)
++            (isAudioClip(before) &&
++              isAudioClip(afterClip) &&
++              before.sourceOffset !== afterClip.sourceOffset))
+         ) {
+           const clipId = drag.clipId;
+           const cmd: UndoCommand =
+diff --git a/src/ui/piano-roll/PianoRollEditor.module.css b/src/ui/piano-roll/PianoRollEditor.module.css
+new file mode 100644
+index 0000000..f8a60b5
+--- /dev/null
++++ b/src/ui/piano-roll/PianoRollEditor.module.css
+@@ -0,0 +1,58 @@
++.container {
++  display: flex;
++  flex-direction: column;
++  flex: 1;
++  overflow: hidden;
++  border: var(--border);
++  background-color: var(--color-gray-900);
++  min-height: 200px;
++}
++
++.toolbar {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  padding: 4px 8px;
++  border-bottom: var(--border);
++  background-color: var(--color-black);
++  font-family: var(--font-mono);
++  font-size: var(--text-sm);
++  color: var(--color-white);
++  flex-shrink: 0;
++}
++
++.toolButton {
++  padding: 4px 8px;
++  border: var(--border);
++  background-color: var(--color-gray-900);
++  color: var(--color-white);
++  font-family: var(--font-mono);
++  font-size: var(--text-xs);
++  cursor: pointer;
++}
++
++.toolButton[data-active="true"] {
++  background-color: var(--color-blue);
++  color: var(--color-white);
++}
++
++.snapSelect {
++  padding: 2px 4px;
++  border: var(--border);
++  background-color: var(--color-gray-900);
++  color: var(--color-white);
++  font-family: var(--font-mono);
++  font-size: var(--text-xs);
++}
++
++.canvasWrapper {
++  flex: 1;
++  position: relative;
++  overflow: hidden;
++}
++
++.canvas {
++  display: block;
++  width: 100%;
++  height: 100%;
++}
+diff --git a/src/ui/piano-roll/PianoRollEditor.tsx b/src/ui/piano-roll/PianoRollEditor.tsx
+new file mode 100644
+index 0000000..fb251fa
+--- /dev/null
++++ b/src/ui/piano-roll/PianoRollEditor.tsx
+@@ -0,0 +1,295 @@
++import { useCallback, useEffect, useMemo, useRef, useState } from "react";
++import { useDawStore } from "@state/store";
++import { isMidiClip } from "@state/track/types";
++import { CommandRegistry } from "@ui/keyboard/command-registry";
++import { ShortcutMap } from "@ui/keyboard/shortcut-map";
++import { useKeyboardShortcuts } from "@ui/keyboard/useKeyboardShortcuts";
++import {
++  renderPianoRoll,
++  type PianoRollViewState,
++  type PianoRollTool,
++} from "./piano-roll-renderer";
++import type { PianoRollGridSnap } from "./piano-roll-hit-test";
++import { usePianoRollInteractions } from "./use-piano-roll-interactions";
++import {
++  PR_DEFAULT_NOTE_HEIGHT,
++  PR_KEYBOARD_WIDTH,
++  PR_DEFAULT_PPS,
++  PR_DEFAULT_SCROLL_Y,
++  PR_VELOCITY_LANE_HEIGHT,
++} from "./constants";
++import styles from "./PianoRollEditor.module.css";
++
++const DEFAULT_VIEW: PianoRollViewState = {
++  scrollX: 0,
++  scrollY: PR_DEFAULT_SCROLL_Y,
++  pixelsPerSecond: PR_DEFAULT_PPS,
++  noteHeight: PR_DEFAULT_NOTE_HEIGHT,
++  keyboardWidth: PR_KEYBOARD_WIDTH,
++};
++
++const MIN_PPS = 20;
++const MAX_PPS = 500;
++const ZOOM_FACTOR = 1.1;
++
++const SNAP_OPTIONS: readonly PianoRollGridSnap[] = [
++  "1/4",
++  "1/8",
++  "1/16",
++  "1/8T",
++  "1/16T",
++];
++
++type PianoRollEditorProps = {
++  clipId: string | null;
++  onNotePreview?: (note: number, velocity: number) => void;
++  onNotePreviewEnd?: (note: number) => void;
++};
++
++export function PianoRollEditor({
++  clipId,
++  onNotePreview: _onNotePreview,
++  onNotePreviewEnd: _onNotePreviewEnd,
++}: PianoRollEditorProps): React.JSX.Element {
++  const canvasRef = useRef<HTMLCanvasElement>(null);
++  const rafRef = useRef(0);
++  const [tool, setTool] = useState<PianoRollTool>("pencil");
++  const [gridSnap, setGridSnap] = useState<PianoRollGridSnap>("1/8");
++  const [view, setView] = useState(DEFAULT_VIEW);
++
++  const interactions = usePianoRollInteractions(clipId, view, tool, gridSnap);
++
++  // Store selectors
++  const clips = useDawStore((s) => s.clips);
++  const selectedNoteIds = useDawStore((s) => s.selectedNoteIds);
++  const cursorSeconds = useDawStore((s) => s.cursorSeconds);
++  const bpm = useDawStore((s) => s.bpm);
++  const transportState = useDawStore((s) => s.transportState);
++
++  // Derive clip data
++  const clip = clipId !== null ? clips[clipId] : undefined;
++  const notes = useMemo(
++    () => (clip !== undefined && isMidiClip(clip) ? clip.noteEvents : []),
++    [clip],
++  );
++  const clipStartTime = clip !== undefined ? clip.startTime : 0;
++  const clipDuration = clip !== undefined ? clip.duration : 4;
++
++  // Keyboard commands
++  const registry = useMemo(() => {
++    const reg = new CommandRegistry();
++    reg.register({
++      id: "piano-roll.tool.pencil",
++      label: "Pencil Tool",
++      execute() {
++        setTool("pencil");
++      },
++    });
++    reg.register({
++      id: "piano-roll.tool.select",
++      label: "Select Tool",
++      execute() {
++        setTool("select");
++      },
++    });
++    reg.register({
++      id: "piano-roll.tool.erase",
++      label: "Erase Tool",
++      execute() {
++        setTool("erase");
++      },
++    });
++    reg.register({
++      id: "piano-roll.delete-selected",
++      label: "Delete Selected Notes",
++      execute() {
++        interactions.deleteSelectedNotes();
++      },
++    });
++    return reg;
++  }, [interactions]);
++
++  const shortcuts = useMemo(() => {
++    const map = new ShortcutMap();
++    map.bind({ key: "p", commandId: "piano-roll.tool.pencil" });
++    map.bind({ key: "s", commandId: "piano-roll.tool.select" });
++    map.bind({ key: "e", commandId: "piano-roll.tool.erase" });
++    map.bind({ key: "Delete", commandId: "piano-roll.delete-selected" });
++    map.bind({ key: "Backspace", commandId: "piano-roll.delete-selected" });
++    return map;
++  }, []);
++
++  useKeyboardShortcuts(registry, shortcuts);
++
++  // Render loop
++  const render = useCallback((): void => {
++    const canvas = canvasRef.current;
++    if (canvas === null) return;
++    const ctx = canvas.getContext("2d");
++    if (ctx === null) return;
++
++    const rect = canvas.getBoundingClientRect();
++    renderPianoRoll({
++      ctx,
++      width: rect.width,
++      height: rect.height,
++      view,
++      notes,
++      selectedNoteIds: [...selectedNoteIds],
++      cursorSeconds,
++      bpm,
++      clipStartTime,
++      clipDuration,
++      tool,
++      velocityLaneHeight: PR_VELOCITY_LANE_HEIGHT,
++    });
++  }, [
++    view,
++    notes,
++    selectedNoteIds,
++    cursorSeconds,
++    bpm,
++    clipStartTime,
++    clipDuration,
++    tool,
++  ]);
++
++  // RAF scheduling
++  useEffect(() => {
++    const tick = (): void => {
++      render();
++      if (transportState === "playing") {
++        rafRef.current = requestAnimationFrame(tick);
++      }
++    };
++
++    rafRef.current = requestAnimationFrame(tick);
++    return (): void => {
++      cancelAnimationFrame(rafRef.current);
++    };
++  }, [render, transportState]);
++
++  // Canvas sizing with ResizeObserver
++  useEffect(() => {
++    const canvas = canvasRef.current;
++    if (canvas === null) return;
++    const parent = canvas.parentElement;
++    if (parent === null) return;
++
++    const resizeCanvas = (): void => {
++      const dpr = window.devicePixelRatio;
++      const rect = parent.getBoundingClientRect();
++      canvas.width = rect.width * dpr;
++      canvas.height = rect.height * dpr;
++      canvas.style.width = `${String(rect.width)}px`;
++      canvas.style.height = `${String(rect.height)}px`;
++
++      const ctx = canvas.getContext("2d");
++      if (ctx !== null) {
++        ctx.scale(dpr, dpr);
++      }
++    };
++
++    if (typeof ResizeObserver === "undefined") return;
++
++    const observer = new ResizeObserver(resizeCanvas);
++    observer.observe(parent);
++    resizeCanvas();
++
++    return (): void => {
++      observer.disconnect();
++    };
++  }, []);
++
++  // Wheel: ctrl+wheel for zoom, plain wheel for scroll
++  const handleWheel = useCallback(
++    (e: React.WheelEvent<HTMLCanvasElement>): void => {
++      e.preventDefault();
++
++      if (e.ctrlKey || e.metaKey) {
++        const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
++        setView((prev) => ({
++          ...prev,
++          pixelsPerSecond: Math.min(
++            MAX_PPS,
++            Math.max(MIN_PPS, prev.pixelsPerSecond * factor),
++          ),
++        }));
++      } else if (e.shiftKey) {
++        setView((prev) => ({
++          ...prev,
++          scrollX: Math.max(0, prev.scrollX + e.deltaY / prev.pixelsPerSecond),
++        }));
++      } else {
++        setView((prev) => ({
++          ...prev,
++          scrollX: Math.max(0, prev.scrollX + e.deltaX / prev.pixelsPerSecond),
++          scrollY: prev.scrollY - e.deltaY / prev.noteHeight,
++        }));
++      }
++    },
++    [],
++  );
++
++  return (
++    <section data-testid="piano-roll-editor" className={styles["container"]}>
++      <div className={styles["toolbar"]}>
++        <button
++          data-testid="tool-pencil"
++          className={styles["toolButton"]}
++          data-active={String(tool === "pencil")}
++          onClick={() => {
++            setTool("pencil");
++          }}
++        >
++          Pencil
++        </button>
++        <button
++          data-testid="tool-select"
++          className={styles["toolButton"]}
++          data-active={String(tool === "select")}
++          onClick={() => {
++            setTool("select");
++          }}
++        >
++          Select
++        </button>
++        <button
++          data-testid="tool-erase"
++          className={styles["toolButton"]}
++          data-active={String(tool === "erase")}
++          onClick={() => {
++            setTool("erase");
++          }}
++        >
++          Erase
++        </button>
++        <select
++          data-testid="snap-select"
++          className={styles["snapSelect"]}
++          value={gridSnap}
++          onChange={(e) => {
++            setGridSnap(e.target.value as PianoRollGridSnap);
++          }}
++        >
++          {SNAP_OPTIONS.map((opt) => (
++            <option key={opt} value={opt}>
++              {opt}
++            </option>
++          ))}
++        </select>
++      </div>
++      <div className={styles["canvasWrapper"]}>
++        <canvas
++          ref={canvasRef}
++          className={styles["canvas"]}
++          style={{ cursor: interactions.cursor }}
++          onWheel={handleWheel}
++          onPointerDown={interactions.onPointerDown}
++          onPointerMove={interactions.onPointerMove}
++          onPointerUp={interactions.onPointerUp}
++        />
++      </div>
++    </section>
++  );
++}
+diff --git a/src/ui/piano-roll/constants.ts b/src/ui/piano-roll/constants.ts
+new file mode 100644
+index 0000000..95b3b9b
+--- /dev/null
++++ b/src/ui/piano-roll/constants.ts
+@@ -0,0 +1,10 @@
++/** Shared layout constants for the piano roll view. */
++export const PR_RULER_HEIGHT = 24;
++export const PR_KEYBOARD_WIDTH = 48;
++export const PR_DEFAULT_NOTE_HEIGHT = 16;
++export const PR_VELOCITY_LANE_HEIGHT = 60;
++export const PR_NOTE_PADDING = 1;
++export const PR_DEFAULT_PPS = 100; // pixels per second
++export const PR_DEFAULT_SCROLL_Y = 84; // Start at C5 area
++export const PR_MIN_NOTE = 0;
++export const PR_MAX_NOTE = 127;
+diff --git a/src/ui/piano-roll/index.ts b/src/ui/piano-roll/index.ts
+new file mode 100644
+index 0000000..231e6df
+--- /dev/null
++++ b/src/ui/piano-roll/index.ts
+@@ -0,0 +1,12 @@
++export { PianoRollEditor } from "./PianoRollEditor";
++export type { PianoRollViewState, PianoRollTool } from "./piano-roll-renderer";
++export { renderPianoRoll, isBlackKey, noteName } from "./piano-roll-renderer";
++export type {
++  PianoRollGridSnap,
++  PianoRollHitResult,
++} from "./piano-roll-hit-test";
++export {
++  pianoRollHitTest,
++  pianoRollSnapToGrid,
++  lassoSelectNotes,
++} from "./piano-roll-hit-test";
+diff --git a/src/ui/piano-roll/piano-roll-hit-test.ts b/src/ui/piano-roll/piano-roll-hit-test.ts
+new file mode 100644
+index 0000000..c8a25c6
+--- /dev/null
++++ b/src/ui/piano-roll/piano-roll-hit-test.ts
+@@ -0,0 +1,162 @@
++/**
++ * Hit-testing utilities for the piano roll canvas.
++ * Converts pixel coordinates to note/region references.
++ */
++import type { MIDINoteEvent } from "@state/track/types";
++import type { PianoRollViewState } from "./piano-roll-renderer";
++import { secondsToX } from "./piano-roll-renderer";
++import { PR_RULER_HEIGHT } from "./constants";
++
++// -- Types --------------------------------------------------------------------
++
++export type PianoRollGridSnap = "1/4" | "1/8" | "1/16" | "1/8T" | "1/16T";
++
++export type PianoRollHitResult =
++  | { kind: "none" }
++  | { kind: "note-body"; noteId: string }
++  | { kind: "note-left-edge"; noteId: string }
++  | { kind: "note-right-edge"; noteId: string }
++  | { kind: "velocity-bar"; noteId: string }
++  | { kind: "keyboard-key"; pitch: number }
++  | { kind: "ruler"; timeSeconds: number }
++  | { kind: "empty-grid"; pitch: number; timeSeconds: number };
++
++// -- Constants ----------------------------------------------------------------
++
++const EDGE_HANDLE_PX = 6;
++
++// -- Coordinate transforms ----------------------------------------------------
++
++export function xToSeconds(x: number, view: PianoRollViewState): number {
++  return view.scrollX + (x - view.keyboardWidth) / view.pixelsPerSecond;
++}
++
++export function yToPitch(y: number, view: PianoRollViewState): number {
++  return Math.round(view.scrollY - (y - PR_RULER_HEIGHT) / view.noteHeight);
++}
++
++// -- Grid snapping ------------------------------------------------------------
++
++export function pianoRollSnapToGrid(
++  seconds: number,
++  bpm: number,
++  snap: PianoRollGridSnap,
++): number {
++  const secPerBeat = 60 / bpm;
++  let gridSize: number;
++  switch (snap) {
++    case "1/4":
++      gridSize = secPerBeat;
++      break;
++    case "1/8":
++      gridSize = secPerBeat / 2;
++      break;
++    case "1/16":
++      gridSize = secPerBeat / 4;
++      break;
++    case "1/8T":
++      gridSize = secPerBeat / 3;
++      break;
++    case "1/16T":
++      gridSize = secPerBeat / 6;
++      break;
++  }
++  return Math.round(seconds / gridSize) * gridSize;
++}
++
++// -- Hit testing --------------------------------------------------------------
++
++export function pianoRollHitTest(
++  x: number,
++  y: number,
++  view: PianoRollViewState,
++  notes: readonly MIDINoteEvent[],
++  canvasHeight: number,
++  velocityLaneHeight: number,
++): PianoRollHitResult {
++  // Ruler area
++  if (y < PR_RULER_HEIGHT) {
++    return { kind: "ruler", timeSeconds: xToSeconds(x, view) };
++  }
++
++  // Keyboard area
++  if (x < view.keyboardWidth) {
++    return { kind: "keyboard-key", pitch: yToPitch(y, view) };
++  }
++
++  // Velocity lane area
++  const velocityLaneTop = canvasHeight - velocityLaneHeight;
++  if (y >= velocityLaneTop) {
++    for (let i = notes.length - 1; i >= 0; i--) {
++      const note = notes[i];
++      if (!note) continue;
++      const noteX = secondsToX(note.startTime, view);
++      const noteW = note.duration * view.pixelsPerSecond;
++      if (x >= noteX && x <= noteX + noteW) {
++        return { kind: "velocity-bar", noteId: note.id };
++      }
++    }
++    return { kind: "none" };
++  }
++
++  // Note grid area -- check notes in reverse for z-order priority
++  for (let i = notes.length - 1; i >= 0; i--) {
++    const note = notes[i];
++    if (!note) continue;
++    const noteX = secondsToX(note.startTime, view);
++    const noteW = note.duration * view.pixelsPerSecond;
++    const noteY =
++      PR_RULER_HEIGHT + (view.scrollY - note.pitch) * view.noteHeight;
++    const noteH = view.noteHeight;
++
++    if (x >= noteX && x <= noteX + noteW && y >= noteY && y <= noteY + noteH) {
++      if (x - noteX < EDGE_HANDLE_PX) {
++        return { kind: "note-left-edge", noteId: note.id };
++      }
++      if (noteX + noteW - x < EDGE_HANDLE_PX) {
++        return { kind: "note-right-edge", noteId: note.id };
++      }
++      return { kind: "note-body", noteId: note.id };
++    }
++  }
++
++  // Empty grid
++  return {
++    kind: "empty-grid",
++    pitch: yToPitch(y, view),
++    timeSeconds: xToSeconds(x, view),
++  };
++}
++
++// -- Lasso selection ----------------------------------------------------------
++
++export function lassoSelectNotes(
++  startX: number,
++  startY: number,
++  endX: number,
++  endY: number,
++  view: PianoRollViewState,
++  notes: readonly MIDINoteEvent[],
++): readonly string[] {
++  const left = Math.min(startX, endX);
++  const right = Math.max(startX, endX);
++  const top = Math.min(startY, endY);
++  const bottom = Math.max(startY, endY);
++
++  return notes
++    .filter((note) => {
++      const noteX = secondsToX(note.startTime, view);
++      const noteW = note.duration * view.pixelsPerSecond;
++      const noteY =
++        PR_RULER_HEIGHT + (view.scrollY - note.pitch) * view.noteHeight;
++      const noteH = view.noteHeight;
++
++      return (
++        noteX + noteW > left &&
++        noteX < right &&
++        noteY + noteH > top &&
++        noteY < bottom
++      );
++    })
++    .map((n) => n.id);
++}
+diff --git a/src/ui/piano-roll/piano-roll-renderer.ts b/src/ui/piano-roll/piano-roll-renderer.ts
+new file mode 100644
+index 0000000..5e5e00e
+--- /dev/null
++++ b/src/ui/piano-roll/piano-roll-renderer.ts
+@@ -0,0 +1,359 @@
++/**
++ * Pure canvas renderer for the piano roll editor.
++ * No DOM access -- only draws to the CanvasRenderingContext2D passed in.
++ */
++import type { MIDINoteEvent } from "@state/track/types";
++import { PR_RULER_HEIGHT } from "./constants";
++
++// -- Design token constants (canvas cannot read CSS vars) ---------------------
++
++const COLOR = {
++  black: "#000000",
++  white: "#ffffff",
++  red: "#ff0000",
++  blue: "#0066ff",
++  gray900: "#111111",
++  gray800: "#1a1a1a",
++  gray700: "#333333",
++  gray500: "#666666",
++  gray400: "#888888",
++  whiteKeyRow: "#1c1c1c",
++  blackKeyRow: "#141414",
++  whiteKey: "#e0e0e0",
++  blackKey: "#222222",
++} as const;
++
++const FONT_MONO = "'JetBrains Mono', monospace" as const;
++const TEXT_XS = 10;
++const BORDER_WIDTH = 2;
++
++// -- Public types -------------------------------------------------------------
++
++export type PianoRollViewState = {
++  scrollX: number; // seconds
++  scrollY: number; // MIDI note number at top (0-127, higher = higher pitch)
++  pixelsPerSecond: number; // horizontal zoom
++  noteHeight: number; // pixels per semitone
++  keyboardWidth: number; // width of piano keyboard sidebar
++};
++
++export type PianoRollTool = "pencil" | "select" | "erase";
++
++export type PianoRollRenderContext = {
++  ctx: CanvasRenderingContext2D;
++  width: number;
++  height: number;
++  view: PianoRollViewState;
++  notes: readonly MIDINoteEvent[];
++  selectedNoteIds: readonly string[];
++  cursorSeconds: number;
++  bpm: number;
++  clipStartTime: number; // absolute timeline position of the clip
++  clipDuration: number;
++  tool: PianoRollTool;
++  velocityLaneHeight: number; // height of velocity lane at bottom
++};
++
++// -- Helpers ------------------------------------------------------------------
++
++export function secondsToX(seconds: number, view: PianoRollViewState): number {
++  return view.keyboardWidth + (seconds - view.scrollX) * view.pixelsPerSecond;
++}
++
++export function pitchToY(
++  pitch: number,
++  view: PianoRollViewState,
++  _height: number,
++  _velocityLaneHeight: number,
++): number {
++  return PR_RULER_HEIGHT + (view.scrollY - pitch) * view.noteHeight;
++}
++
++export function isBlackKey(pitch: number): boolean {
++  const pc = pitch % 12;
++  return pc === 1 || pc === 3 || pc === 6 || pc === 8 || pc === 10;
++}
++
++export function noteName(pitch: number): string {
++  const names = [
++    "C",
++    "C#",
++    "D",
++    "D#",
++    "E",
++    "F",
++    "F#",
++    "G",
++    "G#",
++    "A",
++    "A#",
++    "B",
++  ];
++  const octave = Math.floor(pitch / 12) - 1;
++  return (names[pitch % 12] ?? "") + String(octave);
++}
++
++/** Convert a hex color (#rrggbb) to rgba with given alpha (0-1). */
++function hexToRgba(hex: string, alpha: number): string {
++  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
++    return `rgba(128,128,128,${String(alpha)})`;
++  }
++  const r = parseInt(hex.slice(1, 3), 16);
++  const g = parseInt(hex.slice(3, 5), 16);
++  const b = parseInt(hex.slice(5, 7), 16);
++  return `rgba(${String(r)},${String(g)},${String(b)},${String(alpha)})`;
++}
++
++// -- Rendering stages ---------------------------------------------------------
++
++function drawBackground(rc: PianoRollRenderContext): void {
++  const { ctx, width, height } = rc;
++  ctx.fillStyle = COLOR.gray900;
++  ctx.fillRect(0, 0, width, height);
++}
++
++function drawNoteGrid(rc: PianoRollRenderContext): void {
++  const { ctx, width, height, view, velocityLaneHeight } = rc;
++  const gridBottom = height - velocityLaneHeight;
++
++  // Determine visible pitch range
++  const topPitch = view.scrollY;
++  const visibleRows = Math.ceil(
++    (gridBottom - PR_RULER_HEIGHT) / view.noteHeight,
++  );
++  const bottomPitch = topPitch - visibleRows;
++
++  for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
++    const y = pitchToY(pitch, view, height, velocityLaneHeight);
++    if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
++
++    // Row fill: slightly lighter for white keys
++    ctx.fillStyle = isBlackKey(pitch) ? COLOR.blackKeyRow : COLOR.whiteKeyRow;
++    ctx.fillRect(
++      view.keyboardWidth,
++      y,
++      width - view.keyboardWidth,
++      view.noteHeight,
++    );
++
++    // Horizontal separator
++    ctx.strokeStyle = COLOR.gray700;
++    ctx.lineWidth = 1;
++    ctx.beginPath();
++    ctx.moveTo(view.keyboardWidth, y + view.noteHeight);
++    ctx.lineTo(width, y + view.noteHeight);
++    ctx.stroke();
++  }
++}
++
++function drawTimeGrid(rc: PianoRollRenderContext): void {
++  const { ctx, width, height, view, bpm, velocityLaneHeight } = rc;
++  const secPerBeat = 60 / bpm;
++  const secPerBar = secPerBeat * 4;
++  const gridBottom = height - velocityLaneHeight;
++
++  const startSec = view.scrollX;
++  const endSec =
++    view.scrollX + (width - view.keyboardWidth) / view.pixelsPerSecond;
++
++  // Determine grid step -- skip beats when zoomed out too far
++  const minPxPerLine = 12;
++  let step = secPerBeat;
++  while (step * view.pixelsPerSecond < minPxPerLine) {
++    step *= 2;
++  }
++
++  const firstBeat = Math.floor(startSec / step) * step;
++
++  ctx.save();
++  for (let t = firstBeat; t <= endSec; t += step) {
++    const x = secondsToX(t, view);
++    if (x < view.keyboardWidth || x > width) continue;
++
++    const nearestBar = Math.round(t / secPerBar) * secPerBar;
++    const isBar = Math.abs(t - nearestBar) < 0.001;
++    ctx.strokeStyle = COLOR.gray700;
++    ctx.lineWidth = isBar ? 2 : 1;
++
++    ctx.beginPath();
++    ctx.moveTo(x, PR_RULER_HEIGHT);
++    ctx.lineTo(x, gridBottom);
++    ctx.stroke();
++  }
++  ctx.restore();
++}
++
++function drawNotes(rc: PianoRollRenderContext): void {
++  const { ctx, view, height, notes, selectedNoteIds, velocityLaneHeight } = rc;
++  const selectedSet = new Set(selectedNoteIds);
++
++  for (const note of notes) {
++    const x = secondsToX(note.startTime, view);
++    const w = note.duration * view.pixelsPerSecond;
++    const y = pitchToY(note.pitch, view, height, velocityLaneHeight);
++    const h = view.noteHeight;
++
++    // Skip notes fully out of view
++    if (x + w < view.keyboardWidth || x > rc.width) continue;
++    if (y + h < PR_RULER_HEIGHT || y > height - velocityLaneHeight) continue;
++
++    // Fill
++    ctx.fillStyle = hexToRgba(COLOR.blue, 0.8);
++    ctx.fillRect(x, y, w, h);
++
++    // Border
++    const isSelected = selectedSet.has(note.id);
++    ctx.strokeStyle = isSelected ? COLOR.white : COLOR.blue;
++    ctx.lineWidth = BORDER_WIDTH;
++    ctx.strokeRect(x, y, w, h);
++  }
++}
++
++function drawKeyboard(rc: PianoRollRenderContext): void {
++  const { ctx, view, height, velocityLaneHeight } = rc;
++  const gridBottom = height - velocityLaneHeight;
++
++  // Keyboard background
++  ctx.fillStyle = COLOR.black;
++  ctx.fillRect(
++    0,
++    PR_RULER_HEIGHT,
++    view.keyboardWidth,
++    gridBottom - PR_RULER_HEIGHT,
++  );
++
++  const topPitch = view.scrollY;
++  const visibleRows = Math.ceil(
++    (gridBottom - PR_RULER_HEIGHT) / view.noteHeight,
++  );
++  const bottomPitch = topPitch - visibleRows;
++
++  for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
++    const y = pitchToY(pitch, view, height, velocityLaneHeight);
++    if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
++
++    const black = isBlackKey(pitch);
++
++    // Key fill
++    ctx.fillStyle = black ? COLOR.blackKey : COLOR.whiteKey;
++    const keyWidth = black ? view.keyboardWidth * 0.6 : view.keyboardWidth - 1;
++    ctx.fillRect(0, y, keyWidth, view.noteHeight);
++
++    // Key separator
++    ctx.strokeStyle = COLOR.gray700;
++    ctx.lineWidth = 1;
++    ctx.beginPath();
++    ctx.moveTo(0, y + view.noteHeight);
++    ctx.lineTo(view.keyboardWidth, y + view.noteHeight);
++    ctx.stroke();
++
++    // Label C notes
++    if (pitch % 12 === 0) {
++      const label = noteName(pitch);
++      ctx.font = `${String(TEXT_XS)}px ${FONT_MONO}`;
++      ctx.fillStyle = black ? COLOR.white : COLOR.black;
++      ctx.textBaseline = "middle";
++      ctx.textAlign = "left";
++      ctx.fillText(label, 2, y + view.noteHeight / 2);
++    }
++  }
++
++  // Keyboard right border
++  ctx.strokeStyle = COLOR.gray700;
++  ctx.lineWidth = BORDER_WIDTH;
++  ctx.beginPath();
++  ctx.moveTo(view.keyboardWidth, PR_RULER_HEIGHT);
++  ctx.lineTo(view.keyboardWidth, gridBottom);
++  ctx.stroke();
++}
++
++function drawVelocityLane(rc: PianoRollRenderContext): void {
++  const { ctx, width, height, view, notes, velocityLaneHeight } = rc;
++  const laneTop = height - velocityLaneHeight;
++
++  // Lane background
++  ctx.fillStyle = COLOR.black;
++  ctx.fillRect(
++    view.keyboardWidth,
++    laneTop,
++    width - view.keyboardWidth,
++    velocityLaneHeight,
++  );
++
++  // Separator line
++  ctx.strokeStyle = COLOR.gray500;
++  ctx.lineWidth = 1;
++  ctx.beginPath();
++  ctx.moveTo(view.keyboardWidth, laneTop);
++  ctx.lineTo(width, laneTop);
++  ctx.stroke();
++
++  // Velocity bars
++  for (const note of notes) {
++    const x = secondsToX(note.startTime, view);
++    const w = note.duration * view.pixelsPerSecond;
++
++    if (x + w < view.keyboardWidth || x > width) continue;
++
++    const barHeight = (note.velocity / 127) * (velocityLaneHeight - 4);
++    const barY = laneTop + velocityLaneHeight - barHeight;
++
++    ctx.fillStyle = hexToRgba(COLOR.blue, 0.8);
++    ctx.fillRect(x, barY, w, barHeight);
++  }
++}
++
++function drawPlayhead(rc: PianoRollRenderContext): void {
++  const { ctx, height, view, cursorSeconds } = rc;
++  const x = secondsToX(cursorSeconds, view);
++
++  if (x < view.keyboardWidth || x > rc.width) return;
++
++  ctx.strokeStyle = COLOR.red;
++  ctx.lineWidth = 2;
++  ctx.beginPath();
++  ctx.moveTo(x, 0);
++  ctx.lineTo(x, height);
++  ctx.stroke();
++}
++
++function drawRuler(rc: PianoRollRenderContext): void {
++  const { ctx, width, view, bpm } = rc;
++  const secPerBeat = 60 / bpm;
++  const secPerBar = secPerBeat * 4;
++
++  // Ruler background
++  ctx.fillStyle = COLOR.black;
++  ctx.fillRect(0, 0, width, PR_RULER_HEIGHT);
++
++  // Bar labels
++  ctx.font = `${String(TEXT_XS)}px ${FONT_MONO}`;
++  ctx.fillStyle = COLOR.gray500;
++  ctx.textBaseline = "middle";
++  ctx.textAlign = "center";
++
++  const startBar = Math.max(0, Math.floor(view.scrollX / secPerBar));
++  const endSec =
++    view.scrollX + (width - view.keyboardWidth) / view.pixelsPerSecond;
++  const endBar = Math.ceil(endSec / secPerBar) + 1;
++
++  for (let bar = startBar; bar < endBar; bar++) {
++    const x = secondsToX(bar * secPerBar, view);
++    if (x >= view.keyboardWidth && x <= width) {
++      ctx.fillText(String(bar + 1), x, PR_RULER_HEIGHT / 2);
++    }
++  }
++}
++
++// -- Public API ---------------------------------------------------------------
++
++export function renderPianoRoll(rc: PianoRollRenderContext): void {
++  drawBackground(rc);
++  drawNoteGrid(rc);
++  drawTimeGrid(rc);
++  drawNotes(rc);
++  drawKeyboard(rc);
++  drawVelocityLane(rc);
++  drawPlayhead(rc);
++  drawRuler(rc);
++}
+diff --git a/src/ui/piano-roll/use-piano-roll-interactions.ts b/src/ui/piano-roll/use-piano-roll-interactions.ts
+new file mode 100644
+index 0000000..9ca7b2c
+--- /dev/null
++++ b/src/ui/piano-roll/use-piano-roll-interactions.ts
+@@ -0,0 +1,410 @@
++/**
++ * Pointer interaction handlers for the piano roll canvas.
++ * Manages draw, select, move, resize, erase, and lasso operations.
++ * Pushes undo commands on completion.
++ */
++import { useCallback, useRef, useState } from "react";
++import { useDawStore } from "@state/store";
++import type { MIDINoteEvent } from "@state/track/types";
++import { isMidiClip } from "@state/track/types";
++import { sharedUndoManager } from "@state/undo";
++import {
++  AddNoteCommand,
++  RemoveNoteCommand,
++  MoveNoteCommand,
++  ResizeNoteCommand,
++  BatchNoteCommand,
++} from "@state/track/midi-commands";
++import type { PianoRollViewState, PianoRollTool } from "./piano-roll-renderer";
++import {
++  pianoRollHitTest,
++  xToSeconds,
++  yToPitch,
++  pianoRollSnapToGrid,
++  lassoSelectNotes,
++  type PianoRollGridSnap,
++} from "./piano-roll-hit-test";
++import { PR_VELOCITY_LANE_HEIGHT } from "./constants";
++
++type DragState =
++  | { kind: "idle" }
++  | {
++      kind: "move-note";
++      noteId: string;
++      clipId: string;
++      startX: number;
++      startY: number;
++      origStartTime: number;
++      origPitch: number;
++    }
++  | {
++      kind: "resize-note";
++      noteId: string;
++      clipId: string;
++      startX: number;
++      origDuration: number;
++    }
++  | {
++      kind: "draw-note";
++      clipId: string;
++      noteId: string;
++      startTime: number;
++      pitch: number;
++    }
++  | { kind: "rubber-band"; startX: number; startY: number };
++
++export type PianoRollInteractions = {
++  cursor: string;
++  onPointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
++  onPointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
++  onPointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
++  deleteSelectedNotes: () => void;
++};
++
++let noteCounter = 0;
++function generateNoteId(): string {
++  noteCounter += 1;
++  return `note-${String(Date.now())}-${String(noteCounter)}`;
++}
++
++function gridDuration(bpm: number, snap: PianoRollGridSnap): number {
++  const secPerBeat = 60 / bpm;
++  switch (snap) {
++    case "1/4":
++      return secPerBeat;
++    case "1/8":
++      return secPerBeat / 2;
++    case "1/16":
++      return secPerBeat / 4;
++    case "1/8T":
++      return secPerBeat / 3;
++    case "1/16T":
++      return secPerBeat / 6;
++  }
++}
++
++export function usePianoRollInteractions(
++  clipId: string | null,
++  view: PianoRollViewState,
++  tool: PianoRollTool,
++  gridSnap: PianoRollGridSnap,
++): PianoRollInteractions {
++  const dragRef = useRef<DragState>({ kind: "idle" });
++  const [cursor, setCursor] = useState(
++    clipId !== null && tool === "pencil" ? "crosshair" : "default",
++  );
++
++  const getCanvasPos = useCallback(
++    (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
++      const rect = e.currentTarget.getBoundingClientRect();
++      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
++    },
++    [],
++  );
++
++  const getNotes = useCallback((): readonly MIDINoteEvent[] => {
++    if (clipId === null) return [];
++    const clip = useDawStore.getState().clips[clipId];
++    if (clip === undefined || !isMidiClip(clip)) return [];
++    return clip.noteEvents;
++  }, [clipId]);
++
++  const onPointerDown = useCallback(
++    (e: React.PointerEvent<HTMLCanvasElement>): void => {
++      if (clipId === null) return;
++
++      const { x, y } = getCanvasPos(e);
++      const state = useDawStore.getState();
++      const notes = getNotes();
++      const canvasHeight = e.currentTarget.getBoundingClientRect().height;
++      const hit = pianoRollHitTest(
++        x,
++        y,
++        view,
++        notes,
++        canvasHeight,
++        PR_VELOCITY_LANE_HEIGHT,
++      );
++
++      switch (tool) {
++        case "pencil": {
++          if (hit.kind === "empty-grid") {
++            const snappedTime = pianoRollSnapToGrid(
++              hit.timeSeconds,
++              state.bpm,
++              gridSnap,
++            );
++            const dur = gridDuration(state.bpm, gridSnap);
++            const noteId = generateNoteId();
++            const note: MIDINoteEvent = {
++              id: noteId,
++              pitch: hit.pitch,
++              velocity: 100,
++              startTime: Math.max(0, snappedTime),
++              duration: dur,
++            };
++            const cmd = new AddNoteCommand(clipId, note);
++            cmd.execute();
++            sharedUndoManager.push(cmd);
++
++            e.currentTarget.setPointerCapture(e.pointerId);
++            dragRef.current = {
++              kind: "draw-note",
++              clipId,
++              noteId,
++              startTime: note.startTime,
++              pitch: note.pitch,
++            };
++          }
++          break;
++        }
++        case "select": {
++          if (hit.kind === "note-body") {
++            if (e.shiftKey) {
++              const current = [...state.selectedNoteIds];
++              const idx = current.indexOf(hit.noteId);
++              if (idx >= 0) {
++                current.splice(idx, 1);
++              } else {
++                current.push(hit.noteId);
++              }
++              state.setSelectedNoteIds(current);
++            } else {
++              if (!state.selectedNoteIds.includes(hit.noteId)) {
++                state.setSelectedNoteIds([hit.noteId]);
++              }
++            }
++
++            // Find note for drag
++            const note = notes.find((n) => n.id === hit.noteId);
++            if (note !== undefined) {
++              e.currentTarget.setPointerCapture(e.pointerId);
++              dragRef.current = {
++                kind: "move-note",
++                noteId: hit.noteId,
++                clipId,
++                startX: x,
++                startY: y,
++                origStartTime: note.startTime,
++                origPitch: note.pitch,
++              };
++            }
++          } else if (
++            hit.kind === "note-left-edge" ||
++            hit.kind === "note-right-edge"
++          ) {
++            state.setSelectedNoteIds([hit.noteId]);
++            const note = notes.find((n) => n.id === hit.noteId);
++            if (note !== undefined) {
++              e.currentTarget.setPointerCapture(e.pointerId);
++              dragRef.current = {
++                kind: "resize-note",
++                noteId: hit.noteId,
++                clipId,
++                startX: x,
++                origDuration: note.duration,
++              };
++            }
++          } else if (hit.kind === "empty-grid") {
++            if (!e.shiftKey) {
++              state.setSelectedNoteIds([]);
++            }
++            e.currentTarget.setPointerCapture(e.pointerId);
++            dragRef.current = { kind: "rubber-band", startX: x, startY: y };
++          }
++          break;
++        }
++        case "erase": {
++          if (
++            hit.kind === "note-body" ||
++            hit.kind === "note-left-edge" ||
++            hit.kind === "note-right-edge"
++          ) {
++            const cmd = new RemoveNoteCommand(clipId, hit.noteId);
++            cmd.execute();
++            sharedUndoManager.push(cmd);
++          }
++          break;
++        }
++      }
++    },
++    [clipId, view, tool, gridSnap, getCanvasPos, getNotes],
++  );
++
++  const onPointerMove = useCallback(
++    (e: React.PointerEvent<HTMLCanvasElement>): void => {
++      const { x, y } = getCanvasPos(e);
++      const drag = dragRef.current;
++      const state = useDawStore.getState();
++
++      if (drag.kind === "idle") {
++        // Update cursor based on hover
++        if (clipId === null) {
++          setCursor("default");
++          return;
++        }
++
++        const notes = getNotes();
++        const canvasHeight = e.currentTarget.getBoundingClientRect().height;
++        const hit = pianoRollHitTest(
++          x,
++          y,
++          view,
++          notes,
++          canvasHeight,
++          PR_VELOCITY_LANE_HEIGHT,
++        );
++
++        if (tool === "pencil") {
++          setCursor("crosshair");
++        } else if (tool === "select") {
++          switch (hit.kind) {
++            case "note-body":
++              setCursor("pointer");
++              break;
++            case "note-left-edge":
++            case "note-right-edge":
++              setCursor("ew-resize");
++              break;
++            default:
++              setCursor("default");
++              break;
++          }
++        } else {
++          setCursor("default");
++        }
++        return;
++      }
++
++      switch (drag.kind) {
++        case "move-note": {
++          setCursor("grabbing");
++          const deltaPx = x - drag.startX;
++          const deltaSec = deltaPx / view.pixelsPerSecond;
++          const newTime = pianoRollSnapToGrid(
++            Math.max(0, drag.origStartTime + deltaSec),
++            state.bpm,
++            gridSnap,
++          );
++          const newPitch = yToPitch(y, view);
++          state.moveNoteEvent(drag.clipId, drag.noteId, newTime, newPitch);
++          break;
++        }
++        case "resize-note": {
++          setCursor("ew-resize");
++          const deltaPx = x - drag.startX;
++          const deltaSec = deltaPx / view.pixelsPerSecond;
++          const newDuration = Math.max(0.01, drag.origDuration + deltaSec);
++          state.resizeNoteEvent(drag.clipId, drag.noteId, newDuration);
++          break;
++        }
++        case "draw-note": {
++          // Extend note duration as user drags
++          const currentTime = xToSeconds(x, view);
++          const snappedEnd = pianoRollSnapToGrid(
++            currentTime,
++            state.bpm,
++            gridSnap,
++          );
++          const newDuration = Math.max(
++            gridDuration(state.bpm, gridSnap),
++            snappedEnd - drag.startTime,
++          );
++          state.resizeNoteEvent(drag.clipId, drag.noteId, newDuration);
++          break;
++        }
++        case "rubber-band": {
++          if (clipId === null) break;
++          const notes = getNotes();
++          const selected = lassoSelectNotes(
++            drag.startX,
++            drag.startY,
++            x,
++            y,
++            view,
++            notes,
++          );
++          state.setSelectedNoteIds([...selected]);
++          break;
++        }
++      }
++    },
++    [clipId, view, tool, gridSnap, getCanvasPos, getNotes],
++  );
++
++  const onPointerUp = useCallback(
++    (e: React.PointerEvent<HTMLCanvasElement>): void => {
++      const drag = dragRef.current;
++
++      if (drag.kind === "move-note") {
++        const notes = getNotes();
++        const note = notes.find((n) => n.id === drag.noteId);
++        if (
++          note !== undefined &&
++          (note.startTime !== drag.origStartTime ||
++            note.pitch !== drag.origPitch)
++        ) {
++          const cmd = new MoveNoteCommand(
++            drag.clipId,
++            drag.noteId,
++            note.startTime,
++            note.pitch,
++            drag.origStartTime,
++            drag.origPitch,
++          );
++          // Store is already updated during drag -- just record for undo
++          sharedUndoManager.push(cmd);
++        }
++      } else if (drag.kind === "resize-note") {
++        const notes = getNotes();
++        const note = notes.find((n) => n.id === drag.noteId);
++        if (note !== undefined && note.duration !== drag.origDuration) {
++          const cmd = new ResizeNoteCommand(
++            drag.clipId,
++            drag.noteId,
++            note.duration,
++            drag.origDuration,
++          );
++          // Store is already updated during drag -- just record for undo
++          sharedUndoManager.push(cmd);
++        }
++      }
++
++      if (drag.kind !== "idle") {
++        e.currentTarget.releasePointerCapture(e.pointerId);
++      }
++      dragRef.current = { kind: "idle" };
++
++      // Restore tool-appropriate cursor
++      if (tool === "pencil") {
++        setCursor("crosshair");
++      } else {
++        setCursor("default");
++      }
++    },
++    [tool, getNotes],
++  );
++
++  const deleteSelectedNotes = useCallback((): void => {
++    if (clipId === null) return;
++    const state = useDawStore.getState();
++    const selected = state.selectedNoteIds;
++    if (selected.length === 0) return;
++
++    const commands = selected.map(
++      (noteId) => new RemoveNoteCommand(clipId, noteId),
++    );
++    const batch = new BatchNoteCommand(commands);
++    batch.execute();
++    sharedUndoManager.push(batch);
++    state.setSelectedNoteIds([]);
++  }, [clipId]);
++
++  return {
++    cursor,
++    onPointerDown,
++    onPointerMove,
++    onPointerUp,
++    deleteSelectedNotes,
++  };
++}

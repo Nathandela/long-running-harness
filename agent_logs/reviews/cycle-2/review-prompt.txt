@@ -19,12 +19,12 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-0jm ● P1 task E9.5: Synth state store and instrument track type
-✓ long-running-harness-adf ● P1 task E9.6: Virtual keyboard and synth editor UI
-✓ long-running-harness-b1h ● P1 task E10: Drum kit audio engine
-✓ long-running-harness-bdm ● P1 task E10: Step sequencer engine
-✓ long-running-harness-hqa ● P1 task E10: Drum machine types and constants
-✓ long-running-harness-vii ● P1 task E10: Drum machine UI panel
+✓ long-running-harness-3ag ● P1 task E11-T3: Piano roll interactions, hit testing, and quantization
+✓ long-running-harness-gsm ● P1 task E11-T4: MIDI input validation and Web MIDI API integration
+✓ long-running-harness-gv4 ● P1 task Review: E11 Piano Roll & MIDI Editor
+✓ long-running-harness-jr8 ● P1 task E11-T2: Piano roll canvas renderer
+✓ long-running-harness-utg ● P1 task E11-T5: PianoRollEditor panel component and keyboard shortcuts
+✓ long-running-harness-yiu ● P1 task Compound: E11 Piano Roll & MIDI Editor
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,9 +32,13 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-404c893 Fix review findings: drum-kit audio bugs, voice-allocator hot-path, panel cleanup
-47c9cf8 chore: auto-commit uncommitted changes from long-running-harness-33z
-d343ff0 E10: Add TR-808 drum machine - sample-based kit, step sequencer, panel UI
+b7c4f09 Fix review findings: left-edge resize, draw-note redo, sentinel bugs
+79032c4 chore: auto-commit uncommitted changes from long-running-harness-nl5
+c51ecd9 Fix review findings: undo corruption, store clamping, recorder bugs
+9a349c7 E11-T5: Add PianoRollEditor component with interactions and shortcuts
+c307815 E11-T3: Add piano roll hit testing, interactions, and quantization
+2a4d8b3 E11-T2/T4: Add piano roll renderer and MIDI input validation
+76f6899 E11-T1: Add MIDI note data model, store extensions, and undo commands
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

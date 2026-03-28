@@ -1,9 +1,10 @@
-Checking the applied fixes against my 5 findings:
+All P1 and P2 findings from the prior review are resolved:
 
-1. **P1 — `disconnectFromMixer`**: Now calls `output.disconnect(strip.inputGain)` — fixed.
-2. **P1 — `activeOH` stale on natural decay**: "ended" handler now clears `activeOH`/`activeOHFlam` by identity check — fixed.
-3. **P2 — Dead `onSetFlam` prop**: Removed from props type, component destructuring, and tests — fixed.
-4. **P2 — Velocity clamping**: `Math.max(0.001, p.volume * Math.min(1, velocity))` — fixed (also guards against zero gain for exponentialRamp).
-5. **P2 — Hardcoded knob ranges**: Now reads from `PARAM_RANGES` — fixed.
+- **P1 left-edge resize**: Fixed — `edge: "left" | "right"` field added; left drag now adjusts both `startTime` and `duration` with a `BatchNoteCommand` on pointer-up.
+- **P2 MoveNoteCommand sentinel bug**: Fixed — switched to `undefined` sentinel.
+- **P2 registry useMemo churn**: Fixed — now depends only on `deleteSelectedNotes`.
+- **P3 pitchToY dead params**: Fixed — signature cleaned to `(pitch, view)`.
+
+Remaining P3 items (velocity-bar no handler, module-level `noteCounter`/`nextNoteId`) are pre-existing and not regressions.
 
 REVIEW_APPROVED
