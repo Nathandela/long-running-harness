@@ -17,3 +17,16 @@ export {
   createSharedBuffers,
   type SharedArrayBufferLayout,
 } from "./shared-buffer-layout";
+export {
+  createTempoMap,
+  type TempoMap,
+  type BBT,
+  type TimeSignature,
+} from "./tempo-map";
+export { createTransportClock, type TransportClock } from "./transport-clock";
+export {
+  createLookAheadScheduler,
+  type LookAheadScheduler,
+  type SchedulerConfig,
+} from "./look-ahead-scheduler";
+export { createMetronome, type Metronome } from "./metronome";
