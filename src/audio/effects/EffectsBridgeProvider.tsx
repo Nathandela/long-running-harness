@@ -3,7 +3,7 @@
  * Bridges the effects Zustand store to live Web Audio nodes.
  */
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useAudioEngine } from "@audio/use-audio-engine";
 import { createMixerEngine, type MixerEngine } from "@audio/mixer";
 import type { EffectRegistry } from "./types";
@@ -32,10 +32,19 @@ export function EffectsBridgeProvider({
     return { registry, mixer, bridge };
   });
 
+  // Guard against StrictMode double-mount: only dispose on true unmount
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      value.bridge.dispose();
-      value.mixer.dispose();
+      mountedRef.current = false;
+      // Defer disposal so StrictMode re-mount can cancel it
+      setTimeout(() => {
+        if (!mountedRef.current) {
+          value.bridge.dispose();
+          value.mixer.dispose();
+        }
+      }, 0);
     };
   }, [value]);
 

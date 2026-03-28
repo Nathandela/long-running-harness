@@ -51,8 +51,12 @@ function v(voices: Voice[], i: number): Voice {
 export function createVoiceAllocator(): VoiceAllocator {
   let ageCounter = 0;
 
-  // Pre-allocated result array for processStealFade (zero-allocation)
-  const completedSteals: number[] = [];
+  // Pre-allocated fixed-size array + counter for zero-allocation processStealFade
+  const completedSteals: number[] = new Array<number>(MAX_VOICES).fill(0);
+  let completedCount = 0;
+
+  // Cached crossfade length (computed on first processStealFade call)
+  let cachedCrossfadeSamples = 0;
 
   const voices: Voice[] = Array.from({ length: MAX_VOICES }, () => ({
     state: "idle" as VoiceState,
@@ -194,8 +198,10 @@ export function createVoiceAllocator(): VoiceAllocator {
     },
 
     processStealFade(sampleRate: number): readonly number[] {
-      const crossfadeSamples = Math.floor(STEAL_CROSSFADE_S * sampleRate);
-      completedSteals.length = 0;
+      if (cachedCrossfadeSamples === 0) {
+        cachedCrossfadeSamples = Math.floor(STEAL_CROSSFADE_S * sampleRate);
+      }
+      completedCount = 0;
 
       for (let i = 0; i < MAX_VOICES; i++) {
         const voice = v(voices, i);
@@ -203,9 +209,9 @@ export function createVoiceAllocator(): VoiceAllocator {
           voice.stealFadeSamples++;
           voice.stealFadeGain = Math.max(
             0,
-            1 - voice.stealFadeSamples / crossfadeSamples,
+            1 - voice.stealFadeSamples / cachedCrossfadeSamples,
           );
-          if (voice.stealFadeSamples >= crossfadeSamples) {
+          if (voice.stealFadeSamples >= cachedCrossfadeSamples) {
             // Crossfade complete — apply pending note
             voice.note = voice.pendingNote;
             voice.velocity = voice.pendingVelocity;
@@ -214,11 +220,13 @@ export function createVoiceAllocator(): VoiceAllocator {
             voice.stealFadeSamples = 0;
             voice.pendingNote = -1;
             voice.pendingVelocity = 0;
-            completedSteals.push(i);
+            completedSteals[completedCount++] = i;
           }
         }
       }
 
+      // Return a view of just the completed indices
+      completedSteals.length = completedCount;
       return completedSteals;
     },
 

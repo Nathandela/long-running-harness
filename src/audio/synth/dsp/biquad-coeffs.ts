@@ -4,7 +4,7 @@
  * Supports LP, HP, BP filter types.
  *
  * Runs per-voice in the AudioWorklet — coefficients recomputed
- * only when cutoff/resonance change (not per-sample).
+ * per-sample when cutoff is modulated by envelope/LFO.
  */
 
 export type FilterType = "lowpass" | "highpass" | "bandpass";
@@ -112,9 +112,10 @@ export function createBiquadFilter(type: FilterType = "lowpass"): BiquadFilter {
       x2 = x1;
       x1 = input;
       y2 = y1;
-      y1 = output;
+      // Guard against NaN/Infinity from filter instability
+      y1 = isFinite(output) ? output : 0;
 
-      return output;
+      return y1;
     },
 
     reset(): void {

@@ -22,7 +22,7 @@ export type LFO = {
 function xorshift32(seed: number): number {
   let x = seed;
   x ^= x << 13;
-  x ^= x >> 17;
+  x ^= x >>> 17;
   x ^= x << 5;
   return x;
 }
@@ -58,8 +58,8 @@ export function createLFO(shape: LFOShape = "sine"): LFO {
           // New deterministic pseudo-random value each cycle
           if (phase < prevPhase) {
             prngState = xorshift32(prngState);
-            // Map int32 to [-1, 1]
-            shValue = (prngState / 2147483647) * 2 - 1;
+            // Map signed int32 to [-1, 1) via division by 2^31
+            shValue = prngState / 2147483648;
           }
           out = shValue;
           break;

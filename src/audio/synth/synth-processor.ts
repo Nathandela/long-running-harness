@@ -160,6 +160,11 @@ class SynthProcessor extends AudioWorkletProcessor {
           ) as (typeof this.allocator.voices)[number];
           if (voice.state === "active") {
             (voice as { state: string }).state = "releasing";
+          } else if (voice.state === "stealing") {
+            // Cancel pending steal — clear pending note and release
+            (voice as { state: string }).state = "releasing";
+            (voice as { pendingNote: number }).pendingNote = -1;
+            (voice as { pendingVelocity: number }).pendingVelocity = 0;
           }
           at(this.voiceData, i).ampEnv.release();
           at(this.voiceData, i).filterEnv.release();
@@ -260,6 +265,12 @@ class SynthProcessor extends AudioWorkletProcessor {
     this.filterParams.sustain = p.filterSustain;
     this.filterParams.release = p.filterRelease;
 
+    // Pre-compute control-rate values (constant across quantum)
+    const osc1OctMul = Math.pow(2, p.osc1Octave);
+    const osc1DetMul = Math.pow(2, p.osc1Detune / 1200);
+    const osc2OctMul = Math.pow(2, p.osc2Octave);
+    const osc2DetMul = Math.pow(2, p.osc2Detune / 1200);
+
     for (let s = 0; s < numSamples; s++) {
       const lfo1Val = this.lfo1.process(p.lfo1Rate, sr);
       const lfo2Val = this.lfo2.process(p.lfo2Rate, sr);
@@ -298,16 +309,8 @@ class SynthProcessor extends AudioWorkletProcessor {
         const pitchMod = lfo1Val * p.lfo1Depth * 2;
         const pitchMultiplier = Math.pow(2, pitchMod / 12);
 
-        const freq1 =
-          baseFreq *
-          Math.pow(2, p.osc1Octave) *
-          Math.pow(2, p.osc1Detune / 1200) *
-          pitchMultiplier;
-        const freq2 =
-          baseFreq *
-          Math.pow(2, p.osc2Octave) *
-          Math.pow(2, p.osc2Detune / 1200) *
-          pitchMultiplier;
+        const freq1 = baseFreq * osc1OctMul * osc1DetMul * pitchMultiplier;
+        const freq2 = baseFreq * osc2OctMul * osc2DetMul * pitchMultiplier;
 
         const osc1Out = vd.osc1.next(freq1, sr) * p.osc1Level;
         const osc2Out = vd.osc2.next(freq2, sr) * p.osc2Level;

@@ -7,7 +7,12 @@
  */
 
 import type { SynthVoiceCommand, SynthParameterMap } from "./synth-types";
-import { DEFAULT_SYNTH_PARAMS } from "./synth-types";
+import {
+  DEFAULT_SYNTH_PARAMS,
+  WAVEFORM_TYPES,
+  FILTER_TYPES,
+  LFO_SHAPES,
+} from "./synth-types";
 import type { MixerEngine } from "@audio/mixer/types";
 
 export type SynthInstrument = {
@@ -88,19 +93,20 @@ export async function createSynthInstrument(
         switch (key) {
           case "osc1Type":
           case "osc2Type":
-            numericValue = ["sine", "saw", "square", "triangle"].indexOf(value);
+            numericValue = WAVEFORM_TYPES.indexOf(
+              value as (typeof WAVEFORM_TYPES)[number],
+            );
             break;
           case "filterType":
-            numericValue = ["lowpass", "highpass", "bandpass"].indexOf(value);
+            numericValue = FILTER_TYPES.indexOf(
+              value as (typeof FILTER_TYPES)[number],
+            );
             break;
           case "lfo1Shape":
           case "lfo2Shape":
-            numericValue = [
-              "sine",
-              "square",
-              "triangle",
-              "sample-and-hold",
-            ].indexOf(value);
+            numericValue = LFO_SHAPES.indexOf(
+              value as (typeof LFO_SHAPES)[number],
+            );
             break;
           default:
             numericValue = 0;
