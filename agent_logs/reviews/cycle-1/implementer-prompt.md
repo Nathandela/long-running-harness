@@ -10,39 +10,96 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P1] Unhandled rejection in `handleStart` — silent audio failure**
-`src/App.tsx:19` — `void engine.resume().then(...)` discards any rejection. If the browser blocks audio context resume (autoplay policy, permissions), the error is silently swallowed, `engineStatus` is never set to `"error"`, and the DawShell renders with no indication anything went wrong. The store has an `"error"` state that is never reachable from this code path.
+**1. [P1] `useKeyboardShortcuts`: `contenteditable="false"` incorrectly blocks shortcuts**
+`src/ui/keyboard/useKeyboardShortcuts.ts:18`
 
-**2. [P1] `setAudioStarted(true)` called before `resume()` resolves**
-`src/App.tsx:19–22` — DawShell renders immediately while the engine is still `suspended`. `engineStatus` in the store remains `"uninitialized"` until the async resolve. Any DawShell child that reads `engineStatus` and branches on `"running"` will get the wrong state on first render. Fix: move `setAudioStarted(true)` into the `.then()` callback, after `setEngineStatus("running")`.
+`getAttribute("contenteditable") !== null` returns `true` for `contenteditable="false"` — explicitly non-editable elements will silently swallow shortcuts. Fix:
+```ts
+if (target.isContentEditable) {
+```
 
-**3. [P2] `createAudioEngine()` can throw synchronously, uncaught**
-`src/App.tsx:17` — `new AudioContext()` throws on platforms without Web Audio support and in certain browser environments. No try/catch wraps this call; an uncaught exception here crashes the whole app with no error UI.
+---
 
-**4. [P2] `Float32`/`Float64` fields in `SharedArrayBuffer` cannot use `Atomics`**
-`src/audio/shared-buffer-layout.ts` — The module comment says "lock-free audio-thread → UI-thread communication," but `Atomics` only works with integer-typed arrays (`Int32Array`, `BigInt64Array`, etc.), not `Float32Array` or `Float64Array`. `CURSOR_SECONDS` (Float64) and `BPM` (Float32) cannot be atomically read/written without a mutex or a separate integer-representation trick. This is a correctness trap for any AudioWorklet that tries to implement the INV-3 "lock-free" invariant against these offsets.
+**2. [P2] `Button`: native `disabled` attribute never set on underlying `<button>`**
+`src/ui/primitives/Button.tsx:39`
 
-**5. [P2] `setBpm` accepts invalid values without guarding**
-`src/state/store.ts:57–59` — BPM of `0`, negative values, or `NaN` will be stored and later used in beat-timing calculations (60/bpm), causing division-by-zero or `Infinity`. No validation.
+`disabled` is destructured and excluded from `...rest`. The `<button>` only gets `aria-disabled`. This means:
+- `type="submit"` buttons bypass disability on form Enter-key submission
+- Other event handlers from `...rest` (e.g. `onKeyDown`) still fire when disabled
 
-**6. [P3] Undocumented 3-byte padding in `TransportLayout`**
-`src/audio/shared-buffer-layout.ts:30–32` — There are 3 silent padding bytes between `STATE` (Uint8 at offset 8) and `BPM` (Float32 at offset 12). The layout comment doesn't document this gap. Future implementors writing to byte 9–11 thinking it's free would corrupt BPM alignment.
+Either pass `disabled={disabled}` explicitly to the `<button>`, or document clearly that this is an intentional visually-only pattern.
+
+---
+
+**3. [P2] `Modal`: `showModal()` throws `InvalidStateError` if called when already open**
+`src/ui/primitives/Modal.tsx:24`
+
+If the parent re-renders with `open=true` twice (or the dialog is opened externally), `showModal()` on an already-open `<dialog>` throws. Add a guard:
+```ts
+if (open && !dialog.open) {
+  dialog.showModal();
+}
+```
+Similarly, `dialog.close()` on a never-opened dialog is a no-op in modern browsers but the `dialog.open` check would be cleaner defensive code.
+
+---
+
+**4. [P2] `ContextMenu`: no viewport overflow protection**
+`src/ui/primitives/ContextMenu.tsx:114`
+
+Menu position is raw `clientX/clientY` with no bounds check. Near screen edges the menu clips off-screen. Need to clamp against `window.innerWidth` / `window.innerHeight` after measuring `menuRef`.
+
+---
+
+**5. [P2] `RotaryKnob`: mouse drag doesn't snap to `step`**
+`src/ui/controls/RotaryKnob.tsx:132`
+
+```ts
+commit(startValue + delta * step);
+```
+
+This produces continuous float values regardless of `step`. `Fader.valueFromY` correctly does `Math.round(raw / step) * step`. Apply the same rounding here.
+
+---
+
+**6. [P3] `VuMeter`: `level` prop unclamped — out-of-range values corrupt rendering**
+`src/ui/controls/VuMeter.tsx:51`
+
+`level > 1` makes `barTop` negative (bar exceeds canvas height). `level < 0` draws nothing but `buildAriaLabel` shows a negative percentage. Clamp at the top of the component:
+```ts
+const clampedLevel = Math.min(1, Math.max(0, level));
+```
+
+---
+
+**7. [P3] `ContextMenu`: duplicate item labels produce duplicate React keys**
+`src/ui/primitives/ContextMenu.tsx:118`
+
+`key={item.label}` — use array index or a unique `id` field on `MenuItem`.
 </claude-sonnet-review>
 
 <claude-opus-review>
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 — No AudioContext cleanup on unmount** (`src/App.tsx:16-23`). `createAudioEngine()` is called in `handleStart` and stored in a ref, but there is no `useEffect` cleanup that calls `engine.close()` when the App unmounts. This leaks the AudioContext (browsers limit to ~6 simultaneous contexts). Add a cleanup effect.
+1. **P1 - VuMeter: Runaway rAF loop when `peak` is undefined and level > 0.** In `VuMeter.tsx:63-75`, the `draw` callback is in the `useEffect` dependency array. Each `draw` call triggers `requestAnimationFrame(animate)`, but `draw` is recreated every render (it depends on `level`). When the peak decays to 0 the loop stops, but if a parent re-renders frequently (e.g., real-time audio metering), each render creates a new effect that starts a new rAF chain before the previous one's cleanup fires, potentially stacking animation frames. Fix: gate the rAF start more carefully, or track whether an animation is already running via a `boolean` ref.
 
-2. **P1 — `resume()` error not handled** (`src/App.tsx:19-21`). `void engine.resume().then(...)` discards rejections. If `resume()` throws (e.g., user denies autoplay), the app shows `DawShell` with a broken audio engine and `engineStatus` stuck on whatever it was. Needs a `.catch()` that calls `setEngineStatus("error")` and potentially reverts `audioStarted`.
+2. **P1 - Fader: Mouse drag leaks event listeners on unmount.** `Fader.tsx:60-75` registers `mousemove`/`mouseup` on `document` inside `handleMouseDown`, but if the component unmounts mid-drag, the effect cleanup won't remove these listeners (they're not tracked by any `useEffect`). Fix: store the listeners in a ref and clean them up in a `useEffect` return, or use `AbortController`.
 
-3. **P2 — `handleStart` can be called multiple times** (`src/App.tsx:16-23`). The `useCallback` creates a new `AudioContext` each invocation. While the UI flow currently prevents double-click (screen changes on `setAudioStarted(true)`), a fast double-click or re-render race could create two contexts. Guard with `if (engineRef.current) return;`.
+3. **P1 - RotaryKnob: Same mouse drag listener leak on unmount.** `RotaryKnob.tsx:99-118` has the identical pattern — `mousemove`/`mouseup` listeners on `document` with no cleanup on unmount.
 
-4. **P2 — No BPM validation** (`src/state/store.ts:57-59`). `setBpm` accepts any number including negative, zero, NaN, or Infinity. At minimum clamp to a sane range (e.g., 20-999).
+4. **P2 - Modal: `showModal()` called on already-open dialog throws.** `Modal.tsx:23-29` calls `dialog.showModal()` every time `open` changes to `true`, but if the dialog is already open (e.g. parent re-renders with `open=true`), the browser throws `InvalidStateError`. Fix: guard with `if (!dialog.open) dialog.showModal()`.
 
-5. **P3 — `engineRef` is never read** (`src/App.tsx:13`). The ref is set but never consumed — no cleanup, no passing to children. It's dead code unless future work uses it. Minor, but track it.
+5. **P2 - ContextMenu: Menu can render off-screen.** `ContextMenu.tsx:85` positions the menu at raw `clientX`/`clientY` without clamping to viewport bounds. Right-clicking near the bottom-right corner will clip the menu.
 
-6. **P3 — Shell scripts committed to repo root** (`infinity-loop.sh`, `polish-loop.sh`, `brutalwav-pipeline.sh`). These are agent orchestration scripts (936 lines, 572 lines) that appear to be harness-specific tooling, not application code. Consider `.gitignore` or moving to a `scripts/` directory. The `improve/` directory with TODO-style markdown files is similarly loose.
+6. **P2 - ContextMenu: Arrow key navigation doesn't skip disabled items.** `ContextMenu.tsx:72-81` cycles `focusIndex` over all items including disabled ones. Users can focus and Enter on non-disabled items, but keyboard navigation lands on disabled items with no visual distinction beyond opacity.
+
+7. **P2 - Token duplication between `tokens.ts` and `tokens.css`.** The same values exist in two places with no generation step. These will inevitably drift. Consider generating one from the other or at minimum adding a test that asserts parity.
+
+8. **P2 - `useReducedMotion` SSR incompatibility.** `useReducedMotion.ts:5` calls `window.matchMedia` in the `useState` initializer. This will throw in SSR or any environment without `window`. May not matter for this DAW app, but worth noting.
+
+9. **P3 - Button: `disabled` prop uses `aria-disabled` + strips `onClick`, but does not set native `disabled`.** `Button.tsx:36-38` relies on `pointer-events: none` CSS and `aria-disabled` instead of the native `disabled` attribute. This means the button remains in tab order and screen readers may not announce it as properly disabled in all contexts.
+
+10. **P3 - Tooltip: `cloneElement` usage.** `Tooltip.tsx:27` uses the deprecated `cloneElement` API. React docs recommend render props or composition instead. Not urgent but will trigger warnings in future React versions.
 </claude-opus-review>
 
 <gemini-review>
@@ -64,9 +121,13 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **P2 - AudioContext Memory Leak (HMR)**: In `src/App.tsx`, the `AudioContext` created in `handleStart` is never closed when the component unmounts. During development, Vite's HMR will remount the application and leak an active `AudioContext` on each reload. Browsers enforce a strict hardware limit (typically 6 contexts per page), so this will quickly break audio playback during development. Add a `useEffect` cleanup function to call `engineRef.current?.close()`.
-2. **P2 - Unhandled Promise Rejection**: In `src/App.tsx`, `engine.resume()` is called without a `.catch()` block. If the browser blocks or rejects the resume operation, it will result in an unhandled promise rejection and leave the UI state out of sync. You should chain a `.catch()` block that updates the store via `setEngineStatus("error")`.
-3. **P3 - Missing `preventDefault`**: In `src/ui/ClickToStart.tsx`, the `onKeyDown` handler checks for the Space key (`e.key === " "`) but does not call `e.preventDefault()`. It's a best practice for custom interactive elements to prevent the default page scrolling behavior associated with the spacebar.
+1. **[P0] Type Error / Build Failure:** `src/ui/primitives/Tooltip.tsx` fails to compile with `TS2769` on `cloneElement` because `aria-describedby` is not a statically known prop on the generic `React.ReactElement` `children` type in React 19 typings.
+2. **[P1] Accessibility / Focusability:** `src/ui/primitives/Button.tsx` accepts a custom `disabled` prop but omits passing the native `disabled={disabled}` attribute down to the underlying `<button>`. This leaves the button fully focusable and activatable via keyboard events (e.g. Enter).
+3. **[P1] Audio Trigger Latency:** `src/ui/controls/DrumPad.tsx` binds the trigger event to `onClick`. For a DAW drum pad, `onClick` introduces significant perceptible latency as it fires on pointer *up*. It must bind to `onPointerDown` or `onMouseDown` for immediate audio playback.
+4. **[P1] Memory Leak / Stale Closures:** `src/ui/controls/Fader.tsx` and `src/ui/controls/RotaryKnob.tsx` attach global `mousemove` and `mouseup` listeners to the `document` during dragging, but lack `useEffect` cleanup. If either component unmounts while the user is actively dragging, the event listeners are leaked and will throw errors when invoked.
+5. **[P2] Drag UX / Sensitivity:** `src/ui/controls/RotaryKnob.tsx` calculates its drag entirely via `delta * step` instead of mapping the pixel drag distance against a logical fraction of the `max - min` range. This UX flaw makes the control unusable for large ranges (e.g., requires moving the mouse 2000+ pixels to span a frequency range if `step` is small relative to the range).
+6. **[P2] Floating State Issue:** `src/ui/primitives/ContextMenu.tsx` uses a global `click` listener to close when clicking outside, but it misses the global `contextmenu` event. Right-clicking elsewhere on the page opens the native context menu while leaving the custom context menu visibly stuck open.
+7. **[P3] Incorrect Editable Check:** `src/ui/keyboard/useKeyboardShortcuts.ts` checks for editable elements by checking `target.getAttribute("contenteditable") !== null`. This erroneously excludes elements with `contenteditable="false"`. It should use the native `target.isContentEditable` boolean.
 </gemini-review>
 
 

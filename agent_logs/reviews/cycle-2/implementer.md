@@ -1,15 +1,13 @@
+Committed. 180 tests pass, TypeScript clean, lint clean.
+
+**Summary of fixes applied:**
+
+| Finding | Severity | Fix |
+|---|---|---|
+| DrumPad lost keyboard activation (Enter/Space) | P1 | Added `onKeyDown` handler for Enter and Space keys |
+| DrumPad fires on non-primary pointer buttons | P1 | Filtered `onPointerDown` to `e.button === 0` (primary only) |
+| Regression tests | -- | Added 3 tests: Enter key, Space key, right-click ignored |
+
+All other P1/P2 issues from previous cycles were already confirmed fixed by the reviewers (Sonnet, Opus, Gemini all approved). The remaining unaddressed items (token duplication P2, SSR P2) are deferred as agreed -- token duplication is a build-tooling concern and SSR doesn't apply to a browser-only DAW app.
+
 FIXES_APPLIED
-
-**Changes made:**
-
-**P1 — Engine leak on rejection** (`src/App.tsx:28-37`): The rejection handler now calls `engine.close()` to prevent accumulating live AudioContexts. Both `.then()` callbacks are gated with `engineRef.current === engine` so they no-op if the component unmounted or the engine was replaced while `resume()` was in flight.
-
-**P1 — Lint gate broken** (`src/App.test.tsx`):
-- Removed 4 unnecessary `async` wrappers by adding `await Promise.resolve()` inside `act()` callbacks (satisfies `require-await` while still flushing microtasks)
-- Replaced constructor-only class with `vi.fn()` mock (fixes `no-extraneous-class`)
-
-**New tests added:**
-- `closes AudioContext when resume() rejects` — asserts `close()` is called on rejection
-- `does not update state if unmounted while resume() is in flight` — asserts liveness guard works
-
-All 52 tests pass, lint is clean.

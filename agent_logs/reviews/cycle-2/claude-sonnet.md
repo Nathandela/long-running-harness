@@ -1,12 +1,11 @@
-All 6 findings are addressed:
+All 7 previously flagged issues are fixed:
 
-- **P1 (race)**: `setAudioStarted(true)` now inside `.then()` fulfillment handler — DawShell only renders after engine is running.
-- **P1 (unhandled rejection)**: Two-argument `.then(onFulfilled, onRejected)` form — rejection sets `engineStatus("error")` and clears `engineRef`.
-- **P2 (sync throw)**: `createAudioEngine()` wrapped in try/catch — sets `"error"` status on unsupported platforms.
-- **P2 (Atomics)**: Layout comment now documents the Float32/Float64 restriction with guidance on Int32Array/BigInt64Array views.
-- **P2 (BPM validation)**: Clamped 20–999, NaN/non-finite guarded correctly (`Math.max/min` propagates NaN, caught by `Number.isFinite`).
-- **P3 (padding)**: `// Bytes 9-11: alignment padding (reserved, do not use)` comment added.
-
-Bonus fixes (double-click guard, `useEffect` cleanup for HMR, `e.preventDefault()` on Space) are all correct.
+- **P1** `useKeyboardShortcuts`: now uses `target.isContentEditable` ✓
+- **P2** `Button`: passes native `disabled={disabled}` ✓
+- **P2** `Modal`: guards `showModal()`/`close()` with `dialog.open` check ✓
+- **P2** `ContextMenu`: viewport clamping via post-render effect, index-based keys, disabled-item arrow nav skip, outer contextmenu close ✓
+- **P2** `RotaryKnob`: range-based drag with `snapToStep`, AbortController cleanup ✓
+- **P3** `VuMeter`: `rawLevel` clamped to [0,1], `animatingRef` prevents rAF stacking ✓
+- **P3** `ContextMenu` keys: now `${index}-${label}` ✓
 
 REVIEW_APPROVED

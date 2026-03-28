@@ -6,31 +6,38 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All 6 findings are addressed:
+All 7 previously flagged issues are fixed:
 
-- **P1 (race)**: `setAudioStarted(true)` now inside `.then()` fulfillment handler — DawShell only renders after engine is running.
-- **P1 (unhandled rejection)**: Two-argument `.then(onFulfilled, onRejected)` form — rejection sets `engineStatus("error")` and clears `engineRef`.
-- **P2 (sync throw)**: `createAudioEngine()` wrapped in try/catch — sets `"error"` status on unsupported platforms.
-- **P2 (Atomics)**: Layout comment now documents the Float32/Float64 restriction with guidance on Int32Array/BigInt64Array views.
-- **P2 (BPM validation)**: Clamped 20–999, NaN/non-finite guarded correctly (`Math.max/min` propagates NaN, caught by `Number.isFinite`).
-- **P3 (padding)**: `// Bytes 9-11: alignment padding (reserved, do not use)` comment added.
-
-Bonus fixes (double-click guard, `useEffect` cleanup for HMR, `e.preventDefault()` on Space) are all correct.
+- **P1** `useKeyboardShortcuts`: now uses `target.isContentEditable` ✓
+- **P2** `Button`: passes native `disabled={disabled}` ✓
+- **P2** `Modal`: guards `showModal()`/`close()` with `dialog.open` check ✓
+- **P2** `ContextMenu`: viewport clamping via post-render effect, index-based keys, disabled-item arrow nav skip, outer contextmenu close ✓
+- **P2** `RotaryKnob`: range-based drag with `snapToStep`, AbortController cleanup ✓
+- **P3** `VuMeter`: `rawLevel` clamped to [0,1], `animatingRef` prevents rAF stacking ✓
+- **P3** `ContextMenu` keys: now `${index}-${label}` ✓
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All six original findings addressed:
+All 177 tests pass, TypeScript compiles clean. Let me verify each original finding against the fixes:
 
-1. **P1 AudioContext cleanup** — Fixed. `useEffect` cleanup calls `engine.close()` on unmount (line 40-45).
-2. **P1 resume() error handling** — Fixed. `.then(onFulfilled, onRejected)` pattern sets `"error"` status and nulls the ref on failure (lines 28-37).
-3. **P2 double-click guard** — Fixed. `if (engineRef.current) return;` at line 17. New test confirms it.
-4. **P2 BPM validation** — Fixed. Clamp to 20-999 + `Number.isFinite` guard (lines 58-60).
-5. **P3 dead engineRef** — Fixed. Now used in cleanup effect and double-click guard.
-6. **P3 shell scripts / improve dir** — Acknowledged as out-of-scope for this fix pass (cosmetic).
+| # | Original Finding | Status |
+|---|---|---|
+| 1 | P1 VuMeter rAF stacking | Fixed -- `animatingRef` guards against duplicate loops (line 40, 108-110, 120, 128) |
+| 2 | P1 Fader drag listener leak | Fixed -- `AbortController` in ref, cleaned up on unmount (lines 28, 33-37, 89-106) |
+| 3 | P1 RotaryKnob drag listener leak | Fixed -- same `AbortController` pattern (lines 77, 90-94, 144-164) |
+| 4 | P2 Modal showModal on already-open | Fixed -- guarded with `if (!dialog.open)` (line 24) |
+| 5 | P2 ContextMenu off-screen | Fixed -- `clampToViewport` helper + post-render position correction (lines 34-43, 70-81) |
+| 6 | P2 ContextMenu arrow skips disabled | Fixed -- `findNextEnabledIndex` helper (lines 21-32, 100, 104) |
+| 7 | P2 Token duplication | Not addressed -- acceptable as P2, low risk for now |
+| 8 | P2 useReducedMotion SSR | Not addressed -- acceptable, DAW is browser-only |
+| 9 | P3 Button native disabled | Fixed -- now uses `disabled={disabled}` (line 39) |
+| 10 | P3 Tooltip cloneElement | Fixed -- type narrowed to `React.ReactElement<React.HTMLAttributes<HTMLElement>>` (Tooltip.tsx line 9) |
 
-50 tests passing, 0 failures. The atomics documentation on `TransportLayout` and alignment padding comment are good additions.
+The RotaryKnob also gained `DRAG_SENSITIVITY` constant and `snapToStep` for better drag UX -- good addition. The ContextMenu key now uses `${index}-${label}` which handles duplicate labels correctly.
+
+Items 7 and 8 were P2/P2 and are acceptable to defer: token duplication is a build-tooling concern, and SSR doesn't apply to a DAW app.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -58,11 +65,8 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Startup failure handling still leaks and races the audio engine** ([src/App.tsx:28](/Users/Nathan/Documents/Code/long-running-harness/src/App.tsx:28), [src/App.tsx:40](/Users/Nathan/Documents/Code/long-running-harness/src/App.tsx:40))  
-  The new `resume()` path clears `engineRef.current` on rejection, but it never closes the `AudioContext` that was just created. Repeated failed starts can therefore accumulate live contexts until the browser hits its context limit. The same promise chain also has no liveness guard, so if the component unmounts while `resume()` is in flight, cleanup closes the engine and the success callback can still mark the global store `running` afterward. Close the specific `engine` on rejection and gate both callbacks behind an `isMounted`/current-engine check; add a test for `unmount before resume settles` and one asserting `close()` is called after a rejected `resume()`.
-
-- **[P1] The latest test changes fail the lint gate, so CI is still broken** ([src/App.test.tsx:51](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:51), [src/App.test.tsx:69](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:69), [src/App.test.tsx:78](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:78), [src/App.test.tsx:84](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:84), [src/App.test.tsx:105](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:105))  
-  `pnpm test` passes, but `pnpm lint` now fails with four `@typescript-eslint/require-await` errors and one `@typescript-eslint/no-extraneous-class` error introduced in the new tests. That means the branch still does not satisfy the project quality gate. Remove the unnecessary `async` wrappers around those `act` blocks, and replace the constructor-only stub with a lint-compliant mock shape.</codex-review>
+- **[P1] `DrumPad` no longer supports native keyboard activation, and it now triggers on any pointer button** ([DrumPad.tsx:21](/Users/Nathan/Documents/Code/long-running-harness/src/ui/controls/DrumPad.tsx:21), [DrumPad.test.tsx:12](/Users/Nathan/Documents/Code/long-running-harness/src/ui/controls/DrumPad.test.tsx:12))  
+  Changing the control from `onClick` to `onPointerDown` improves pointer latency, but it drops the built-in `Enter`/`Space` activation path that a real `<button>` gets through `click`, so focused pads are no longer keyboard-operable. It also fires for non-primary pointer buttons unless `event.button` is filtered. Keep the low-latency pointer path if needed, but preserve keyboard activation and primary-button semantics, and add a regression test that triggers a pad via keyboard.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

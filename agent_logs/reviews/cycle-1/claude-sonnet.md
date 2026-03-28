@@ -2,20 +2,69 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P1] Unhandled rejection in `handleStart` — silent audio failure**
-`src/App.tsx:19` — `void engine.resume().then(...)` discards any rejection. If the browser blocks audio context resume (autoplay policy, permissions), the error is silently swallowed, `engineStatus` is never set to `"error"`, and the DawShell renders with no indication anything went wrong. The store has an `"error"` state that is never reachable from this code path.
+**1. [P1] `useKeyboardShortcuts`: `contenteditable="false"` incorrectly blocks shortcuts**
+`src/ui/keyboard/useKeyboardShortcuts.ts:18`
 
-**2. [P1] `setAudioStarted(true)` called before `resume()` resolves**
-`src/App.tsx:19–22` — DawShell renders immediately while the engine is still `suspended`. `engineStatus` in the store remains `"uninitialized"` until the async resolve. Any DawShell child that reads `engineStatus` and branches on `"running"` will get the wrong state on first render. Fix: move `setAudioStarted(true)` into the `.then()` callback, after `setEngineStatus("running")`.
+`getAttribute("contenteditable") !== null` returns `true` for `contenteditable="false"` — explicitly non-editable elements will silently swallow shortcuts. Fix:
+```ts
+if (target.isContentEditable) {
+```
 
-**3. [P2] `createAudioEngine()` can throw synchronously, uncaught**
-`src/App.tsx:17` — `new AudioContext()` throws on platforms without Web Audio support and in certain browser environments. No try/catch wraps this call; an uncaught exception here crashes the whole app with no error UI.
+---
 
-**4. [P2] `Float32`/`Float64` fields in `SharedArrayBuffer` cannot use `Atomics`**
-`src/audio/shared-buffer-layout.ts` — The module comment says "lock-free audio-thread → UI-thread communication," but `Atomics` only works with integer-typed arrays (`Int32Array`, `BigInt64Array`, etc.), not `Float32Array` or `Float64Array`. `CURSOR_SECONDS` (Float64) and `BPM` (Float32) cannot be atomically read/written without a mutex or a separate integer-representation trick. This is a correctness trap for any AudioWorklet that tries to implement the INV-3 "lock-free" invariant against these offsets.
+**2. [P2] `Button`: native `disabled` attribute never set on underlying `<button>`**
+`src/ui/primitives/Button.tsx:39`
 
-**5. [P2] `setBpm` accepts invalid values without guarding**
-`src/state/store.ts:57–59` — BPM of `0`, negative values, or `NaN` will be stored and later used in beat-timing calculations (60/bpm), causing division-by-zero or `Infinity`. No validation.
+`disabled` is destructured and excluded from `...rest`. The `<button>` only gets `aria-disabled`. This means:
+- `type="submit"` buttons bypass disability on form Enter-key submission
+- Other event handlers from `...rest` (e.g. `onKeyDown`) still fire when disabled
 
-**6. [P3] Undocumented 3-byte padding in `TransportLayout`**
-`src/audio/shared-buffer-layout.ts:30–32` — There are 3 silent padding bytes between `STATE` (Uint8 at offset 8) and `BPM` (Float32 at offset 12). The layout comment doesn't document this gap. Future implementors writing to byte 9–11 thinking it's free would corrupt BPM alignment.
+Either pass `disabled={disabled}` explicitly to the `<button>`, or document clearly that this is an intentional visually-only pattern.
+
+---
+
+**3. [P2] `Modal`: `showModal()` throws `InvalidStateError` if called when already open**
+`src/ui/primitives/Modal.tsx:24`
+
+If the parent re-renders with `open=true` twice (or the dialog is opened externally), `showModal()` on an already-open `<dialog>` throws. Add a guard:
+```ts
+if (open && !dialog.open) {
+  dialog.showModal();
+}
+```
+Similarly, `dialog.close()` on a never-opened dialog is a no-op in modern browsers but the `dialog.open` check would be cleaner defensive code.
+
+---
+
+**4. [P2] `ContextMenu`: no viewport overflow protection**
+`src/ui/primitives/ContextMenu.tsx:114`
+
+Menu position is raw `clientX/clientY` with no bounds check. Near screen edges the menu clips off-screen. Need to clamp against `window.innerWidth` / `window.innerHeight` after measuring `menuRef`.
+
+---
+
+**5. [P2] `RotaryKnob`: mouse drag doesn't snap to `step`**
+`src/ui/controls/RotaryKnob.tsx:132`
+
+```ts
+commit(startValue + delta * step);
+```
+
+This produces continuous float values regardless of `step`. `Fader.valueFromY` correctly does `Math.round(raw / step) * step`. Apply the same rounding here.
+
+---
+
+**6. [P3] `VuMeter`: `level` prop unclamped — out-of-range values corrupt rendering**
+`src/ui/controls/VuMeter.tsx:51`
+
+`level > 1` makes `barTop` negative (bar exceeds canvas height). `level < 0` draws nothing but `buildAriaLabel` shows a negative percentage. Clamp at the top of the component:
+```ts
+const clampedLevel = Math.min(1, Math.max(0, level));
+```
+
+---
+
+**7. [P3] `ContextMenu`: duplicate item labels produce duplicate React keys**
+`src/ui/primitives/ContextMenu.tsx:118`
+
+`key={item.label}` — use array index or a unique `id` field on `MenuItem`.
