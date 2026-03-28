@@ -3,7 +3,7 @@
  * Shows insert chain with add/remove/bypass controls.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import { useEffectsStore } from "@state/effects";
 import {
   createReverbFactory,
@@ -33,11 +33,7 @@ type EffectsRackProps = {
 };
 
 export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
-  const trackEffects = useEffectsStore((s) => s.trackEffects);
-  const slots = useMemo(
-    () => trackEffects[trackId] ?? EMPTY_SLOTS,
-    [trackEffects, trackId],
-  );
+  const slots = useEffectsStore((s) => s.trackEffects[trackId] ?? EMPTY_SLOTS);
   const addEffect = useEffectsStore((s) => s.addEffect);
   const removeEffect = useEffectsStore((s) => s.removeEffect);
   const updateEffectParam = useEffectsStore((s) => s.updateEffectParam);

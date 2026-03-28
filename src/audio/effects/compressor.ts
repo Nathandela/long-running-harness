@@ -70,6 +70,9 @@ export function createCompressorFactory(): EffectFactory {
           inputNode.connect(comp);
           comp.connect(outputNode);
         },
+        disposeChain() {
+          comp.disconnect();
+        },
         applyParam(key, value) {
           switch (key) {
             case "threshold":

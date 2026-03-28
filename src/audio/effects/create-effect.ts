@@ -24,6 +24,8 @@ export type CreateEffectOptions = {
   buildChain(inputNode: GainNode, outputNode: GainNode): void;
   /** Called when a parameter changes. Use setMix callback for mix params. */
   applyParam: ApplyParamFn;
+  /** Clean up internal effect nodes (stop oscillators, disconnect nodes) */
+  disposeChain?: () => void;
 };
 
 /**
@@ -114,6 +116,7 @@ export function createBaseEffect(opts: CreateEffectOptions): EffectInstance {
     setMix,
 
     dispose(): void {
+      opts.disposeChain?.();
       input.disconnect();
       output.disconnect();
       dryGain.disconnect();

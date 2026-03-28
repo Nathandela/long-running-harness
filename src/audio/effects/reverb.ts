@@ -76,6 +76,10 @@ export function createReverbFactory(): EffectFactory {
           preDelayNode.connect(convolver);
           convolver.connect(outputNode);
         },
+        disposeChain() {
+          preDelayNode.disconnect();
+          convolver.disconnect();
+        },
         applyParam(key, value, setMix) {
           switch (key) {
             case "decay":

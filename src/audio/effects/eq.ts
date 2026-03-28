@@ -108,6 +108,11 @@ export function createEqFactory(): EffectFactory {
           mid.connect(highShelf);
           highShelf.connect(outputNode);
         },
+        disposeChain() {
+          lowShelf.disconnect();
+          mid.disconnect();
+          highShelf.disconnect();
+        },
         applyParam(key, value) {
           switch (key) {
             case "lowFreq":

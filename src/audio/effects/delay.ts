@@ -62,6 +62,10 @@ export function createDelayFactory(): EffectFactory {
           delayNode.connect(feedbackGain);
           feedbackGain.connect(delayNode);
         },
+        disposeChain() {
+          delayNode.disconnect();
+          feedbackGain.disconnect();
+        },
         applyParam(key, value, setMix) {
           switch (key) {
             case "time":

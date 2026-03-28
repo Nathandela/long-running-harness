@@ -104,6 +104,9 @@ export function createDistortionFactory(): EffectFactory {
           inputNode.connect(shaper);
           shaper.connect(outputNode);
         },
+        disposeChain() {
+          shaper.disconnect();
+        },
         applyParam(key, value, setMix) {
           switch (key) {
             case "drive":

@@ -68,6 +68,12 @@ export function createChorusFactory(): EffectFactory {
 
           lfo.start();
         },
+        disposeChain() {
+          lfo.stop();
+          lfo.disconnect();
+          lfoGain.disconnect();
+          delayNode.disconnect();
+        },
         applyParam(key, value, setMix) {
           switch (key) {
             case "rate":
