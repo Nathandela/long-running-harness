@@ -18,7 +18,6 @@ export default defineConfig([
       },
     },
     plugins: {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- react-hooks plugin types lag behind eslint flat config
       "react-hooks": reactHooks as never,
       "react-refresh": reactRefresh,
     },
