@@ -18,7 +18,7 @@ const itemStyle: React.CSSProperties = {
   alignItems: "center",
   gap: "var(--space-2)",
   padding: "var(--space-1) var(--space-2)",
-  borderBottom: "1px solid var(--color-gray-700)",
+  borderBottom: "var(--border)",
   fontFamily: "var(--font-mono)",
   fontSize: "var(--text-xs)",
 };
@@ -38,7 +38,7 @@ const metaStyle: React.CSSProperties = {
 
 const badgeStyle: React.CSSProperties = {
   padding: "0 var(--space-1)",
-  border: "1px solid var(--color-gray-500)",
+  border: "var(--border-width) solid var(--color-gray-500)",
   color: "var(--color-gray-300)",
   fontSize: "var(--text-xs)",
   textTransform: "uppercase",

@@ -38,8 +38,8 @@ export class ErrorBoundary extends Component<Props, State> {
           justifyContent: "center",
           padding: "2rem",
           gap: "1rem",
-          color: "var(--color-red, #f44)",
-          backgroundColor: "var(--color-black, #111)",
+          color: "var(--color-red)",
+          backgroundColor: "var(--color-black)",
           minHeight: "120px",
         }}
       >
@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
           style={{
             margin: 0,
             fontSize: "0.875rem",
-            color: "var(--color-gray-400, #888)",
+            color: "var(--color-gray-300)",
             maxWidth: "40ch",
             textAlign: "center",
           }}
@@ -62,9 +62,9 @@ export class ErrorBoundary extends Component<Props, State> {
           }}
           style={{
             padding: "0.5rem 1.5rem",
-            border: "1px solid var(--color-red, #f44)",
+            border: "var(--border-width) solid var(--color-red)",
             background: "transparent",
-            color: "var(--color-red, #f44)",
+            color: "var(--color-red)",
             cursor: "pointer",
             fontSize: "0.875rem",
           }}

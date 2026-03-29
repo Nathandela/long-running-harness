@@ -10,6 +10,7 @@
 
   /* Grays */
   --color-gray-900: #111111;
+  --color-gray-800: #222222;
   --color-gray-700: #333333;
   --color-gray-500: #666666;
   --color-gray-300: #999999;
@@ -18,6 +19,7 @@
   /* Typography */
   --font-mono: "JetBrains Mono", monospace;
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-2xs: 9px;
   --text-xs: 10px;
   --text-sm: 12px;
   --text-base: 14px;

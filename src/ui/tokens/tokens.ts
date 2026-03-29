@@ -8,6 +8,7 @@ export const tokens = {
     amber: "#ffb800",
     red: "#ff0000",
     gray900: "#111111",
+    gray800: "#222222",
     gray700: "#333333",
     gray500: "#666666",
     gray300: "#999999",
@@ -28,6 +29,7 @@ export const tokens = {
     16: 64,
   },
   text: {
+    "2xs": 9,
     xs: 10,
     sm: 12,
     base: 14,

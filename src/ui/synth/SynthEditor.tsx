@@ -24,7 +24,7 @@ type SynthEditorProps = {
 
 // ─── Shared Styles ───
 
-const BORDER = String(tokens.border.width) + "px solid " + tokens.color.gray700;
+const BORDER = "var(--border)";
 
 const sectionStyle: React.CSSProperties = {
   border: BORDER,
@@ -89,7 +89,7 @@ function Knob({
         style={{ width: 60, accentColor: tokens.color.blue }}
         data-testid={"knob-" + label.toLowerCase().replace(/\s/g, "-")}
       />
-      <span style={{ ...labelStyle, fontSize: tokens.text.xs - 1 }}>
+      <span style={{ ...labelStyle, fontSize: tokens.text["2xs"] }}>
         {value.toFixed(step < 1 ? 2 : 0)}
         {unit ?? ""}
       </span>

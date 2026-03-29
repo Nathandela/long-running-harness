@@ -26,7 +26,7 @@ type Props = {
 
 const EMPTY_ROUTES: readonly ModRoute[] = [];
 
-const BORDER = `${String(tokens.border.width)}px solid ${tokens.color.gray700}`;
+const BORDER = "var(--border)";
 
 const LABEL_STYLE: React.CSSProperties = {
   fontFamily: tokens.font.mono,
@@ -319,12 +319,12 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                 }}
                 style={{
                   background: "none",
-                  border: `1px solid ${route.bipolar ? tokens.color.blue : tokens.color.gray700}`,
+                  border: `${String(tokens.border.width)}px solid ${route.bipolar ? tokens.color.blue : tokens.color.gray700}`,
                   color: route.bipolar
                     ? tokens.color.blue
                     : tokens.color.gray500,
                   fontFamily: tokens.font.mono,
-                  fontSize: tokens.text.xs - 1,
+                  fontSize: tokens.text["2xs"],
                   cursor: "pointer",
                   padding: "1px 3px",
                 }}
@@ -338,7 +338,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                 }}
                 style={{
                   background: "none",
-                  border: `1px solid ${tokens.color.gray700}`,
+                  border: `${String(tokens.border.width)}px solid ${tokens.color.gray700}`,
                   color: tokens.color.gray500,
                   fontFamily: tokens.font.mono,
                   fontSize: tokens.text.xs,

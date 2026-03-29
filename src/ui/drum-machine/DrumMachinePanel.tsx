@@ -31,7 +31,7 @@ type DrumMachinePanelProps = {
   params: Record<DrumInstrumentId, DrumInstrumentParams>;
 };
 
-const BORDER = String(tokens.border.width) + "px solid " + tokens.color.gray700;
+const BORDER = "var(--border)";
 
 const labelStyle: React.CSSProperties = {
   fontFamily: tokens.font.mono,
@@ -71,7 +71,7 @@ function ParamKnob({
       <span
         style={{
           fontFamily: tokens.font.mono,
-          fontSize: tokens.text.xs - 1,
+          fontSize: tokens.text["2xs"],
           color: tokens.color.gray300,
         }}
       >

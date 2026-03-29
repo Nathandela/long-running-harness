@@ -89,7 +89,7 @@
 
 .pre {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--text-2xs);
   background: transparent;
   border: none;
   color: var(--color-gray-300);
@@ -119,8 +119,8 @@
 
 .sc-badge {
   display: inline-block;
-  font-size: 9px;
-  color: var(--color-cyan, #06b6d4);
+  font-size: var(--text-2xs);
+  color: var(--color-blue);
   background-color: var(--color-gray-800);
   padding: 0 4px;
   border-radius: 2px;

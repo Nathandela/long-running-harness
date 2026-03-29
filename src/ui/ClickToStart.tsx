@@ -19,7 +19,7 @@ export function ClickToStart({
         color: "var(--color-white)",
         fontFamily: "var(--font-mono)",
         cursor: "pointer",
-        zIndex: 9999,
+        zIndex: "var(--z-overlay)",
         border: "none",
         width: "100%",
         height: "100%",
