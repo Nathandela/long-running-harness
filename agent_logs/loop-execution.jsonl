@@ -18,3 +18,4 @@
 {"epic_id":"long-running-harness-tnf","result":"complete","attempts":1,"duration_s":1188,"timestamp":"2026-03-29T00:56:15Z"}
 {"type":"summary","completed":18,"failed":0,"skipped":0,"total_duration_s":44094}
 {"epic_id":"long-running-harness-ba9","result":"complete","attempts":1,"duration_s":903,"timestamp":"2026-03-29T01:27:42Z"}
+{"epic_id":"long-running-harness-3tn","result":"complete","attempts":1,"duration_s":560,"timestamp":"2026-03-29T01:37:17Z"}
