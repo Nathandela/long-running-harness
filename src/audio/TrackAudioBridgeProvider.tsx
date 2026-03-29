@@ -56,10 +56,17 @@ export function TrackAudioBridgeProvider({
             !inFlightRef.current.has(clip.sourceId)
           ) {
             inFlightRef.current.add(clip.sourceId);
-            void pool.getAudioBuffer(clip.sourceId).then((buf) => {
-              inFlightRef.current.delete(clip.sourceId);
-              if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
-            });
+            void pool
+              .getAudioBuffer(clip.sourceId)
+              .then((buf) => {
+                if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
+              })
+              .catch(() => {
+                // Failed fetch — allow retry on next sync pass
+              })
+              .finally(() => {
+                inFlightRef.current.delete(clip.sourceId);
+              });
           }
         }
       }

@@ -8,10 +8,11 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-6vx ● P0 task E6-T1: Track & Clip data models
 ✓ long-running-harness-7pq7 ● P0 epic W1: Track Creation & Panel Wiring
 ├── ✓ long-running-harness-ayef ● P0 epic W3: Piano Roll, Media Drag & Clip Workflow
-└── ✓ long-running-harness-bs9b ● P0 epic W2: Effects, Routing & Mixer Integration
+├── ✓ long-running-harness-bs9b ● P0 epic W2: Effects, Routing & Mixer Integration
+│   └── ✓ long-running-harness-w8bo ● P0 epic W5: Audio Engine Bridge (Sound Pipeline)
+└── ✓ long-running-harness-w8bo ● P0 epic W5: Audio Engine Bridge (Sound Pipeline)
 ✓ long-running-harness-8yqu ● P0 task W3-T2: Double-click MIDI clip opens piano roll
 ✓ long-running-harness-b4o ● P0 task E7-T2: Solo-in-place state machine
-✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
 ✓ long-running-harness-cz0 ● P0 task E7-T6: Mixer panel UI
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
 ✓ long-running-harness-iy45 ● P0 task W3-T3: Media pool drag-to-arrangement
@@ -28,10 +29,9 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-23ab5cb Fix review findings: duplicate point on click, missing analyser mock
-141c726 Fix review findings: drag spurious point, bounce cancel/error, missing import
-85084af chore: auto-commit uncommitted changes from long-running-harness-73v4
-d721096 Wire bounce/export dialog, automation lane UI, and scheduling bridge (W4 epic)
+6294191 Fix review findings: buffer leak, stale callback, race condition, missing cleanup
+e4bf6ed chore: auto-commit uncommitted changes from long-running-harness-w8bo
+c6bff1c Wire TrackAudioBridgeProvider: synth, drum, and clip scheduling (W5 epic)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

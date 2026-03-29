@@ -1,36 +1,15 @@
-Based on my review, here are the findings:
+REVIEW_CHANGES_REQUESTED
 
 ---
 
-REVIEW_CHANGES_REQUESTED
+**1. [P2] Buffer cache grows unboundedly — memory leak**
+`TrackAudioBridgeProvider.tsx:44` — `bufferCacheRef` accumulates `AudioBuffer` entries (uncompressed PCM, potentially 10s–100s of MB each) and never evicts them when clips are deleted from the store. The subscribe callback only adds, never removes. In a live session with frequent clip edits this will bloat memory. Fix: subscribe to clip removals and `bufferCacheRef.current.delete(clip.sourceId)` when a sourceId is no longer referenced by any clip.
 
-**1. [P1] `AutomationLaneEditor`: drag always adds a spurious point** (`src/ui/arrangement/AutomationLaneEditor.tsx:84`)
+**2. [P2] `addAudioTrack` never registers a cleanup — mixer strip leaks on `dispose()`**
+`track-audio-bridge.ts:130-133` — `addAudioTrack` calls `mixer.getOrCreateStrip` but doesn't add an entry to `trackCleanups`. When `bridge.dispose()` runs, the loop over `trackCleanups.values()` skips audio tracks, so `mixer.removeStrip` is never called for them. They leak until `EffectsBridgeProvider` disposes the whole mixer. Fix: add `trackCleanups.set(trackId, () => mixer.removeStrip(trackId))` in `addAudioTrack`.
 
-Both `onPointerDown` and `onClick` are registered on the same canvas element. When the user drags an existing point, the event sequence is: `pointerdown` (captures pointer, sets `draggingPointId`) → `pointermove` (moves point) → `pointerup` (clears `draggingPointId`) → **`click` fires at drag-end coordinates and calls `addPoint`**. Every successful drag also creates an unwanted new point. Fix: skip `handleClick` if a drag just completed, e.g. by tracking a `didDrag` ref that's set in `handlePointerMove` and cleared after `handleClick` consumes it.
+**3. [P3] Unnecessary `as unknown as AudioNode` cast**
+`TrackAudioBridgeProvider.tsx:106` — `strip.inputGain` is a `GainNode`, which extends `AudioNode`. The double-cast through `unknown` is not needed; `scheduleClips` accepts `AudioNode`. Remove the cast.
 
-**2. [P2] `BounceDialog`: errors are silently swallowed** (`src/ui/session/BounceDialog.tsx:73`)
-
-```tsx
-} catch {
-  setBounceState({ status: "idle" });
-}
-```
-
-The user gets no feedback when a bounce fails — the dialog just closes silently. At minimum, surface an error state in `BounceState` and show a message.
-
-**3. [P2] `BounceDialog`: `URL.revokeObjectURL` called before download is guaranteed** (`src/ui/session/BounceDialog.tsx:67–71`)
-
-```tsx
-a.click();
-URL.revokeObjectURL(url);  // races with browser download initiation
-```
-
-The anchor is never appended to the DOM. While this works in current Chrome/Safari, it's fragile. Standard safe pattern: `document.body.appendChild(a); a.click(); document.body.removeChild(a);` then revoke in a `setTimeout(0)`.
-
-**4. [P3] `AutomationLaneEditor`: `trackTop` prop declared but never used** (`src/ui/arrangement/AutomationLaneEditor.tsx:9,20`)
-
-`trackTop` is in `AutomationLaneEditorProps` and destructured in the call sites (ArrangementPanel likely passes it), but is not destructured nor used inside the component. Either use it or remove it from the type.
-
-**5. [P3] `BounceDialog`: wasted `BounceEngine` instance from `useRef` initializer** (`src/ui/session/BounceDialog.tsx:30`)
-
-`useRef(createBounceEngine())` creates an engine on mount that is immediately replaced with a fresh one in `handleBounce`. Should be `useRef<ReturnType<typeof createBounceEngine> | null>(null)` and assigned lazily.
+**4. [P3] `alive` set carried for drum/audio tracks but never consulted**
+`track-audio-bridge.ts:117,131` — `alive.add(trackId)` is called in `addDrumTrack` and `addAudioTrack`, but `alive.has(trackId)` is only checked inside the async instrument creation callback (lines 95). For drum and audio tracks the flag is never read, making the intent opaque. Either document why it's added (e.g. "reserved for future async loading") or remove it from those paths to keep the invariant clear.

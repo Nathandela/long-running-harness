@@ -7,11 +7,14 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+1. [P3] DrumKit parameter desynchronization: This issue remains unresolved. In `src/audio/track-audio-bridge.ts`, `addDrumTrack` still initializes `DrumKit` with default parameters (`const kit = createDrumKit(ctx, samples);`). There is no mechanism to sync the kit's initial state with the values stored in `paramsCache` from `src/ui/panels.tsx` if the audio bridge is re-created, resulting in the audio engine resetting to defaults while the UI retains its cached parameter values.

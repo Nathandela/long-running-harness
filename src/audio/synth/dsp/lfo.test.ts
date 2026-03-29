@@ -20,10 +20,14 @@ function generateLFO(
 describe("LFO", () => {
   it("sine output stays within [-1, 1]", () => {
     const samples = generateLFO("sine", 5, SR);
-    for (let i = 0; i < samples.length; i++) {
-      expect(samples[i]).toBeGreaterThanOrEqual(-1.001);
-      expect(samples[i]).toBeLessThanOrEqual(1.001);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of samples) {
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
+    expect(min).toBeGreaterThanOrEqual(-1.001);
+    expect(max).toBeLessThanOrEqual(1.001);
   });
 
   it("square output is +1 or -1", () => {
@@ -35,10 +39,14 @@ describe("LFO", () => {
 
   it("triangle output stays within [-1, 1]", () => {
     const samples = generateLFO("triangle", 3, SR);
-    for (let i = 0; i < samples.length; i++) {
-      expect(samples[i]).toBeGreaterThanOrEqual(-1.001);
-      expect(samples[i]).toBeLessThanOrEqual(1.001);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of samples) {
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
+    expect(min).toBeGreaterThanOrEqual(-1.001);
+    expect(max).toBeLessThanOrEqual(1.001);
   });
 
   it("sample-and-hold changes value once per cycle", () => {

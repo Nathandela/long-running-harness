@@ -1,0 +1,25 @@
+Now let me understand the key files I need to modify. Let me read them in parallel.Good, I have a clear picture. Let me explore the remaining files I need to understand.Now I have full context. Let me read the existing tests and remaining key files.Let me check a few more things I need.Good, I now have complete understanding. Let me create beads sub-tasks and start implementing. I'll use the TDD approach as required.Task 4 (DrumMachinePanel audit) is already confirmed from the explore agent: it imports and uses both `DrumPad` from `@ui/controls/DrumPad` and `StepButton` from `@ui/controls/StepButton`. Closing it.Now let me claim and work on the three implementation tasks. I'll start with Task 1 and 2 together since they both modify SynthEditor.tsx.## Phase 1: Test Design
+
+Let me first update the existing tests to reflect the new components, then implement.
+
+**SynthEditor changes:**
+- Replace `Knob` (input range) with `RotaryKnob` (canvas-based, role="slider")
+- Replace `TypeSelector` (select/combobox) with styled toggle buttons (role="radiogroup")
+
+The existing test at line 29-33 checks for 5 combobox elements - this will change to radio groups. Let me also check how RotaryKnob renders to know what to assert.
+
+The RotaryKnob renders with `role="slider"` and `aria-label={label}`. The TypeSelector replacement will use buttons in a group.
+
+Let me write the updated tests first.Now let me update the arrangement renderer test to cover waveform peak rendering.Now I need to update the `RenderContext` type in tests to include `clipPeaks`. Let me also update the `makeRenderContext` helper.Good. The `makeRenderContext` uses `...overrides` so it will accept `clipPeaks` once I add it to the `RenderContext` type. 
+
+## Phase 2: Red - Verify tests fail
+
+Let me run the tests to verify they fail for the right reasons.Tests fail for the right reasons:
+- SynthEditor: No `role="slider"` elements (still using input ranges), no `role="radiogroup"` (still using selects)
+- Arrangement: `clipPeaks` not in RenderContext yet, so no extra fillRect calls
+
+## Phase 3: Green - Implement
+
+Let me implement all three changes in parallel using subagents.Both implementations are done. Let me verify the changes and run tests.All tests pass. Now let me run the full type check and linting to ensure everything is clean.Need to fix the template literal expressions by wrapping numbers with `String()`.Now let me check if there are more template literal lint issues I might have missed.Clean lint. Let me run all tests one more time to confirm everything still passes.All 30 tests pass. Let me quickly review the final state of both modified files to ensure quality.Clean implementation. Let me now run the broader test suite to check for regressions.All 1531 tests pass across 138 test files. Zero regressions.
+
+Now let me close the implementation tasks and commit.Now let me commit the changes.Commit successful. Pre-commit hooks (lint + format) passed. Now let me close the epic and push.EPIC_COMPLETE

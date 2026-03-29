@@ -6,98 +6,37 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-Based on my review, here are the findings:
+REVIEW_CHANGES_REQUESTED
 
 ---
 
-REVIEW_CHANGES_REQUESTED
+**1. [P2] Buffer cache grows unboundedly — memory leak**
+`TrackAudioBridgeProvider.tsx:44` — `bufferCacheRef` accumulates `AudioBuffer` entries (uncompressed PCM, potentially 10s–100s of MB each) and never evicts them when clips are deleted from the store. The subscribe callback only adds, never removes. In a live session with frequent clip edits this will bloat memory. Fix: subscribe to clip removals and `bufferCacheRef.current.delete(clip.sourceId)` when a sourceId is no longer referenced by any clip.
 
-**1. [P1] `AutomationLaneEditor`: drag always adds a spurious point** (`src/ui/arrangement/AutomationLaneEditor.tsx:84`)
+**2. [P2] `addAudioTrack` never registers a cleanup — mixer strip leaks on `dispose()`**
+`track-audio-bridge.ts:130-133` — `addAudioTrack` calls `mixer.getOrCreateStrip` but doesn't add an entry to `trackCleanups`. When `bridge.dispose()` runs, the loop over `trackCleanups.values()` skips audio tracks, so `mixer.removeStrip` is never called for them. They leak until `EffectsBridgeProvider` disposes the whole mixer. Fix: add `trackCleanups.set(trackId, () => mixer.removeStrip(trackId))` in `addAudioTrack`.
 
-Both `onPointerDown` and `onClick` are registered on the same canvas element. When the user drags an existing point, the event sequence is: `pointerdown` (captures pointer, sets `draggingPointId`) → `pointermove` (moves point) → `pointerup` (clears `draggingPointId`) → **`click` fires at drag-end coordinates and calls `addPoint`**. Every successful drag also creates an unwanted new point. Fix: skip `handleClick` if a drag just completed, e.g. by tracking a `didDrag` ref that's set in `handlePointerMove` and cleared after `handleClick` consumes it.
+**3. [P3] Unnecessary `as unknown as AudioNode` cast**
+`TrackAudioBridgeProvider.tsx:106` — `strip.inputGain` is a `GainNode`, which extends `AudioNode`. The double-cast through `unknown` is not needed; `scheduleClips` accepts `AudioNode`. Remove the cast.
 
-**2. [P2] `BounceDialog`: errors are silently swallowed** (`src/ui/session/BounceDialog.tsx:73`)
-
-```tsx
-} catch {
-  setBounceState({ status: "idle" });
-}
-```
-
-The user gets no feedback when a bounce fails — the dialog just closes silently. At minimum, surface an error state in `BounceState` and show a message.
-
-**3. [P2] `BounceDialog`: `URL.revokeObjectURL` called before download is guaranteed** (`src/ui/session/BounceDialog.tsx:67–71`)
-
-```tsx
-a.click();
-URL.revokeObjectURL(url);  // races with browser download initiation
-```
-
-The anchor is never appended to the DOM. While this works in current Chrome/Safari, it's fragile. Standard safe pattern: `document.body.appendChild(a); a.click(); document.body.removeChild(a);` then revoke in a `setTimeout(0)`.
-
-**4. [P3] `AutomationLaneEditor`: `trackTop` prop declared but never used** (`src/ui/arrangement/AutomationLaneEditor.tsx:9,20`)
-
-`trackTop` is in `AutomationLaneEditorProps` and destructured in the call sites (ArrangementPanel likely passes it), but is not destructured nor used inside the component. Either use it or remove it from the type.
-
-**5. [P3] `BounceDialog`: wasted `BounceEngine` instance from `useRef` initializer** (`src/ui/session/BounceDialog.tsx:30`)
-
-`useRef(createBounceEngine())` creates an engine on mount that is immediately replaced with a fresh one in `handleBounce`. Should be `useRef<ReturnType<typeof createBounceEngine> | null>(null)` and assigned lazily.
+**4. [P3] `alive` set carried for drum/audio tracks but never consulted**
+`track-audio-bridge.ts:117,131` — `alive.add(trackId)` is called in `addDrumTrack` and `addAudioTrack`, but `alive.has(trackId)` is only checked inside the async instrument creation callback (lines 95). For drum and audio tracks the flag is never read, making the intent opaque. Either document why it's added (e.g. "reserved for future async loading") or remove it from those paths to keep the invariant clear.
 </claude-sonnet-review>
 
 <claude-opus-review>
-Now I have a complete picture. Here's the review.
-
 REVIEW_CHANGES_REQUESTED
 
----
+1. **P1 — Buffer cache never evicts** (`TrackAudioBridgeProvider.tsx:44`): `bufferCacheRef` grows unboundedly. When clips are deleted from the store, their `AudioBuffer` entries remain cached. For projects with many clip add/remove cycles, this leaks potentially large audio buffers. Fix: subscribe to clip removals and evict stale `sourceId` entries, or use a WeakRef-based cache.
 
-**1. P1 -- BounceDialog: cancel does not prevent empty file download**
+2. **P1 — `onAdvanceCallback` not cleared on unmount** (`TrackAudioBridgeProvider.tsx:69-111`): The effect calls `transport.setOnAdvanceCallback(cb)` but has no cleanup return. On unmount, the transport retains a stale closure that references the disposed `clipScheduler` and `bufferCacheRef`. If transport fires after unmount (hot reload, StrictMode remount delay), it will call `scheduleClips` on a dead scheduler. Fix: add `return () => transport.setOnAdvanceCallback(null);` to the effect.
 
-`BounceDialog.tsx:62-83` -- When the user cancels during a bounce, `handleCancel` sets `cancelFlag` via `engine.cancel()` and closes the dialog. But the async `handleBounce` generator loop continues running. When the engine eventually checks `isCancelled()` it returns `emptyResult` (with `blob: new Blob()`). Since `result.done === true`, the code falls through to lines 75-80 and triggers a browser download of an empty `bounce.wav`. It also calls `onClose()` a second time.
+3. **P2 — Unnecessary double cast** (`TrackAudioBridgeProvider.tsx:106`): `strip.inputGain as unknown as AudioNode` — `GainNode` already extends `AudioNode`, so `strip.inputGain` is directly assignable. The `as unknown` intermediate defeats type safety. Fix: remove the cast entirely.
 
-Fix: Check for cancellation (or check blob size > 0) before triggering the download:
-```ts
-const bounceResult = result.value;
-if (bounceResult.blob.size === 0) {
-  setBounceState({ status: "idle" });
-  return;
-}
-```
+4. **P2 — Duplicate concurrent fetches for same sourceId** (`TrackAudioBridgeProvider.tsx:48-55`): The store subscription fires `pool.getAudioBuffer(sourceId)` for every clip not yet in cache. Because the check is synchronous (`has()`) but the fetch is async, rapid store updates can trigger multiple concurrent fetches for the same `sourceId` before the first resolves. Fix: track in-flight `sourceId`s in a `Set<string>` alongside the cache.
 
----
+5. **P2 — Inline callbacks in render body** (`panels.tsx:238-252`): `onNoteOn` and `onNoteOff` are created as new arrow functions on every render of `InstrumentPanel`, not memoized with `useCallback`. Each render passes new references to `SynthEditor`, causing unnecessary child re-renders. Fix: extract into `useCallback` with `[instrument]` dependency, or hoist the instrument lookup + callbacks into a child component.
 
-**2. P1 -- AutomationLaneEditor: clicking near existing point adds a duplicate AND starts drag**
-
-`AutomationLaneEditor.tsx:61-98` -- Both `onClick` (adds a new point) and `onPointerDown` (starts dragging) fire when the user clicks near an existing automation point. `e.preventDefault()` on `pointerdown` does not prevent the `click` event. This creates a duplicate point at the click position while simultaneously starting a drag on the existing point.
-
-Fix: Track whether a drag was initiated in `onPointerDown` and skip `onClick` when that flag is set, or use a `pointerup` check to decide whether to add a point (e.g., only add on click if no drag occurred).
-
----
-
-**3. P2 -- arrangement-renderer.test.ts: `ClipModel` used but never imported**
-
-`arrangement-renderer.test.ts:228,253,268,319,369` -- The type `ClipModel` is used in 5 `Record<string, ClipModel>` annotations but only `AudioClipModel` is imported (line 2). This passes vitest (which strips types) but will fail `tsc`/`pnpm check`.
-
-Fix: Add `ClipModel` to the import on line 2:
-```ts
-import type { TrackModel, AudioClipModel, ClipModel } from "@state/track/types";
-```
-
----
-
-**4. P3 -- AutomationLaneEditor: unused `trackTop` prop**
-
-`AutomationLaneEditor.tsx:9,17` -- `trackTop` is declared in `AutomationLaneEditorProps` but never destructured or used in the component body.
-
-Fix: Remove from the props type, or destructure it if it's needed for layout positioning.
-
----
-
-**5. P3 -- BounceDialog: `createBounceEngine()` called on every render**
-
-`BounceDialog.tsx:28` -- `useRef(createBounceEngine())` evaluates the factory on every render; only the mount value is kept. The engine is also overwritten on every bounce click (line 47-48), so the initial one is always wasted.
-
-Fix: Use lazy initialization: `useRef<ReturnType<typeof createBounceEngine> | null>(null)` and assign in `handleBounce` only.
+6. **P3 — Audio tracks have no cleanup entry** (`track-audio-bridge.ts:130-133`): `addAudioTrack` registers in `alive` and creates a mixer strip, but does not add an entry to `trackCleanups`. While `handleTrackRemoved` still calls `mixer.removeStrip`, the asymmetry with instrument/drum tracks is surprising and makes future refactoring error-prone. Consider adding an empty cleanup for consistency.
 </claude-opus-review>
 
 <gemini-review>
@@ -119,7 +58,12 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+Error executing tool grep_search: Path does not exist: /Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/channel-strip.ts
+REVIEW_CHANGES_REQUESTED
+1. [P1] Race condition causing instrument memory leak: In `src/audio/track-audio-bridge.ts` (`addInstrumentTrack`), `createSynthInstrument` resolves asynchronously. If a track is rapidly removed and re-added before the promise resolves, `alive.has(trackId)` will evaluate to true for both resolutions. The second resolution will overwrite the `instruments` and `trackCleanups` map entries, leaving the first `SynthInstrument` orphaned, permanently connected to the mixer, and leaking memory/audio. Use a unique instance ID or generation token instead of checking `alive.has(trackId)`.
+2. [P2] AudioBuffer memory leak: In `src/audio/TrackAudioBridgeProvider.tsx`, `bufferCacheRef` caches `AudioBuffer`s for every audio clip ever added to the DAW. However, there is no logic to evict buffers from this cache when clips are deleted or modified. Over time, dragging and deleting multiple audio clips will cause the cache to grow indefinitely.
+3. [P3] DrumKit parameter desynchronization: `SynthInstrument` correctly synchronizes its initial parameters from the state store upon creation. However, `addDrumTrack` initializes the `DrumKit` with default parameters without syncing with the local `paramsCache` defined in `src/ui/panels.tsx`. If the audio bridge is re-created, the `DrumKit` resets to defaults while the UI retains its cached values.
+4. [P3] Unsafe type casting: In `src/audio/TrackAudioBridgeProvider.tsx`, `strip.inputGain as unknown as AudioNode` bypasses TypeScript's type checking. `strip.inputGain` is typed as a `GainNode`, which extends `AudioNode`. This dirty cast hides underlying type configuration issues and could lead to runtime errors if `inputGain` is refactored.
 </gemini-review>
 
 

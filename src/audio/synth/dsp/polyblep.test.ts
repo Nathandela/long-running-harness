@@ -38,10 +38,14 @@ function dftMagnitude(
 describe("PolyBLEP Oscillator", () => {
   it("sine output stays within [-1, 1]", () => {
     const samples = generate("sine", 440, SR);
-    for (let i = 0; i < samples.length; i++) {
-      expect(samples[i]).toBeGreaterThanOrEqual(-1);
-      expect(samples[i]).toBeLessThanOrEqual(1);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of samples) {
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
+    expect(min).toBeGreaterThanOrEqual(-1);
+    expect(max).toBeLessThanOrEqual(1);
   });
 
   it("sine at 440Hz has strong fundamental", () => {
@@ -55,10 +59,14 @@ describe("PolyBLEP Oscillator", () => {
 
   it("saw output stays within [-1.2, 1.2]", () => {
     const samples = generate("saw", 440, SR);
-    for (let i = 0; i < samples.length; i++) {
-      expect(samples[i]).toBeGreaterThanOrEqual(-1.2);
-      expect(samples[i]).toBeLessThanOrEqual(1.2);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of samples) {
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
+    expect(min).toBeGreaterThanOrEqual(-1.2);
+    expect(max).toBeLessThanOrEqual(1.2);
   });
 
   it("saw has correct pitch via FFT", () => {
@@ -86,10 +94,14 @@ describe("PolyBLEP Oscillator", () => {
 
   it("triangle output stays within [-1, 1]", () => {
     const samples = generate("triangle", 440, SR);
-    for (let i = 0; i < samples.length; i++) {
-      expect(samples[i]).toBeGreaterThanOrEqual(-1);
-      expect(samples[i]).toBeLessThanOrEqual(1);
+    let min = Infinity;
+    let max = -Infinity;
+    for (const v of samples) {
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
+    expect(min).toBeGreaterThanOrEqual(-1);
+    expect(max).toBeLessThanOrEqual(1);
   });
 
   it("reset clears phase", () => {

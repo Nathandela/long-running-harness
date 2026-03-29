@@ -6,28 +6,28 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All five findings from the prior review are addressed in commit `141c726`:
-
-- **P1**: `didDragRef` correctly gates `handleClick` — set on first `pointerMove`, consumed and cleared in `handleClick`.
-- **P2 (silent error)**: Error state added to `BounceState` union, error message surfaced in the UI.
-- **P2 (URL revoke race)**: Anchor appended to DOM before `.click()`, removed after, revoke deferred via `setTimeout(0)`.
-- **P2 (test import)**: `ClipModel` import added to `arrangement-renderer.test.ts`.
-- **P3 (wasted engine)**: Ref changed to nullable, lazy init in `handleBounce`, safe optional-chain in `handleCancel`.
-- **P3 (unused prop)**: `trackTop` removed from type and tests.
+All four findings resolved. Type check passes.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-I can see from the applied changes that all 5 findings have been addressed:
+All six findings addressed. Verification:
 
-1. **P1 cancel/empty download** -- `blob.size === 0` guard added (line 74), deferred `revokeObjectURL`, error state with UI display.
-2. **P1 click+drag conflict** -- `didDragRef` added; set in `handlePointerMove`, checked/reset in `handleClick`.
-3. **P2 missing import** -- `ClipModel` added to the import on line 2.
-4. **P3 unused prop** -- `trackTop` removed from props type and test defaults.
-5. **P3 engine per render** -- `useRef<... | null>(null)` with optional chaining on cancel.
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | Buffer cache never evicts | Fixed: `syncBuffers` evicts entries for removed clips |
+| 2 | `onAdvanceCallback` not cleared on unmount | Fixed: cleanup returns `transport.setOnAdvanceCallback(null)`, type widened to accept `null` |
+| 3 | Unnecessary `as unknown as AudioNode` cast | Fixed: now just `strip.inputGain` |
+| 4 | Duplicate concurrent fetches | Fixed: `inFlightRef` Set tracks in-flight sourceIds |
+| 5 | Inline callbacks in render body | Fixed: extracted `SynthTrackPanel` with `useMemo`-wrapped callbacks |
+| 6 | Audio tracks have no cleanup entry | Fixed: `addAudioTrack` now registers `mixer.removeStrip` in `trackCleanups` |
 
-No new issues introduced by the fixes.
+Bonus: the `alive` Set was replaced with a `trackGeneration` counter map, which correctly handles add-remove-add races for the same trackId.
+
+One minor note: for audio tracks, `removeStrip` is called twice in `handleTrackRemoved` (once from the cleanup, once directly at line 156), but `removeStrip` guards with `if (!strip) return` so the second call is a harmless no-op. Not worth blocking on.
+
+Tests pass, types check clean.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -42,24 +42,27 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+1. [P3] DrumKit parameter desynchronization: This issue remains unresolved. In `src/audio/track-audio-bridge.ts`, `addDrumTrack` still initializes `DrumKit` with default parameters (`const kit = createDrumKit(ctx, samples);`). There is no mechanism to sync the kit's initial state with the values stored in `paramsCache` from `src/ui/panels.tsx` if the audio bridge is re-created, resulting in the audio engine resetting to defaults while the UI retains its cached parameter values.
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Clicking an existing automation point still creates a duplicate point** ([AutomationLaneEditor.tsx:61](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:61), [AutomationLaneEditor.tsx:81](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:81), [AutomationLaneEditor.tsx:107](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:107), [AutomationLaneEditor.test.tsx:51](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.test.tsx:51))  
-  `didDragRef` is only set in `onPointerMove`. A pointerdown/pointerup on an existing point with no movement still falls through to `handleClick()`, which inserts a new point at the same coordinates. The spurious-point fix only covers actual drags, not simple point grabs. Suppress the subsequent click whenever pointerdown hits an existing point, and add a regression test for down/up on an existing point without moving.
+- **[P1] Failed buffer prefetches can permanently wedge a source ID in the clip-scheduler cache path** ([TrackAudioBridgeProvider.tsx:58](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:58), [TrackAudioBridgeProvider.tsx:59](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:59), [TrackAudioBridgeProvider.tsx:60](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:60))  
+  The new `inFlightRef` guard is only cleared in `.then()`. If `pool.getAudioBuffer()` rejects, that `sourceId` stays in `inFlightRef` forever, so later sync passes will never retry the load and clips for that source can remain unschedulable until the provider remounts. This also risks an unhandled rejection. Clear the flag in a `finally`, handle the rejection explicitly, and add a regression test that fails once and then retries successfully on a later store update.
 
-- **[P1] `pnpm test` is still red on the current branch** ([App.test.tsx:75](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:75), [metering.ts:93](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/metering.ts:93), [useMeterData.ts:93](/Users/Nathan/Documents/Code/long-running-harness/src/ui/mixer/useMeterData.ts:93))  
-  The current run fails with an unhandled `TypeError: analyser.getFloatTimeDomainData is not a function` during `App.test.tsx`, because the mock analyser stub still lacks the method that `createAnalyserReader()` calls. The same run also timed out two DSP tests, so the branch does not currently pass the quality gate. Update the analyser mock to implement `getFloatTimeDomainData()` and rerun the full suite before landing.</codex-review>
+- **[P1] `pnpm test` is still red on the current branch** ([lfo.test.ts:21](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/lfo.test.ts:21), [lfo.test.ts:36](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/lfo.test.ts:36), [polyblep.test.ts:39](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:39), [polyblep.test.ts:56](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:56), [polyblep.test.ts:87](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:87))  
+  The current `pnpm test` run exits non-zero with five DSP timeout failures, so the branch still does not pass the project quality gate.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.
