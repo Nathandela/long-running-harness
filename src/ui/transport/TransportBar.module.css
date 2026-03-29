@@ -83,3 +83,17 @@
   align-items: center;
   gap: var(--space-1);
 }
+
+.shortcutHint {
+  color: var(--color-gray-500);
+  font-size: var(--text-xs);
+  cursor: help;
+  user-select: none;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.shortcutHint:hover {
+  opacity: 1;
+  color: var(--color-gray-300);
+}

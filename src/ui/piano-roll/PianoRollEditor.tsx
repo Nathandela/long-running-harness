@@ -253,6 +253,14 @@ export function PianoRollEditor({
     };
   }, []);
 
+  if (clipId === null) {
+    return (
+      <section data-testid="piano-roll-editor" className={styles["container"]}>
+        <div className={styles["emptyState"]}>Select a MIDI clip to edit</div>
+      </section>
+    );
+  }
+
   return (
     <section data-testid="piano-roll-editor" className={styles["container"]}>
       <div className={styles["toolbar"]}>

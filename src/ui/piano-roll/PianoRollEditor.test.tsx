@@ -19,10 +19,12 @@ function makeMidiClip(overrides: Partial<MidiClipModel> = {}): MidiClipModel {
 }
 
 describe("PianoRollEditor", () => {
+  const defaultClip = makeMidiClip({ id: "clip1" });
+
   beforeEach(() => {
     useDawStore.setState({
       tracks: [],
-      clips: {},
+      clips: { clip1: defaultClip },
       selectedNoteIds: [],
       cursorSeconds: 0,
       bpm: 120,
@@ -35,27 +37,32 @@ describe("PianoRollEditor", () => {
     expect(screen.getByTestId("piano-roll-editor")).toBeDefined();
   });
 
-  it("renders canvas element", () => {
+  it("shows empty state when clipId is null", () => {
     render(<PianoRollEditor clipId={null} />);
+    expect(screen.getByText(/Select a MIDI clip/)).toBeDefined();
+  });
+
+  it("renders canvas element", () => {
+    render(<PianoRollEditor clipId="clip1" />);
     const container = screen.getByTestId("piano-roll-editor");
     const canvas = container.querySelector("canvas");
     expect(canvas).not.toBeNull();
   });
 
   it("shows toolbar with tool buttons", () => {
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
     expect(screen.getByTestId("tool-pencil")).toBeDefined();
     expect(screen.getByTestId("tool-select")).toBeDefined();
     expect(screen.getByTestId("tool-erase")).toBeDefined();
   });
 
   it("shows grid snap selector", () => {
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
     expect(screen.getByTestId("snap-select")).toBeDefined();
   });
 
   it("pencil tool button is active by default", () => {
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
     const pencilBtn = screen.getByTestId("tool-pencil");
     expect(pencilBtn).toHaveAttribute("aria-pressed", "true");
     const selectBtn = screen.getByTestId("tool-select");
@@ -64,7 +71,7 @@ describe("PianoRollEditor", () => {
 
   it("clicking tool button changes active tool", async () => {
     const user = userEvent.setup();
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
 
     const selectBtn = screen.getByTestId("tool-select");
     await user.click(selectBtn);
@@ -75,9 +82,6 @@ describe("PianoRollEditor", () => {
   });
 
   it("renders with a valid clipId", () => {
-    const clip = makeMidiClip({ id: "clip1" });
-    useDawStore.setState({ clips: { clip1: clip } });
-
     render(<PianoRollEditor clipId="clip1" />);
     expect(screen.getByTestId("piano-roll-editor")).toBeDefined();
   });
@@ -85,7 +89,7 @@ describe("PianoRollEditor", () => {
   // P0-2: Keyboard shortcuts for tool switching (AC-3)
   it("pressing P switches to pencil tool", async () => {
     const user = userEvent.setup();
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
 
     // First switch away from pencil
     await user.click(screen.getByTestId("tool-select"));
@@ -108,7 +112,7 @@ describe("PianoRollEditor", () => {
 
   it("pressing S switches to select tool", async () => {
     const user = userEvent.setup();
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
 
     expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
       "aria-pressed",
@@ -128,7 +132,7 @@ describe("PianoRollEditor", () => {
 
   it("pressing E switches to erase tool", async () => {
     const user = userEvent.setup();
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
 
     expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
       "aria-pressed",
@@ -147,14 +151,14 @@ describe("PianoRollEditor", () => {
   });
 
   it("canvas has role=application and aria-label", () => {
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
     const canvas = screen.getByRole("application");
     expect(canvas).toBeInTheDocument();
     expect(canvas).toHaveAttribute("aria-label", "Piano roll editor");
   });
 
   it("tool buttons have aria-pressed attribute", () => {
-    render(<PianoRollEditor clipId={null} />);
+    render(<PianoRollEditor clipId="clip1" />);
     const pencilBtn = screen.getByTestId("tool-pencil");
     expect(pencilBtn).toHaveAttribute("aria-pressed", "true");
     const selectBtn = screen.getByTestId("tool-select");

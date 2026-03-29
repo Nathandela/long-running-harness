@@ -51,25 +51,31 @@ export function MixerPanel(): React.JSX.Element {
 
   return (
     <section data-testid="mixer-panel" className={styles["mixer"]}>
-      {tracks.map((track) => (
-        <ChannelStrip
-          key={track.id}
-          trackId={track.id}
-          name={track.name}
-          color={track.color}
-          volume={track.volume}
-          pan={track.pan}
-          muted={track.muted}
-          solo={track.solo}
-          meterLevel={meters.channels[track.id]?.level ?? 0}
-          meterPeak={meters.channels[track.id]?.peak ?? 0}
-          clipping={meters.channels[track.id]?.clipping ?? false}
-          onVolumeChange={handleVolumeChange}
-          onPanChange={handlePanChange}
-          onMuteToggle={handleMuteToggle}
-          onSoloToggle={handleSoloToggle}
-        />
-      ))}
+      {tracks.length === 0 ? (
+        <div className={styles["empty"]}>
+          No tracks yet. Click + to add one.
+        </div>
+      ) : (
+        tracks.map((track) => (
+          <ChannelStrip
+            key={track.id}
+            trackId={track.id}
+            name={track.name}
+            color={track.color}
+            volume={track.volume}
+            pan={track.pan}
+            muted={track.muted}
+            solo={track.solo}
+            meterLevel={meters.channels[track.id]?.level ?? 0}
+            meterPeak={meters.channels[track.id]?.peak ?? 0}
+            clipping={meters.channels[track.id]?.clipping ?? false}
+            onVolumeChange={handleVolumeChange}
+            onPanChange={handlePanChange}
+            onMuteToggle={handleMuteToggle}
+            onSoloToggle={handleSoloToggle}
+          />
+        ))
+      )}
       <MasterStrip
         volume={masterVolume}
         meterLevel={meters.master.level}

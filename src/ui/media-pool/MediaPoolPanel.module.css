@@ -80,12 +80,27 @@
 }
 
 .error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-1) var(--space-2);
   background-color: var(--color-error);
   color: var(--color-white);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   flex-shrink: 0;
+}
+
+.dismissBtn {
+  margin-left: auto;
+  background: transparent;
+  border: var(--border-width) solid var(--color-white);
+  color: var(--color-white);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  padding: 1px var(--space-1);
+  cursor: pointer;
 }
 
 .importing {

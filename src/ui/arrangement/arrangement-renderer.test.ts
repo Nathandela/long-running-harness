@@ -192,6 +192,17 @@ describe("arrangement-renderer", () => {
       expect(drawnTexts).toContain("S");
     });
 
+    it("draws armed indicator with hot pink on armed tracks", () => {
+      const tracks = [makeTrack({ id: "t1", name: "Rec", armed: true })];
+      const { rc, mock } = makeRenderContext({ tracks });
+      renderArrangement(rc);
+
+      const drawnTexts = mock.fillText.mock.calls.map(
+        ([text]: [string]) => text,
+      );
+      expect(drawnTexts).toContain("R");
+    });
+
     it("draws clips as rectangles on the timeline", () => {
       const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
       const clips: Record<string, ClipModel> = {

@@ -99,6 +99,13 @@ export function TransportBar(): React.JSX.Element {
           </button>
         </div>
       </div>
+
+      <span
+        className={styles["shortcutHint"]}
+        title="Keyboard Shortcuts (Shift+?)"
+      >
+        ?
+      </span>
     </header>
   );
 }

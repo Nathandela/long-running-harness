@@ -36,6 +36,7 @@ export function MediaPoolPanel({
   const [errors, setErrors] = useState<MediaPoolError[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const importingRef = useRef(false);
+  const autoDismissTimerRef = useRef(0);
 
   useEffect(() => {
     // Load cached peaks for persisted sources
@@ -60,6 +61,7 @@ export function MediaPoolPanel({
       importingRef.current = true;
       setIsImporting(true);
       setErrors([]);
+      window.clearTimeout(autoDismissTimerRef.current);
       try {
         const importErrors: MediaPoolError[] = [];
         for (const file of files) {
@@ -79,6 +81,9 @@ export function MediaPoolPanel({
         }
         if (importErrors.length > 0) {
           setErrors(importErrors);
+          autoDismissTimerRef.current = window.setTimeout(() => {
+            setErrors([]);
+          }, 5000);
         }
         setVersion((v) => v + 1);
       } finally {
@@ -161,6 +166,17 @@ export function MediaPoolPanel({
           {errors.map((err, i) => (
             <div key={i}>{formatError(err)}</div>
           ))}
+          <button
+            type="button"
+            className={styles["dismissBtn"]}
+            onClick={() => {
+              window.clearTimeout(autoDismissTimerRef.current);
+              setErrors([]);
+            }}
+            aria-label="Dismiss errors"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 

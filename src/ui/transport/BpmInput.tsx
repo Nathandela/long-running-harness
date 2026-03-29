@@ -49,6 +49,8 @@ export function BpmInput({
       ref={inputRef}
       type="number"
       aria-label="BPM"
+      title={`${String(BPM_MIN)}\u2013${String(BPM_MAX)} BPM`}
+      placeholder={`${String(BPM_MIN)}\u2013${String(BPM_MAX)}`}
       value={localValue}
       min={BPM_MIN}
       max={BPM_MAX}

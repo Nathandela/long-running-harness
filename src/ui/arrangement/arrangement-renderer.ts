@@ -11,6 +11,7 @@ const COLOR = {
   black: "#000000",
   white: "#ffffff",
   red: "#ff0000",
+  pink: "#ff2d6f",
   gray900: "#111111",
   gray700: "#333333",
   gray500: "#666666",
@@ -183,11 +184,21 @@ function drawTrackHeaders(rc: RenderContext): void {
     ctx.textAlign = "left";
     ctx.fillText(track.name, COLOR_STRIP_WIDTH + 8, y + view.trackHeight / 2);
 
+    // Armed indicator (hot pink per R-STA-02)
+    if (track.armed) {
+      ctx.fillStyle = COLOR.pink;
+      ctx.fillRect(0, y, COLOR_STRIP_WIDTH, view.trackHeight);
+    }
+
     // Mute/Solo indicators
     const indicatorY = y + view.trackHeight / 2;
     ctx.font = `bold ${String(TEXT_XS)}px ${FONT_MONO}`;
     ctx.textAlign = "center";
 
+    if (track.armed) {
+      ctx.fillStyle = COLOR.pink;
+      ctx.fillText("R", view.headerWidth - 54, indicatorY);
+    }
     if (track.muted) {
       ctx.fillStyle = COLOR.gray500;
       ctx.fillText("M", view.headerWidth - 36, indicatorY);

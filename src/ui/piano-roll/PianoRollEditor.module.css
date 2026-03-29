@@ -86,3 +86,14 @@
   outline: var(--focus-ring);
   outline-offset: calc(-1 * var(--focus-offset));
 }
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--color-gray-300);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  user-select: none;
+}

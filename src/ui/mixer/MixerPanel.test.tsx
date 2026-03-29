@@ -42,6 +42,11 @@ describe("MixerPanel", () => {
     expect(screen.getByTestId("mixer-panel")).toBeDefined();
   });
 
+  it("shows empty state when no tracks exist", () => {
+    render(<MixerPanel />);
+    expect(screen.getByText(/No tracks yet/)).toBeDefined();
+  });
+
   it("renders the master strip", () => {
     render(<MixerPanel />);
     expect(screen.getByTestId("master-strip")).toBeDefined();
