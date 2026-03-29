@@ -2,15 +2,15 @@
 
 A browser-based Digital Audio Workstation built autonomously by AI agents. Neo-Brutalist design, Web Audio API, React + TypeScript.
 
-Live demo: [nathan-delacretaz.com/daw](https://nathan-delacretaz.com/daw/index.html)
+**[Try the live demo](https://nathan-delacretaz.com/daw/index.html)**
 
 ## Context
 
-This project is a benchmark comparing open-source AI agent harnesses against frontier lab tooling for long-running autonomous coding sessions.
+On March 24 2026, Anthropic published a [post on harness design](https://www.anthropic.com/engineering/harness-design-long-running-apps) for long-running AI coding sessions. As a demonstration, they built a browser-based DAW in 3h50m for $124.70 using an internal multi-agent harness.
 
-On March 24 2026, Anthropic published a [post on harness design](https://www.anthropic.com/engineering/harness-design-long-running-apps) for long-running AI coding sessions, demonstrating the approach by building a browser-based DAW in 3h50m for $124.70.
+This repository is the same brief, built with **[compound-agent](https://github.com/Nathandela/compound-agent)** -- an open-source Claude Code plugin that ships persistent memory, multi-agent workflows, and autonomous loop execution into any repository. The build ran autonomously for ~20 hours across multiple sessions on a Claude Max subscription, with no human intervention during the autonomous loops.
 
-This repository is the same brief, built with [compound-agent](https://github.com/Nathandela/compound-agent) -- an open-source multi-agent harness with persistent memory and multi-model review. The build ran autonomously for ~20 hours across multiple sessions on a Claude Max subscription. Full writeup: [Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design-dark-factories).
+Full writeup: **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design-dark-factories)**
 
 ## Features
 
@@ -33,7 +33,14 @@ Open `http://localhost:5173`. Requires a modern browser with Web Audio API and S
 
 ## How it was built
 
-The `agent_logs/` directory contains the full trace of the autonomous build process: review reports, architect prompts, implementer logs, and loop execution records. These show how compound-agent decomposed the project into 18 tasks, wrote tests first, built features, ran multi-model review (Claude Sonnet, Claude Opus, Gemini, Codex), and iterated through 5 polish cycles.
+The entire application was produced by [compound-agent](https://github.com/Nathandela/compound-agent)'s autonomous loop (`ca loop`). The process:
+
+1. **Architect phase** -- Socratic dialogue to decompose the brief into 18 dependency-ordered tasks
+2. **Per-task cycle** -- Each task runs through spec, plan, TDD implementation, and multi-model review (Claude Sonnet, Claude Opus, Gemini, Codex in parallel)
+3. **Polish loop** -- 5 additional review-and-fix cycles across the full codebase
+4. **Persistent memory** -- Mistakes captured as lessons, surfaced automatically in future tasks
+
+The `agent_logs/` directory contains the full trace: review reports, architect prompts, implementer logs, and loop execution records.
 
 ## Stack
 
@@ -52,6 +59,13 @@ The `agent_logs/` directory contains the full trace of the autonomous build proc
 | `pnpm build` | Type-check + production build |
 | `pnpm test` | Run test suite |
 | `pnpm check` | Lint + format check + tests |
+
+## See also
+
+- **[compound-agent](https://github.com/Nathandela/compound-agent)** -- The harness that built this. Persistent memory, multi-agent review, autonomous loops.
+- **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design-dark-factories)** -- Blog post comparing this approach to Anthropic's internal harness.
+- **[Anthropic: Harness Design for Long-Running Apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)** -- The post that inspired this benchmark.
+- **[Live demo](https://nathan-delacretaz.com/daw/index.html)** -- Try BRUTALWAV in the browser.
 
 ## License
 

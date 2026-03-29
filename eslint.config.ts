@@ -6,7 +6,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 
 export default defineConfig([
-  { ignores: ["dist", "coverage", "node_modules"] },
+  { ignores: ["dist", "dist-worklet", "coverage", "node_modules"] },
   js.configs.recommended,
   ...tsConfigs.strictTypeChecked,
   {
