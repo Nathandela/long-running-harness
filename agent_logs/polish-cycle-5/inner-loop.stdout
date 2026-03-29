@@ -1,0 +1,37 @@
+[main bdaba03] chore: auto-commit uncommitted changes from long-running-harness-7sa
+ 42 files changed, 2843 insertions(+), 3 deletions(-)
+ create mode 100644 agent_logs/loop_long-running-harness-7sa-2026-03-29_05-43-11.log
+ create mode 100644 agent_logs/memory_long-running-harness-7sa-2026-03-29_05-43-11.log
+ create mode 100644 agent_logs/polish-cycle-4/audit-prompt.md
+ create mode 100644 agent_logs/polish-cycle-4/ca-loop-gen.stderr
+ create mode 100644 agent_logs/polish-cycle-4/claude-opus-report.md
+ create mode 100644 agent_logs/polish-cycle-4/claude-opus.stderr
+ create mode 100644 agent_logs/polish-cycle-4/claude-sonnet-report.md
+ create mode 100644 agent_logs/polish-cycle-4/claude-sonnet.stderr
+ create mode 100644 agent_logs/polish-cycle-4/codex.stderr
+ create mode 100644 agent_logs/polish-cycle-4/gemini-report.md
+ create mode 100644 agent_logs/polish-cycle-4/gemini.stderr
+ create mode 100755 agent_logs/polish-cycle-4/inner-loop.sh
+ create mode 100644 agent_logs/polish-cycle-4/inner-loop.stderr
+ create mode 100644 agent_logs/polish-cycle-4/inner-loop.stdout
+ create mode 100644 agent_logs/polish-cycle-4/polish-architect-prompt.md
+ create mode 100644 agent_logs/polish-cycle-4/polish-architect.log
+ create mode 100644 agent_logs/polish-cycle-4/polish-architect.stderr
+ create mode 100644 agent_logs/polish-cycle-5/audit-prompt.md
+ create mode 100644 agent_logs/polish-cycle-5/ca-loop-gen.stderr
+ create mode 100644 agent_logs/polish-cycle-5/claude-opus-report.md
+ create mode 100644 agent_logs/polish-cycle-5/claude-opus.stderr
+ create mode 100644 agent_logs/polish-cycle-5/claude-sonnet-report.md
+ create mode 100644 agent_logs/polish-cycle-5/claude-sonnet.stderr
+ create mode 100644 agent_logs/polish-cycle-5/codex.stderr
+ create mode 100644 agent_logs/polish-cycle-5/gemini-report.md
+ create mode 100644 agent_logs/polish-cycle-5/gemini.stderr
+ create mode 100755 agent_logs/polish-cycle-5/inner-loop.sh
+ create mode 100644 agent_logs/polish-cycle-5/inner-loop.stderr
+ create mode 100644 agent_logs/polish-cycle-5/inner-loop.stdout
+ create mode 100644 agent_logs/polish-cycle-5/polish-architect-prompt.md
+ create mode 100644 agent_logs/polish-cycle-5/polish-architect.log
+ create mode 100644 agent_logs/polish-cycle-5/polish-architect.stderr
+ create mode 100644 agent_logs/trace_long-running-harness-7sa-2026-03-29_05-43-11.jsonl
+ create mode 100644 docs/specs/polish-report-cycle-4.md
+ create mode 100644 docs/specs/polish-report-cycle-5.md

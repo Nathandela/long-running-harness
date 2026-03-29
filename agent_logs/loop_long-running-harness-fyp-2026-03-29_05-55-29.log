@@ -1,0 +1,31 @@
+Now let me read the key files I need to modify to understand the current state.Let me explore the existing test patterns and ActionToast component.Now let me read the existing test for the decode pipeline and check how tests are typically run.Let me check the test runner config and the `MediaPoolError` type.Now I have a complete understanding. Let me claim the epic and start implementing. I'll follow a TDD approach — write tests first, then implement.Now let me implement all the fixes. I'll work through each file systematically.
+
+## 1. ClickToStart — error state with retry + timeoutThe `onStart` prop is `() => void`. Looking at `App.tsx`, `handleStart` is sync but calls async operations internally. The ClickToStart issue is that `setLoading(true)` is never reset if `onStart()` throws. To handle async failures properly, I need to change `onStart` to return a Promise.
+
+But wait — looking at `App.tsx:handleStart`, it's `(): void`. The engine init catches errors synchronously and the `resume()` is fire-and-forget with `.then()`. The ClickToStart component can't know when the async part fails.
+
+The better approach: make `onStart` return `Promise<void>` so ClickToStart can catch failures, and update `App.tsx` to return a promise from `handleStart`. But even simpler — since `App.tsx` already handles `setEngineStatus("error")`, ClickToStart can just add a try/catch for the synchronous throw case and a timeout.
+
+Let me look at how `engineStatus` is used.Now I have a complete picture of all files. Let me implement all the fixes. I'll start with writing tests, then implement.Let me check for the error color CSS variable.Good, `--color-error` exists. Now let me implement all changes.
+
+### 1. ClickToStart.tsx — error state + retry + timeout### 2. App.tsx — async handleStart + IDB warningNow update the DawShell rendering to pass `idbWarning`:### 3. DawShell.tsx — accept idbWarning, show toastNow add the useEffect for IDB warning toast, after the `showToast` definition:Now update the DawShell outer component to accept and pass the prop:### 4. MediaPoolPanel.tsx — .catch() on removeSourceActually, the `errors` state uses `MediaPoolError` which doesn't have a "remove-failed" kind. Let me use a cleaner approach with a separate error message:Now add the `removeError` state and render it:Now render the removeError in the UI:### 5. SessionBrowser.tsx — error state for list/delete### 6. decode-pipeline.ts — timeout on decodeAudioData### 7. Write tests
+
+Now let me write tests for all the new error handling. I'll update existing test files.Now add tests for the decode timeout:Now add tests for SessionBrowser error handling:Now add a test for MediaPoolPanel remove failure:Now let me check what MediaPoolItem looks like to ensure the remove button name is correct:Good, the button has `aria-label={`Remove ${source.name}`}`. So `getByRole("button", { name: /remove/i })` should work.
+
+Now let me run the tests to see where we stand.The decode timeout test is failing because `vi.advanceTimersByTime` doesn't flush microtasks. Need to use `vi.advanceTimersByTimeAsync`:All 1422 tests pass, including the new ones. Let me also run the lint check:Lint errors to fix. Let me address them:Now fix the test lint errors — the `async` callbacks in `act()` that don't use `await`:The lint issue is `async () => { ... }` inside `act()` without `await`. I need to flush microtasks with `await` inside the callback:Only pre-existing warnings, zero errors. Let me run tests one more time to confirm everything still passes:All 126 test files, 1422 tests pass. Lint clean. Now let me commit and close the epic.Prettier formatting issue. Let me fix it:Commit successful. Now close the epic and push:All done. Here's what was implemented:
+
+**ClickToStart** — Added error state with retry button and 30s timeout via `Promise.race`. `onStart` now returns `Promise<void>` for proper error propagation.
+
+**App.tsx** — `handleStart` is now async, properly throwing on failure so ClickToStart can catch it. Added `idbWarning` state that triggers a toast when IDB init fails.
+
+**DawShell** — Accepts `idbWarning` prop and shows "Storage unavailable" toast.
+
+**MediaPoolPanel** — Added `.catch()` on `removeSource` that shows a user-facing error message.
+
+**SessionBrowser** — Added error state with retry button for both `listSessions` and `deleteSession` failures.
+
+**decode-pipeline** — Added 15s timeout on `decodeAudioData` via `Promise.race`.
+
+**Tests** — 8 new test cases covering error states, timeouts, retry flows, and failure handling. All 1422 tests pass, lint clean.
+
+EPIC_COMPLETE

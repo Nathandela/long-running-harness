@@ -10,3 +10,11 @@
 [2026-03-29_05-43-11] Attempt 1/2 for long-running-harness-7sa (log: agent_logs/loop_long-running-harness-7sa-2026-03-29_05-43-11.log)
 [2026-03-29_05-55-12] Epic long-running-harness-7sa completed successfully
 [2026-03-29_05-55-13] WARN: Working tree dirty after epic completion, auto-committing
+[2026-03-29_05-55-28] Epic long-running-harness-7sa done. Completed so far: 1
+[2026-03-29_05-55-28] Memory OK: 51% free
+[2026-03-29_05-55-29] ==========================================
+[2026-03-29_05-55-29] Processing epic: long-running-harness-fyp
+[2026-03-29_05-55-29] ==========================================
+[2026-03-29_05-55-29] Attempt 1/2 for long-running-harness-fyp (log: agent_logs/loop_long-running-harness-fyp-2026-03-29_05-55-29.log)
+[2026-03-29_06-06-39] Epic long-running-harness-fyp completed successfully
+[2026-03-29_06-06-39] WARN: Working tree dirty after epic completion, auto-committing
