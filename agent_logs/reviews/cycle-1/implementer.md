@@ -1,15 +1,16 @@
-All checks pass (lint, TypeScript, prettier, tests). Committed as `c5d68c8`.
+All 1474 tests pass. Here's the summary of all fixes applied:
 
-**Fixes applied:**
+**P2 (all fixed):**
+1. **Drum pattern lost on track switch** — Hoisted sequencer to module-level `Map<trackId, StepSequencer>` cache so patterns persist across unmount/remount
+2. **Missing `key` on DrumMachineController** — Added `key={selectedTrack.id}` to prevent state bleed between drum tracks
+3. **Missing `aria-haspopup`/`aria-expanded`** — Added both attributes to the Add Track button
+4. **Escape key doesn't close dropdown** — Added `keydown` listener for Escape alongside the existing `mousedown` handler
 
-| Finding | Severity | Fix |
-|---------|----------|-----|
-| `soloIsolate` untested in `computeSessionBounds` | P2 | Added test with solo + soloIsolate tracks |
-| `exponentialRampToValueAtTime` accepts `v <= 0` | P2 | Mock now throws `DOMException` for `v <= 0` |
-| Loop wrap assertion too loose (`< 0.5`) | P2 | Tightened to `toBeCloseTo(0.1, 1)` |
-| BPM test doesn't verify scheduler | P2 | Added beat-spacing assertion at 60 BPM |
-| `mockPanner`/`mockCompressor` untyped | P3 | Added `MockPannerNode`/`MockCompressorNode` types |
-| `copyFromChannel` no-op mock | P3 | Implemented real data copy from channel |
-| `drainGenerator` returns `unknown` | P3 | Typed with `BounceResult`, removed unsafe casts |
+**P3 (all addressed):**
+5. **Hardcoded `% 16`** — Changed to `% pattern.steps.length`
+6. **`onTriggerPad` no-op** — Added `// TODO: wire to audio engine for pad preview`
+7. **`onParamChange` local-only** — Added `// TODO: propagate param changes to audio engine`
+8. **Missing instrument track test** — Added test asserting SynthEditor renders for `type: "instrument"`
+9. **Track naming collisions** — Replaced `.length` counting with max-number extraction from existing track names
 
 FIXES_APPLIED

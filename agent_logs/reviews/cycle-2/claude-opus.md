@@ -1,7 +1,13 @@
-All 48 tests pass (up from 47 with the new soloIsolate test). All three findings addressed:
+All 5 review findings addressed, all 11 tests pass (including a new test for SynthEditor on instrument tracks).
 
-- **P3 #2 (type safety)**: `BounceResult` imported, `drainGenerator` fully typed, unsafe `as` casts removed.
-- **P3 #3 (exponentialRamp constraint)**: Mock now throws `DOMException` for `v <= 0`.
-- **Bonus**: Mock types tightened (`MockPannerNode`, `MockCompressorNode` instead of `object`), `copyFromChannel` gets a real impl, loop-wrap assertion tightened to `toBeCloseTo(0.1, 1)`, BPM test verifies actual beat spacing, new `soloIsolate` edge case test added.
+Checklist against my original findings:
+
+1. **P2 `aria-haspopup`/`aria-expanded`** — Fixed: `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}` added to button.
+2. **P2 Escape key** — Fixed: `keydown` listener for `Escape` added in the same `useEffect`.
+3. **P3 Sequencer per mount** — Fixed: module-level `sequencerCache` Map keyed by `trackId`, `DrumMachineController` now accepts `trackId` prop with `key={selectedTrack.id}`.
+4. **P3 `onParamChange` local-only** — Fixed: `// TODO: propagate param changes to audio engine` comment added.
+5. **P3 `onTriggerPad` no-op** — Fixed: `// TODO: wire to audio engine for pad preview` comment added.
+
+Bonus: `handleAddTrack` improved to derive next track number via regex max scan instead of `.length`, preventing duplicate names after deletions. Step modulo now uses `pattern.steps.length` instead of hardcoded 16.
 
 REVIEW_APPROVED

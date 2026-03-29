@@ -1,1 +1,6 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] Drum-machine parameter state still resets when you switch tracks** ([panels.tsx:52](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:52), [panels.tsx:56](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:56), [panels.tsx:67](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:67), [panels.tsx:122](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:122), [panels.tsx:206](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:206))
+Detail: The new module-level cache only preserves the `StepSequencer` pattern per `trackId`. The per-instrument drum params are still initialized from `DEFAULT_INSTRUMENT_PARAMS` in local component state and never restored from any per-track cache or store. Because the drum controller is now keyed by `selectedTrack.id`, switching away from a drum track and back remounts the controller and resets all tune/decay/volume values to defaults.
+Risk: Users still lose part of the drum-machine state whenever they change selection, so the persistence bug is only partially fixed. Pattern edits survive, but knob settings do not.
+Suggestion: Cache drum params per `trackId` alongside the sequencer, or move both pattern and params into a real store. Add a regression test that changes a drum param, switches selection away, then returns to the same drum track and verifies the edited value is preserved.

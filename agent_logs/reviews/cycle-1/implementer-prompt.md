@@ -10,56 +10,51 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P2] `soloIsolate` is not covered in `computeSessionBounds` integration tests**
+**1. P2 — Drum machine pattern lost on track switch** (`src/ui/panels.tsx:35-39`)
 
-`bounce-engine.ts:56` handles `soloIsolate` in `getAudibleTrackIds`, but no test in `bounce-workflow.test.ts` exercises this path. The solo test at `bounce-workflow.test.ts:55` only has tracks with `solo: true` and the default `soloIsolate: false`. A track with `soloIsolate: true` should remain audible during a solo bounce — this contract is untested.
+`useDrumMachineState` initializes the step sequencer in `useState`. Every time a drum track is selected (after switching away), `DrumMachineController` mounts fresh and the pattern resets to empty. User's programmed steps are silently discarded. The pattern needs to live outside the component — in the Zustand store, a ref keyed by `trackId`, or a module-level map.
+
+---
+
+**2. P2 — `aria-expanded` missing on Add Track button** (`src/ui/transport/TransportBar.tsx:115`)
+
+The toggle button opens a `role="menu"` but never exposes `aria-expanded={addMenuOpen}`. Screen readers have no signal that the popup opened or closed. WCAG 4.1.2 / Button pattern requirement.
+
+---
+
+**3. P3 — Hardcoded `% 16` step wrap** (`src/ui/panels.tsx:67`)
 
 ```ts
-// Missing test:
-it("solo mode audible includes soloIsolate tracks", () => {
-  const t1 = makeTrack({ id: "t1", clipIds: ["c1"], solo: true });
-  const t2 = makeTrack({ id: "t2", clipIds: ["c2"] });
-  const t3 = makeTrack({ id: "t3", clipIds: ["c3"], soloIsolate: true });
-  // t3 should appear in bounds despite not being soloed
+const step = Math.floor(cursor / stepDuration) % 16;
 ```
 
-**2. [P2] `exponentialRampToValueAtTime` mock accepts `v <= 0` silently**
+`pattern` is in scope here. The constant should be `% pattern.steps.length`. Currently harmless since all patterns are 16 steps, but will silently drift if pattern length ever varies.
 
-`helpers.ts:44` — the mock just does `param.value = v` for all values. The real Web Audio API throws `DOMException` for `v <= 0`. Production code in `drum-kit.ts:69` and `bounce-engine.ts:354` both pass `0.001`, which is safe now, but a future regression passing `0` (e.g. a fade-to-zero) would pass these tests incorrectly.
+---
 
-**3. [P2] Loop wrap assertion is too loose**
+**4. P3 — No Escape / arrow-key handling for dropdown** (`src/ui/transport/TransportBar.tsx`)
 
-`transport-scheduler.test.ts` "loop wrap re-syncs scheduler beat phase" asserts:
-```ts
-expect(clock.getCursorSeconds()).toBeLessThan(0.5);
-```
-After advancing 1.1s into a 1.0s loop, the cursor should wrap to ~0.1s. The `< 0.5` bound would still pass even if the wrap math was significantly wrong. Should be `toBeCloseTo(0.1, 1)`.
+The element has `role="menu"` with `role="menuitem"` children, which per WAI-ARIA requires keyboard navigation: `Escape` to close, `ArrowDown`/`ArrowUp` to move focus between items. Currently only outside-click closes it. Focus doesn't move into the menu on open either.
 
-**4. [P2] "BPM change" test doesn't exercise scheduler integration**
+---
 
-`transport-scheduler.test.ts` "BPM change updates tempo map for scheduler" only asserts `clock.getTempoMap().secondsPerBeat() ≈ 1.0`. This checks the clock in isolation — the scheduler is created and started but its beat timing at the new BPM is never verified. The test name claims to verify scheduler behavior but the assertions don't reach the scheduler.
+**5. P3 — Missing test: InstrumentPanel with instrument track** (`src/ui/track-creation.test.tsx`)
 
-**5. [P3] `mockPanner()` and `mockCompressor()` return untyped `object`**
-
-`helpers.ts:66,80` — `mockPanner()` returns `object`, `mockCompressor()` returns `object`, while `mockGainNode()` returns the typed `MockGainNode`. TypeScript cannot check `.pan.value` or `.threshold.value` accesses on untyped objects. Add typed interfaces for consistency.
-
-**6. [P3] `copyFromChannel: vi.fn()` inconsistency**
-
-`helpers.ts:153` — `copyFromChannel` is a no-op mock while `copyToChannel` has a real implementation. Bounce engine only calls `getChannelData()`, so this doesn't cause test failures, but the asymmetry is misleading and leaves a silent trap if any future code calls `copyFromChannel` to read data back.
+All three InstrumentPanel branches are described in the test file header, but there is no test case asserting `SynthEditor` renders for `type: "instrument"`. The drum and audio cases are covered but this one is absent.
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 47 tests pass, TypeScript compiles cleanly, and the auto-commit (872d43b) contains no source changes (only agent logs).
+REVIEW_CHANGES_REQUESTED
 
-REVIEW_APPROVED
+1. **P2 — Missing `aria-haspopup` / `aria-expanded` on the Add Track button** (`src/ui/transport/TransportBar.tsx:110-118`). The button toggles a `role="menu"` dropdown but lacks `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}`. Screen readers won't announce the menu relationship. Add both attributes to the trigger button.
 
-Minor observations (non-blocking):
+2. **P2 — Dropdown not closable via Escape key** (`src/ui/transport/TransportBar.tsx:84-99`). The outside-click handler closes the menu on `mousedown`, but there is no keyboard handler for `Escape`. Users navigating via keyboard have no way to dismiss the menu without clicking away. Add a `keydown` listener for `Escape` in the same `useEffect`.
 
-1. **P3** `helpers.ts:178` - Module-level `idCounter` is not reset in `transport-scheduler.test.ts` or `mixer-integration.test.ts`. Not a bug today because those files don't call factory functions, but a future contributor adding a `makeTrack()` call there would get surprising IDs.
+3. **P3 — `useDrumMachineState` creates a new `stepSequencer` per mount, not per track** (`src/ui/panels.tsx:35-39`). When the user switches between drum tracks, `DrumMachineController` remounts and creates a fresh sequencer — losing the pattern of the previous drum track. If the app ever supports multiple drum tracks, each one shares the same ephemeral state. Fine for now, but worth a TODO comment noting this is single-track-only.
 
-2. **P3** `bounce-workflow.test.ts:220-231` - `drainGenerator` returns `result: unknown`, forcing every call site to cast (e.g., `as { blob: Blob; duration: number }`). Could use the actual `BounceResult` type from `@audio/bounce/types` to preserve type safety within tests.
+4. **P3 — `onParamChange` updates local state only** (`src/ui/panels.tsx:104-116`). Drum instrument param changes (decay, tone, etc.) are stored in component state but never propagated to the audio engine or persisted in the store. The params drift silently — the UI shows values that have no audio effect. Either connect to the audio layer or add a comment noting this is intentionally visual-only for now.
 
-3. **P3** `helpers.ts:46-48` - `linearRampToValueAtTime` and `exponentialRampToValueAtTime` mocks set `param.value` instantly. Acceptable simplification for integration tests, but worth a comment if someone later writes tests that depend on ramp timing behavior.
+5. **P3 — `onTriggerPad` is a no-op** (`src/ui/panels.tsx:100-102`). The callback does nothing — pad taps are silently swallowed. If this is intentional (audio wiring deferred), note it explicitly, e.g. `// TODO: wire to audio engine for pad preview`.
 </claude-opus-review>
 
 <gemini-review>
@@ -79,7 +74,12 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+1. **P2** - Localized `DrumMachineController` state causing data loss: The drum pattern state (`useState(() => createStepSequencer(...))`) is completely localized to the `DrumMachineController` component. If the user selects a non-drum track, the controller unmounts, and the entire drum pattern is permanently lost. State should be hoisted to the global store or cached by `trackId`.
+2. **P2** - Missing `key` prop on `DrumMachineController`: In `InstrumentPanel`, `DrumMachineController` is rendered without a `key={selectedTrack.id}` prop. When switching between multiple drum tracks, React reuses the exact same component instance, meaning the step sequencer UI and its local pattern state will incorrectly bleed across all drum tracks.
+3. **P3** - Naive track naming logic: In `TransportBar.tsx`, track naming uses `.length` of existing tracks (e.g., `trackCount + 1`). If a track is deleted (e.g., "Audio 1"), creating a new one will duplicate names (e.g., resulting in two tracks named "Audio 2").
+4. **P3** - Missing accessibility attributes on Add Track menu: The `+` button in `TransportBar` lacks `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}` attributes, reducing accessibility for screen readers navigating the track creation dropdown.
 </gemini-review>
 
 

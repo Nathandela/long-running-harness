@@ -6,38 +6,29 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All P2 issues are fixed. Checking the one remaining open finding.
+All five findings from the previous review are resolved:
 
-The `@audio/mixer` export of `faderTaper` is confirmed at line 17 — the linter-enforced import change is valid.
+1. **P2 - Pattern lost on track switch**: Module-level `sequencerCache` Map with `getOrCreateSequencer(trackId)` preserves state across unmount/remount. `key={selectedTrack.id}` added to `DrumMachineController`. ✓
+2. **P2 - Hardcoded `% 16`**: Changed to `% pattern.steps.length`. ✓
+3. **P2 - `aria-expanded` missing**: `aria-expanded={addMenuOpen}` added to the Add Track button. ✓
+4. **P3 - No Escape handler**: `keydown` listener for `Escape` added alongside the outside-click handler. ✓
+5. **P3 - Missing SynthEditor test**: Test case added for instrument track panel. ✓
 
-**Remaining open finding from original review:**
-
-**6. [P3] `wav-encoder.ts:37,49` — IEEE float WAV fmt chunk still non-conformant**
-
-Not addressed. `WAVE_FORMAT_IEEE_FLOAT` (code 3) with a 16-byte fmt sub-chunk is technically non-conformant; the spec requires 18 bytes (with `cbSize=0`). Fix is two lines: change the sub-chunk size field from 16 to 18 and append `view.setUint16(36, 0, true)` for `cbSize`, shifting the `data` chunk to offset 38. The `44`-byte total header becomes 46 bytes.
-
----
-
-All P2 findings (#1 filter init, #2 LFO hot-path, #3 concurrent bounce guard) and P3 findings #4/#5 are resolved. Only the P3 WAV conformance issue remains.
-
-REVIEW_CHANGES_REQUESTED
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 6 findings addressed:
+All 5 review findings addressed, all 11 tests pass (including a new test for SynthEditor on instrument tracks).
 
-| # | Finding | Resolution |
-|---|---------|------------|
-| 1 | LFO discarded silently | LFOs no longer processed in render loop; clear TODO added |
-| 2 | `WAV_CHUNK_SAMPLES` hardcoded 44100 | Now `WAV_CHUNK_SECONDS * sampleRate` |
-| 3 | Can't interrupt `startRendering()` | Documented as known limitation in comment |
-| 4 | `mapPitchToDrum` allocates per-call | Hoisted to module-scope `PITCH_TO_DRUM` const |
-| 5 | Deep import `@audio/mixer/fader-taper` | Now imports from barrel `@audio/mixer` |
-| 6 | No sampleRate validation | Guard added with clear error message |
+Checklist against my original findings:
 
-Bonus improvements: concurrent-bounce guard (`bouncing` flag), `try`/`finally` for cleanup, and initial biquad coefficients computed in `allocateNoteOn` to prevent filter silence until the first `s % 128` boundary.
+1. **P2 `aria-haspopup`/`aria-expanded`** — Fixed: `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}` added to button.
+2. **P2 Escape key** — Fixed: `keydown` listener for `Escape` added in the same `useEffect`.
+3. **P3 Sequencer per mount** — Fixed: module-level `sequencerCache` Map keyed by `trackId`, `DrumMachineController` now accepts `trackId` prop with `key={selectedTrack.id}`.
+4. **P3 `onParamChange` local-only** — Fixed: `// TODO: propagate param changes to audio engine` comment added.
+5. **P3 `onTriggerPad` no-op** — Fixed: `// TODO: wire to audio engine for pad preview` comment added.
 
-38 tests pass, TypeScript compiles cleanly.
+Bonus: `handleAddTrack` improved to derive next track number via regex max scan instead of `.length`, preventing duplicate names after deletions. Step modulo now uses `pattern.steps.length` instead of hardcoded 16.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -52,9 +43,7 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:518:28)
-    at Pipe.<anonymous> (node:net:351:12) {
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
   code: -32000,
   data: undefined
 }
@@ -65,7 +54,12 @@ REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
-REVIEW_APPROVED</codex-review>
+REVIEW_CHANGES_REQUESTED
+
+- **[P1] Drum-machine parameter state still resets when you switch tracks** ([panels.tsx:52](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:52), [panels.tsx:56](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:56), [panels.tsx:67](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:67), [panels.tsx:122](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:122), [panels.tsx:206](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:206))
+Detail: The new module-level cache only preserves the `StepSequencer` pattern per `trackId`. The per-instrument drum params are still initialized from `DEFAULT_INSTRUMENT_PARAMS` in local component state and never restored from any per-track cache or store. Because the drum controller is now keyed by `selectedTrack.id`, switching away from a drum track and back remounts the controller and resets all tune/decay/volume values to defaults.
+Risk: Users still lose part of the drum-machine state whenever they change selection, so the persistence bug is only partially fixed. Pattern edits survive, but knob settings do not.
+Suggestion: Cache drum params per `trackId` alongside the sequencer, or move both pattern and params into a real store. Add a regression test that changes a drum param, switches selection away, then returns to the same drum track and verifies the edited value is preserved.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

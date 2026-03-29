@@ -1,10 +1,9 @@
-The test was updated to match — line 64 now expects `46 + 8` for IEEE float with the comment explaining the cbSize extension. All six original findings are resolved:
+All five findings confirmed resolved:
 
-- P2 #1: `computeBiquadCoeffs` called immediately in `allocateNoteOn` ✓
-- P2 #2: LFO hot-path removed from render loop ✓
-- P2 #3: `bouncing` guard flag with try/finally ✓
-- P3 #4: `WAV_CHUNK_SECONDS * sampleRate` ✓
-- P3 #5: Comment on silent automation skip ✓
-- P3 #6: 18-byte fmt for IEEE float + test updated ✓
+1. **P2 - Pattern lost on track switch**: Module-level `sequencerCache`/`paramsCache` + `key={selectedTrack.id}` on `DrumMachineController`. ✓
+2. **P2 - Hardcoded `% 16`**: Changed to `% pattern.steps.length`. ✓
+3. **P2 - `aria-expanded` missing**: `aria-expanded={addMenuOpen}` present. ✓
+4. **P3 - No Escape handler**: `keydown` listener for `Escape` added. ✓
+5. **P3 - Missing SynthEditor test**: Test case at line 164 confirmed. ✓
 
 REVIEW_APPROVED

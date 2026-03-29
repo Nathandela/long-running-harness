@@ -1,0 +1,25 @@
+Now let me understand the codebase structure before planning.Good, I have comprehensive context. Let me now read the actual files I'll be modifying to plan precisely.Now let me read the existing test files and the CSS modules I need.Good. I have full understanding of the codebase. Let me claim the epic and start the TDD workflow.Now let me create sub-tasks and start the TDD workflow. First, let me create the beads tasks.No matter - the tasks exist. Let me start implementing. Following TDD: tests first.
+
+## Phase 1: Write TestsLet me first check the existing test setup and understand how mocks work.Now let me write the tests first. I need tests for:
+1. ChannelStrip FX button
+2. MixerPanel FX toggle + EffectsRack rendering + ROUTING toggle + RoutingMatrix renderingNow let's run the tests to verify they fail (Red phase):All 7 new tests fail and 8 existing tests pass. The tests fail because the FX button and ROUTING button don't exist yet. This is the correct Red phase.
+
+## Phase 3: Green (Implement)
+
+Now let me implement the changes. I'll modify ChannelStrip to accept FX props and MixerPanel to manage FX/routing state.Now add the FX button handler and the button itself:Now add the CSS for the FX active state:Now update MixerPanel to add FX state management, ROUTING toggle, and render EffectsRack / RoutingMatrix:Now update the JSX to use the new wrapper structure:Now let's run the tests:The `require` in the mock factory can't resolve `@audio/effects`. I need to fix the mock — vi.mock factory can't use `require` with path aliases. Let me check how the EffectsRack test does it.The EffectsRack test imports at the top level and builds the registry outside the mock. The mock factory just references the top-level variable. I need to do the same approach - import at the top, build registry outside mock, reference it in the mock factory.All 15 tests pass. Now let me also run the full test suite to make sure I haven't broken anything:All 429 tests pass across 49 files. Let me close the first two tasks and run the full test suite to confirm nothing is broken.Now let me write the integration test for task 3 - verifying the EffectsBridge actually connects store changes to the audio engine.Good — there's already an `effects-bridge` pattern visible and `insert-chain.test.ts`. Let me check the existing mixer engine test and insert chain test.Good. Now let me write the effects bridge integration test. Let me check if there's already one:No test for the bridge yet. Let me read the mixer engine API to understand what I'm testing against:Now I have everything I need. Let me check what the registry's `create` method returns (the types):Now let me check how the test environment handles AudioContext:Now I have the pattern. Let me write the effects bridge test:All 5 bridge tests pass. Let me run the full test suite one more time to confirm everything is green:All 1487 tests pass across 130 files. Let me also run the type checker to be safe:No type errors. Let me also run lint:Lint errors about `?.dispose`, `?.setBypassed` etc. on mock instances. These are unbound method calls in the test assertions. Let me check which lines and fix:The issue is that `instance?.dispose` and similar method accesses on optional chaining get flagged as unbound methods. I need to use non-null assertions since we've already verified the instance is defined. Let me fix these:No non-null assertions allowed either. Let me use a different pattern — assign the instance after the `expect(instance).toBeDefined()` assertion using a type guard:I'll use a helper function that asserts and returns the non-undefined value:Now replace all the `instance!.` and `instance?.` with using `defined()`:Lint clean, tests pass. Let me close the bridge verification task:Now let me do a final full test suite + lint run to make sure everything is green:All 1487 tests pass. ESLint shows only 2 pre-existing warnings (not from my changes). Let me now close the epic and commit:Prettier formatting issue. Let me fix it:Commit successful. Now push:All changes pushed successfully.
+
+## Summary
+
+**W2: Effects, Routing & Mixer Integration** - Complete.
+
+### Changes made:
+
+1. **ChannelStrip.tsx** - Added `fxActive` and `onFxToggle` props, FX button with green active state
+2. **MixerPanel.tsx** - Added state management for selected FX track and routing visibility, ROUTING toggle button in header, conditional rendering of EffectsRack and RoutingMatrix
+3. **MixerPanel.module.css** - Added `.btn-fx-active`, `.mixer-header`, `.mixer-strips`, `.mixer-wrapper` styles
+4. **MixerPanel.test.tsx** - 7 new tests: FX button rendering, toggle show/hide, track switching, ROUTING toggle show/hide
+5. **effects-bridge.test.ts** - New file: 5 integration tests verifying store-to-audio bridge (add/remove/bypass/param/dispose)
+
+**Test results**: 1487 tests passing, 130 files, 0 errors, lint clean.
+
+EPIC_COMPLETE
