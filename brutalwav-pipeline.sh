@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "=== BRUTALWAV Pipeline ==="
-echo "Phase 1: Infinity Loop (18 epics + review after each epic)"
+echo "=== BRUTALWAV Wiring Fix Pipeline ==="
+echo "Phase 1: Infinity Loop (4 epics + review after each)"
 bash infinity-loop.sh
 
 echo ""
-echo "=== Phase 2: Polish Loop (5 cycles) ==="
+echo "=== Phase 2: Polish Loop (1 cycle) ==="
 bash polish-loop.sh
 
 echo ""

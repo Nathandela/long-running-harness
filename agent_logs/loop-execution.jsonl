@@ -36,3 +36,5 @@
 {"epic_id":"long-running-harness-fyp","result":"complete","attempts":1,"duration_s":670,"timestamp":"2026-03-29T04:06:54Z"}
 {"epic_id":"long-running-harness-cya","result":"complete","attempts":1,"duration_s":302,"timestamp":"2026-03-29T04:12:11Z"}
 {"epic_id":"long-running-harness-k0e","result":"complete","attempts":1,"duration_s":1158,"timestamp":"2026-03-29T04:31:45Z"}
+{"epic_id":"long-running-harness-imy","result":"complete","attempts":1,"duration_s":663,"timestamp":"2026-03-29T04:43:03Z"}
+{"type":"summary","completed":5,"failed":0,"skipped":0,"total_duration_s":3593}
