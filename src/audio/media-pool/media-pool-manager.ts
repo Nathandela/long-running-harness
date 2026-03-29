@@ -92,7 +92,7 @@ export function createMediaPool(
         await storage.putMeta(handle.id, handle);
 
         // Compute and cache peaks at default resolution
-        const peaks = computeWaveformPeaks(
+        const peaks = await computeWaveformPeaks(
           buffer,
           DEFAULT_SAMPLES_PER_PEAK,
           handle.id,
