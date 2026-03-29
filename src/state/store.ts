@@ -339,17 +339,26 @@ export const useDawStore = create<DawStore>()((set, get) => ({
         };
       }
 
-      // MIDI clips: adjust startTime and duration (no sourceOffset)
+      // MIDI clips: adjust startTime, duration, and shift/filter noteEvents
       let { startTime, duration } = clip;
       const clipEnd = startTime + duration;
+      let noteEvents = clip.noteEvents;
 
       if (newStart !== undefined) {
+        const delta = newStart - startTime;
         startTime = newStart;
         duration = clipEnd - newStart;
+        // Shift note times and remove notes that fall outside the new clip
+        noteEvents = noteEvents
+          .map((n) => ({ ...n, startTime: n.startTime - delta }))
+          .filter(
+            (n) => n.startTime + n.duration > 0 && n.startTime < duration,
+          );
       }
 
       if (newEnd !== undefined) {
         duration = newEnd - startTime;
+        noteEvents = noteEvents.filter((n) => n.startTime < duration);
       }
 
       if (duration <= 0) return state;
@@ -357,7 +366,7 @@ export const useDawStore = create<DawStore>()((set, get) => ({
       return {
         clips: {
           ...state.clips,
-          [id]: { ...clip, startTime, duration },
+          [id]: { ...clip, startTime, duration, noteEvents },
         },
       };
     });

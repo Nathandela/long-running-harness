@@ -8,7 +8,7 @@ import { useDawStore } from "@state/store";
 import type { ClipModel, MidiClipModel } from "@state/track/types";
 import { isAudioClip, isMidiClip } from "@state/track/types";
 import type { UndoCommand } from "@state/undo";
-import { sharedUndoManager } from "@state/undo";
+import { BatchCommand, sharedUndoManager } from "@state/undo";
 import {
   AddClipCommand,
   RemoveClipCommand,
@@ -416,24 +416,26 @@ export function useArrangementInteractions(
       e.preventDefault();
       const state = useDawStore.getState();
 
-      // If clips are selected, delete them
+      // If clips are selected, delete them (single undo for the batch)
       if (state.selectedClipIds.length > 0) {
-        for (const clipId of state.selectedClipIds) {
-          const cmd = new RemoveClipCommand(clipId);
-          cmd.execute();
-          sharedUndoManager.push(cmd);
-        }
+        const cmds = state.selectedClipIds.map(
+          (id) => new RemoveClipCommand(id),
+        );
+        const batch = new BatchCommand(cmds);
+        batch.execute();
+        sharedUndoManager.push(batch);
         state.setSelectedClipIds([]);
         return;
       }
 
       // If tracks are selected (and no clips selected), delete them
       if (state.selectedTrackIds.length > 0) {
-        for (const trackId of state.selectedTrackIds) {
-          const cmd = new RemoveTrackCommand(trackId);
-          cmd.execute();
-          sharedUndoManager.push(cmd);
-        }
+        const cmds = state.selectedTrackIds.map(
+          (id) => new RemoveTrackCommand(id),
+        );
+        const batch = new BatchCommand(cmds);
+        batch.execute();
+        sharedUndoManager.push(batch);
         state.setSelectedTrackIds([]);
       }
     },

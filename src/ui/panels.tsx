@@ -10,7 +10,10 @@ import type {
   DrumInstrumentParams,
   DrumPattern,
 } from "@audio/drum-machine/drum-types";
-import { DRUM_TO_PITCH } from "@audio/drum-machine/drum-types";
+import {
+  DRUM_INSTRUMENTS,
+  DRUM_TO_PITCH,
+} from "@audio/drum-machine/drum-types";
 import type { MidiClipModel, MIDINoteEvent } from "@state/track/types";
 import { AddClipCommand } from "@state/track/track-commands";
 import { sharedUndoManager } from "@state/undo";
@@ -164,7 +167,7 @@ function useDrumMachineState(trackId: string): {
       const step = currentPattern.steps[i];
       if (!step) continue;
       const velocity = step.accent ? 127 : 100;
-      for (const instId of Object.keys(step.triggers) as DrumInstrumentId[]) {
+      for (const { id: instId } of DRUM_INSTRUMENTS) {
         if (!step.triggers[instId]) continue;
         const pitch = DRUM_TO_PITCH[instId];
         noteEvents.push({

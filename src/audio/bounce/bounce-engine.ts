@@ -361,8 +361,6 @@ function scheduleDrumClips(
   }
 }
 
-// mapPitchToDrum imported from @audio/drum-machine/drum-types
-
 // ─── Automation scheduling ───
 
 function scheduleAutomation(

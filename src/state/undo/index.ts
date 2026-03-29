@@ -1,4 +1,4 @@
-export type { UndoCommand } from "./undo-command";
+export { BatchCommand, type UndoCommand } from "./undo-command";
 export {
   UndoCommandRegistry,
   type UndoCommandDeserializer,
