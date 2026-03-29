@@ -8,53 +8,30 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
----
+**1. P3 — Orphaned `.mixer` CSS class**
+`MixerPanel.module.css:1-8` — the old `.mixer` class is dead code after the refactor to `.mixer-wrapper`. No file references `styles["mixer"]` anymore. It also carries the old `max-height: 280px` constraint which conflicts with the new 400px. Should be removed to avoid confusion.
 
-**1. P2 — Drum machine pattern lost on track switch** (`src/ui/panels.tsx:35-39`)
+**2. P3 — Bridge subscription leaks in tests**
+`effects-bridge.test.ts` has no `afterEach(() => bridge.dispose())`. Each test creates a new bridge (+ store subscription) without tearing down the previous one. By the 5th test, 4 stale bridges are firing `sync()` on store mutations. Practically harmless since each test uses fresh mocks, but violates isolation and will confuse future test failures.
 
-`useDrumMachineState` initializes the step sequencer in `useState`. Every time a drum track is selected (after switching away), `DrumMachineController` mounts fresh and the pattern resets to empty. User's programmed steps are silently discarded. The pattern needs to live outside the component — in the Zustand store, a ref keyed by `trackId`, or a module-level map.
-
----
-
-**2. P2 — `aria-expanded` missing on Add Track button** (`src/ui/transport/TransportBar.tsx:115`)
-
-The toggle button opens a `role="menu"` but never exposes `aria-expanded={addMenuOpen}`. Screen readers have no signal that the popup opened or closed. WCAG 4.1.2 / Button pattern requirement.
-
----
-
-**3. P3 — Hardcoded `% 16` step wrap** (`src/ui/panels.tsx:67`)
-
-```ts
-const step = Math.floor(cursor / stepDuration) % 16;
-```
-
-`pattern` is in scope here. The constant should be `% pattern.steps.length`. Currently harmless since all patterns are 16 steps, but will silently drift if pattern length ever varies.
-
----
-
-**4. P3 — No Escape / arrow-key handling for dropdown** (`src/ui/transport/TransportBar.tsx`)
-
-The element has `role="menu"` with `role="menuitem"` children, which per WAI-ARIA requires keyboard navigation: `Escape` to close, `ArrowDown`/`ArrowUp` to move focus between items. Currently only outside-click closes it. Focus doesn't move into the menu on open either.
-
----
-
-**5. P3 — Missing test: InstrumentPanel with instrument track** (`src/ui/track-creation.test.tsx`)
-
-All three InstrumentPanel branches are described in the test file header, but there is no test case asserting `SynthEditor` renders for `type: "instrument"`. The drum and audio cases are covered but this one is absent.
+**3. P3 — Initial sync path untested**
+All tests call `useEffectsStore.setState({ trackEffects: {} })` before `createEffectsBridge(...)`. The constructor's `sync()` therefore always runs on an empty store. The code path where the bridge is created with pre-existing effects (the production boot path, via `EffectsBridgeProvider.useState`) is never exercised. Add one test that populates the store before creating the bridge.
 </claude-sonnet-review>
 
 <claude-opus-review>
+Clean type-check. Now my full review:
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P2 — Missing `aria-haspopup` / `aria-expanded` on the Add Track button** (`src/ui/transport/TransportBar.tsx:110-118`). The button toggles a `role="menu"` dropdown but lacks `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}`. Screen readers won't announce the menu relationship. Add both attributes to the trigger button.
+1. **P2 - ReDoS risk in track name regex** (`src/ui/transport/TransportBar.tsx:65`): `namePrefix` is interpolated directly into `new RegExp(...)` without escaping. The current preset values ("Audio", "Synth", "808") are safe, but "808" contains no special chars only by luck. If a preset name ever contains regex metacharacters (e.g. `C++`, `(Aux)`), this will break or cause unexpected behavior. Escape `namePrefix` before interpolation, or use a simpler `startsWith` + `parseInt` approach.
 
-2. **P2 — Dropdown not closable via Escape key** (`src/ui/transport/TransportBar.tsx:84-99`). The outside-click handler closes the menu on `mousedown`, but there is no keyboard handler for `Escape`. Users navigating via keyboard have no way to dismiss the menu without clicking away. Add a `keydown` listener for `Escape` in the same `useEffect`.
+2. **P2 - Module-level Map caches never shrink** (`src/ui/panels.tsx:20-24`): `sequencerCache` and `paramsCache` are module-level `Map`s keyed by trackId. When a track is deleted, its entries are never removed. Over a long session with many track create/delete cycles, these accumulate orphaned `StepSequencer` instances and param objects. Add cleanup when tracks are removed (e.g., subscribe to store changes, or clear entries in a `useEffect` cleanup).
 
-3. **P3 — `useDrumMachineState` creates a new `stepSequencer` per mount, not per track** (`src/ui/panels.tsx:35-39`). When the user switches between drum tracks, `DrumMachineController` remounts and creates a fresh sequencer — losing the pattern of the previous drum track. If the app ever supports multiple drum tracks, each one shares the same ephemeral state. Fine for now, but worth a TODO comment noting this is single-track-only.
+3. **P3 - `act()` warnings in test** (`src/ui/track-creation.test.tsx`): The "preserves drum params" test triggers React `act()` warnings on stderr from `useDawStore.setState` inside `rerender`. Wrap the state updates in `act(() => { ... })` to silence the warnings and ensure React processes state correctly during assertions.
 
-4. **P3 — `onParamChange` updates local state only** (`src/ui/panels.tsx:104-116`). Drum instrument param changes (decay, tone, etc.) are stored in component state but never propagated to the audio engine or persisted in the store. The params drift silently — the UI shows values that have no audio effect. Either connect to the audio layer or add a comment noting this is intentionally visual-only for now.
+4. **P3 - EffectsBridge sync runs on every store change** (`src/audio/effects/effects-bridge.ts:110`): `useEffectsStore.subscribe(sync)` fires `sync()` on every state mutation (any slice), not just `trackEffects` changes. If other effects-store slices are added later, every unrelated write will trigger a full reconciliation loop. Consider using `subscribe` with a selector or `subscribeWithSelector` middleware.
 
-5. **P3 — `onTriggerPad` is a no-op** (`src/ui/panels.tsx:100-102`). The callback does nothing — pad taps are silently swallowed. If this is intentional (audio wiring deferred), note it explicitly, e.g. `// TODO: wire to audio engine for pad preview`.
+5. **P3 - Sidechain filter is O(n) per track row** (`src/ui/mixer/RoutingMatrix.tsx:117-119`): `sidechains.filter(...)` runs for every track on every render. With many tracks and sidechains this is quadratic. Fine for now, but if the matrix grows, pre-index sidechains by sourceId/targetId in a `useMemo`.
 </claude-opus-review>
 
 <gemini-review>
@@ -76,10 +53,10 @@ Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
 
-1. **P2** - Localized `DrumMachineController` state causing data loss: The drum pattern state (`useState(() => createStepSequencer(...))`) is completely localized to the `DrumMachineController` component. If the user selects a non-drum track, the controller unmounts, and the entire drum pattern is permanently lost. State should be hoisted to the global store or cached by `trackId`.
-2. **P2** - Missing `key` prop on `DrumMachineController`: In `InstrumentPanel`, `DrumMachineController` is rendered without a `key={selectedTrack.id}` prop. When switching between multiple drum tracks, React reuses the exact same component instance, meaning the step sequencer UI and its local pattern state will incorrectly bleed across all drum tracks.
-3. **P3** - Naive track naming logic: In `TransportBar.tsx`, track naming uses `.length` of existing tracks (e.g., `trackCount + 1`). If a track is deleted (e.g., "Audio 1"), creating a new one will duplicate names (e.g., resulting in two tracks named "Audio 2").
-4. **P3** - Missing accessibility attributes on Add Track menu: The `+` button in `TransportBar` lacks `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}` attributes, reducing accessibility for screen readers navigating the track creation dropdown.
+1. **[P2 - Test Leak]** In `src/audio/effects/effects-bridge.test.ts`, an `EffectsBridge` is instantiated in `beforeEach()`, which adds a subscription to `useEffectsStore`. However, `bridge.dispose()` is never called in an `afterEach()`. This leaks Zustand store subscriptions across tests, potentially causing memory leaks and unintended side effects during subsequent test runs.
+2. **[P2 - Edge Case]** In `src/ui/mixer/MixerPanel.tsx`, `EffectsRack` is rendered whenever `selectedFxTrackId !== null`. If the corresponding track is deleted from the DAW store while its FX rack is open, the rack remains mounted for a non-existent track. Add a check to ensure the track still exists before rendering it (e.g., `selectedFxTrackId !== null && tracks.some(t => t.id === selectedFxTrackId)`).
+3. **[P3 - Unused CSS]** In `src/ui/mixer/MixerPanel.module.css`, the `.mixer` class was orphaned when it was replaced by `.mixer-wrapper`. It should be removed as it is no longer used.
+4. **[P3 - Test Mock Correctness]** In `src/audio/effects/effects-bridge.test.ts`, `mockGainNode()` mocks the `connect` method with `vi.fn().mockReturnThis()`. Under the standard Web Audio API, `connect(destinationNode)` returns the *destination* node, not the source node (`this`). While this doesn't break the current tests, it is an incorrect representation of the API that could break future tests if connection chaining is introduced.
 </gemini-review>
 
 

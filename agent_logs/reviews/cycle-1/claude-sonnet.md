@@ -1,35 +1,10 @@
 REVIEW_CHANGES_REQUESTED
 
----
+**1. P3 — Orphaned `.mixer` CSS class**
+`MixerPanel.module.css:1-8` — the old `.mixer` class is dead code after the refactor to `.mixer-wrapper`. No file references `styles["mixer"]` anymore. It also carries the old `max-height: 280px` constraint which conflicts with the new 400px. Should be removed to avoid confusion.
 
-**1. P2 — Drum machine pattern lost on track switch** (`src/ui/panels.tsx:35-39`)
+**2. P3 — Bridge subscription leaks in tests**
+`effects-bridge.test.ts` has no `afterEach(() => bridge.dispose())`. Each test creates a new bridge (+ store subscription) without tearing down the previous one. By the 5th test, 4 stale bridges are firing `sync()` on store mutations. Practically harmless since each test uses fresh mocks, but violates isolation and will confuse future test failures.
 
-`useDrumMachineState` initializes the step sequencer in `useState`. Every time a drum track is selected (after switching away), `DrumMachineController` mounts fresh and the pattern resets to empty. User's programmed steps are silently discarded. The pattern needs to live outside the component — in the Zustand store, a ref keyed by `trackId`, or a module-level map.
-
----
-
-**2. P2 — `aria-expanded` missing on Add Track button** (`src/ui/transport/TransportBar.tsx:115`)
-
-The toggle button opens a `role="menu"` but never exposes `aria-expanded={addMenuOpen}`. Screen readers have no signal that the popup opened or closed. WCAG 4.1.2 / Button pattern requirement.
-
----
-
-**3. P3 — Hardcoded `% 16` step wrap** (`src/ui/panels.tsx:67`)
-
-```ts
-const step = Math.floor(cursor / stepDuration) % 16;
-```
-
-`pattern` is in scope here. The constant should be `% pattern.steps.length`. Currently harmless since all patterns are 16 steps, but will silently drift if pattern length ever varies.
-
----
-
-**4. P3 — No Escape / arrow-key handling for dropdown** (`src/ui/transport/TransportBar.tsx`)
-
-The element has `role="menu"` with `role="menuitem"` children, which per WAI-ARIA requires keyboard navigation: `Escape` to close, `ArrowDown`/`ArrowUp` to move focus between items. Currently only outside-click closes it. Focus doesn't move into the menu on open either.
-
----
-
-**5. P3 — Missing test: InstrumentPanel with instrument track** (`src/ui/track-creation.test.tsx`)
-
-All three InstrumentPanel branches are described in the test file header, but there is no test case asserting `SynthEditor` renders for `type: "instrument"`. The drum and audio cases are covered but this one is absent.
+**3. P3 — Initial sync path untested**
+All tests call `useEffectsStore.setState({ trackEffects: {} })` before `createEffectsBridge(...)`. The constructor's `sync()` therefore always runs on an empty store. The code path where the bridge is created with pre-existing effects (the production boot path, via `EffectsBridgeProvider.useState`) is never exercised. Add one test that populates the store before creating the bridge.

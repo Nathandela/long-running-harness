@@ -1,9 +1,9 @@
-All five findings from the previous review are resolved:
+All three findings from my previous review are addressed:
 
-1. **P2 - Pattern lost on track switch**: Module-level `sequencerCache` Map with `getOrCreateSequencer(trackId)` preserves state across unmount/remount. `key={selectedTrack.id}` added to `DrumMachineController`. ✓
-2. **P2 - Hardcoded `% 16`**: Changed to `% pattern.steps.length`. ✓
-3. **P2 - `aria-expanded` missing**: `aria-expanded={addMenuOpen}` added to the Add Track button. ✓
-4. **P3 - No Escape handler**: `keydown` listener for `Escape` added alongside the outside-click handler. ✓
-5. **P3 - Missing SynthEditor test**: Test case added for instrument track panel. ✓
+1. **Orphaned `.mixer` CSS class** — removed.
+2. **Missing `afterEach` cleanup** — `afterEach(() => bridge.dispose())` added.
+3. **Initial sync path untested** — new `"syncs pre-existing effects on creation"` test added.
+
+The fix commit also addressed additional issues from other reviewers (ReDoS, cache leaks, deleted-track guard, `mockGainNode.connect` correctness). The deleted-track guard in `MixerPanel.tsx` (`tracks.some((t) => t.id === selectedFxTrackId)`) correctly handles the edge case where a track is deleted while its FX rack is open.
 
 REVIEW_APPROVED

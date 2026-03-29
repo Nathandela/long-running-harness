@@ -6,29 +6,19 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All five findings from the previous review are resolved:
+All three findings from my previous review are addressed:
 
-1. **P2 - Pattern lost on track switch**: Module-level `sequencerCache` Map with `getOrCreateSequencer(trackId)` preserves state across unmount/remount. `key={selectedTrack.id}` added to `DrumMachineController`. ✓
-2. **P2 - Hardcoded `% 16`**: Changed to `% pattern.steps.length`. ✓
-3. **P2 - `aria-expanded` missing**: `aria-expanded={addMenuOpen}` added to the Add Track button. ✓
-4. **P3 - No Escape handler**: `keydown` listener for `Escape` added alongside the outside-click handler. ✓
-5. **P3 - Missing SynthEditor test**: Test case added for instrument track panel. ✓
+1. **Orphaned `.mixer` CSS class** — removed.
+2. **Missing `afterEach` cleanup** — `afterEach(() => bridge.dispose())` added.
+3. **Initial sync path untested** — new `"syncs pre-existing effects on creation"` test added.
+
+The fix commit also addressed additional issues from other reviewers (ReDoS, cache leaks, deleted-track guard, `mockGainNode.connect` correctness). The deleted-track guard in `MixerPanel.tsx` (`tracks.some((t) => t.id === selectedFxTrackId)`) correctly handles the edge case where a track is deleted while its FX rack is open.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 5 review findings addressed, all 11 tests pass (including a new test for SynthEditor on instrument tracks).
-
-Checklist against my original findings:
-
-1. **P2 `aria-haspopup`/`aria-expanded`** — Fixed: `aria-haspopup="menu"` and `aria-expanded={addMenuOpen}` added to button.
-2. **P2 Escape key** — Fixed: `keydown` listener for `Escape` added in the same `useEffect`.
-3. **P3 Sequencer per mount** — Fixed: module-level `sequencerCache` Map keyed by `trackId`, `DrumMachineController` now accepts `trackId` prop with `key={selectedTrack.id}`.
-4. **P3 `onParamChange` local-only** — Fixed: `// TODO: propagate param changes to audio engine` comment added.
-5. **P3 `onTriggerPad` no-op** — Fixed: `// TODO: wire to audio engine for pad preview` comment added.
-
-Bonus: `handleAddTrack` improved to derive next track number via regex max scan instead of `.length`, preventing duplicate names after deletions. Step modulo now uses `pattern.steps.length` instead of hardcoded 16.
+All 40 tests pass, type-check was clean earlier. The P0-P2 findings are resolved.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -56,10 +46,10 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Drum-machine parameter state still resets when you switch tracks** ([panels.tsx:52](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:52), [panels.tsx:56](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:56), [panels.tsx:67](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:67), [panels.tsx:122](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:122), [panels.tsx:206](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:206))
-Detail: The new module-level cache only preserves the `StepSequencer` pattern per `trackId`. The per-instrument drum params are still initialized from `DEFAULT_INSTRUMENT_PARAMS` in local component state and never restored from any per-track cache or store. Because the drum controller is now keyed by `selectedTrack.id`, switching away from a drum track and back remounts the controller and resets all tune/decay/volume values to defaults.
-Risk: Users still lose part of the drum-machine state whenever they change selection, so the persistence bug is only partially fixed. Pattern edits survive, but knob settings do not.
-Suggestion: Cache drum params per `trackId` alongside the sequencer, or move both pattern and params into a real store. Add a regression test that changes a drum param, switches selection away, then returns to the same drum track and verifies the edited value is preserved.</codex-review>
+- **[P2] Drum cache cleanup still misses same-size track replacement paths** ([panels.tsx:27](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:27), [panels.tsx:30](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:30), [use-session-persistence.ts:142](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:142), [use-session-persistence.ts:147](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:147))
+  - **Detail**: The new subscription only purges `sequencerCache` and `paramsCache` when the number of tracks decreases. `hydrateStore()` replaces `tracks` wholesale, so swapping one track set for another of the same size leaves the old cache entries behind.
+  - **Risk**: The cache-leak fix is still partial. Stale drum-machine state can accumulate across session loads or other whole-array track replacements.
+  - **Suggestion**: Diff `prevTrackIds` against `trackIds` on every update, not only when `size` shrinks, and add a regression test that hydrates from one drum-track set to a different same-length set.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.
