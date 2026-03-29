@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import { SynthEditor } from "@ui/synth";
 import { DrumMachinePanel } from "@ui/drum-machine";
+import { useTrackAudioBridge } from "@audio/TrackAudioBridgeProvider";
 import {
   createStepSequencer,
   type StepSequencer,
@@ -140,16 +141,25 @@ function useDrumMachineState(trackId: string): {
     [seq],
   );
 
-  // TODO: wire to audio engine for pad preview
-  const onTriggerPad = useCallback((_instrumentId: DrumInstrumentId) => {}, []);
+  const bridge = useTrackAudioBridge();
+  const onTriggerPad = useCallback(
+    (instrumentId: DrumInstrumentId) => {
+      const kit = bridge.getDrumKit(trackId);
+      kit?.trigger(instrumentId, 0, 1);
+    },
+    [bridge, trackId],
+  );
 
-  // TODO: propagate param changes to audio engine
   const onParamChange = useCallback(
     (
       instrumentId: DrumInstrumentId,
       key: keyof DrumInstrumentParams,
       value: number,
     ) => {
+      // Forward to audio engine
+      const kit = bridge.getDrumKit(trackId);
+      kit?.setParam(instrumentId, key, value);
+
       setParams((prev) => {
         const next = {
           ...prev,
@@ -159,7 +169,7 @@ function useDrumMachineState(trackId: string): {
         return next;
       });
     },
-    [trackId],
+    [bridge, trackId],
   );
 
   const onSwitchPattern = useCallback(
@@ -214,14 +224,32 @@ export function InstrumentPanel(): React.JSX.Element {
   const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
   const tracks = useDawStore((s) => s.tracks);
   const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
+  const bridge = useTrackAudioBridge();
 
   if (selectedTrack?.type === "instrument") {
+    const instrument = bridge.getInstrument(selectedTrack.id);
     return (
       <section
         data-testid="instrument-panel"
         className={styles["instrumentPanelFull"]}
       >
-        <SynthEditor trackId={selectedTrack.id} />
+        <SynthEditor
+          trackId={selectedTrack.id}
+          onNoteOn={
+            instrument
+              ? (note: number, velocity: number) => {
+                  instrument.noteOn(note, velocity);
+                }
+              : undefined
+          }
+          onNoteOff={
+            instrument
+              ? (note: number) => {
+                  instrument.noteOff(note);
+                }
+              : undefined
+          }
+        />
       </section>
     );
   }

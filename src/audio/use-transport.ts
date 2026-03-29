@@ -28,6 +28,12 @@ import { useDawStore } from "@state/index";
 import { useAutomationStore } from "@state/automation";
 import { TransportCtx } from "./transport-ctx";
 
+export type OnAdvanceCallback = (
+  windowStart: number,
+  windowEnd: number,
+  timeOffset: number,
+) => void;
+
 export type UseTransportReturn = {
   play(): void;
   pause(): void;
@@ -39,6 +45,8 @@ export type UseTransportReturn = {
   getClock(): TransportClock | null;
   /** Set the param resolver for automation playback (call from mixer provider) */
   setParamResolver(resolver: ParamResolver): void;
+  /** Set an additional onAdvance callback for clip scheduling (call from bridge provider) */
+  setOnAdvanceCallback(cb: OnAdvanceCallback): void;
 };
 
 /**
@@ -51,6 +59,7 @@ export function useTransportInit(): UseTransportReturn {
   const metronomeRef = useRef<Metronome | null>(null);
   const autoSchedulerRef = useRef<AutomationScheduler | null>(null);
   const paramResolverRef = useRef<ParamResolver>(() => undefined);
+  const onAdvanceCallbackRef = useRef<OnAdvanceCallback | null>(null);
   const sabRef = useRef<SharedArrayBufferLayout | null>(null);
 
   const storePlay = useDawStore((s) => s.play);
@@ -103,6 +112,8 @@ export function useTransportInit(): UseTransportReturn {
         const allLanes = useAutomationStore.getState().lanes;
         const lanes = Object.values(allLanes).flat();
         autoSched.scheduleWindow(lanes, windowStart, windowEnd, timeOffset);
+        // Clip scheduling (set by TrackAudioBridgeProvider)
+        onAdvanceCallbackRef.current?.(windowStart, windowEnd, timeOffset);
       },
     );
     schedulerRef.current = scheduler;
@@ -199,6 +210,10 @@ export function useTransportInit(): UseTransportReturn {
     paramResolverRef.current = resolver;
   }, []);
 
+  const setOnAdvanceCallback = useCallback((cb: OnAdvanceCallback): void => {
+    onAdvanceCallbackRef.current = cb;
+  }, []);
+
   return {
     play,
     pause,
@@ -209,6 +224,7 @@ export function useTransportInit(): UseTransportReturn {
     getTransportSAB,
     getClock,
     setParamResolver,
+    setOnAdvanceCallback,
   };
 }
 

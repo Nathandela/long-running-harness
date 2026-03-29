@@ -28,6 +28,14 @@ vi.mock("@audio/use-transport", () => ({
   }),
 }));
 
+vi.mock("@audio/TrackAudioBridgeProvider", () => ({
+  useTrackAudioBridge: () => ({
+    getInstrument: () => undefined,
+    getDrumKit: () => undefined,
+    dispose: vi.fn(),
+  }),
+}));
+
 // Mock synth store - shallow mock sufficient for non-instrument tests,
 // instrument test initializes real store via dynamic import
 vi.mock("@state/synth/synth-store", async (importOriginal) => {
