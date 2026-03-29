@@ -1,0 +1,24 @@
+All epics created and wired. Here's the summary:
+
+## Cycle 4 Polish Epics
+
+All 4 reviewers crashed/returned empty. I conducted a manual audit across audio engine, UI controls, interactive views, accessibility, state management, and design tokens. Found 50+ specific issues.
+
+**Execution order:**
+
+**Phase 1 (parallel):**
+- `ist` (P1) -- QA browser verification (ground truth before fixing)
+- `264` (P1) -- Audio engine safety (feedback loops, timer drift, bounce, denormals)
+- `2ri` (P1) -- Missing interactive features (ADSR viz, oscilloscope, presets, drag-to-arrange, effects reorder, velocity editing)
+
+**Phase 2 (after QA):**
+- `nq5` (P1) -- Accessibility & reduced motion (prefers-reduced-motion, ARIA, headings, focus)
+- `nq7` (P2) -- Micro-interactions & visual polish (transitions, hover states, cursor feedback)
+- `y4t` (P2) -- State persistence + design token migration (race conditions, orphaned blobs, hardcoded values)
+
+POLISH_EPIC: long-running-harness-ist
+POLISH_EPIC: long-running-harness-264
+POLISH_EPIC: long-running-harness-2ri
+POLISH_EPIC: long-running-harness-nq5
+POLISH_EPIC: long-running-harness-nq7
+POLISH_EPIC: long-running-harness-y4t

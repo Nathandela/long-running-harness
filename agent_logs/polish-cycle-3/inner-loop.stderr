@@ -50,3 +50,14 @@
 [2026-03-29_05-19-42] Attempt 1/2 for long-running-harness-9fl (log: agent_logs/loop_long-running-harness-9fl-2026-03-29_05-19-42.log)
 [2026-03-29_05-28-43] Epic long-running-harness-9fl completed successfully
 [2026-03-29_05-28-43] WARN: Working tree dirty after epic completion, auto-committing
+[2026-03-29_05-28-57] Epic long-running-harness-9fl done. Completed so far: 6
+[2026-03-29_05-28-57] Memory OK: 49% free
+[2026-03-29_05-28-57] Pushing to remote...
+[2026-03-29_05-28-59] ==========================================
+[2026-03-29_05-28-59] Loop finished
+[2026-03-29_05-28-59]   Completed: 6
+[2026-03-29_05-28-59]   Failed:    0
+[2026-03-29_05-28-59]   Skipped:   0
+[2026-03-29_05-28-59]   Duration:  3363s (56m)
+[2026-03-29_05-28-59]   Processed:  long-running-harness-0yz long-running-harness-6o3 long-running-harness-3as long-running-harness-isy long-running-harness-v9w long-running-harness-9fl
+[2026-03-29_05-28-59] ==========================================

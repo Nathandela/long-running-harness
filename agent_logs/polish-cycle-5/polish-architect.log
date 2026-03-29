@@ -1,0 +1,33 @@
+All epics created and wired. Here's the summary:
+
+---
+
+## Polish Cycle 5 -- Epic Plan
+
+Since **all 5 review cycles failed** (every reviewer crashed/timed out), I performed a thorough manual audit of the entire codebase. The product is well-architected with strong test coverage, strict TypeScript, and solid audio engineering. The polish work targets the gap between "it works" and "it's exceptional."
+
+### 5 Epics Created
+
+| # | Epic ID | Title | Priority | Focus |
+|---|---------|-------|----------|-------|
+| 1 | `long-running-harness-7sa` | QA verification via browser automation | P1 | Runtime verification -- no browser testing has occurred |
+| 2 | `long-running-harness-fyp` | Error resilience and recovery hardening | P2 | Stuck states, unhandled rejections, missing timeouts |
+| 3 | `long-running-harness-cya` | Design system token compliance | P2 | Hardcoded hex/px values violating token system |
+| 4 | `long-running-harness-k0e` | Accessibility hardening and focus management | P2 | Focus return, keyboard alternatives, aria labels |
+| 5 | `long-running-harness-imy` | Interaction craft and delightful details | P2 | Bezier cables, micro-animations, branded startup |
+
+### Dependencies
+```
+QA Verification (7sa) ─┬─> Error Resilience (fyp)
+                       ├─> Token Compliance (cya)
+                       ├─> Accessibility (k0e)
+                       └─> Interaction Craft (imy)
+```
+
+QA runs first (P1) to catch any runtime issues. The 4 fix epics run in parallel after QA completes.
+
+POLISH_EPIC: long-running-harness-7sa
+POLISH_EPIC: long-running-harness-fyp
+POLISH_EPIC: long-running-harness-cya
+POLISH_EPIC: long-running-harness-k0e
+POLISH_EPIC: long-running-harness-imy
