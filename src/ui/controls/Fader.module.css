@@ -40,11 +40,24 @@
   background-color: var(--color-white);
   border: var(--border-width) solid var(--color-gray-700);
   cursor: grab;
-  transition: bottom var(--transition-fast);
+  transition:
+    bottom var(--transition-fast),
+    box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
 }
 
 .thumb:active {
   cursor: grabbing;
+  box-shadow: var(--shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumb {
+    box-shadow: none;
+  }
+  .thumb:active {
+    box-shadow: none;
+  }
 }
 
 .label {

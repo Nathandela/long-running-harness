@@ -44,7 +44,7 @@ export function ClickToStart({
         void handleClick();
       }}
       disabled={loading}
-      className={styles.overlay}
+      className={`${styles["overlay"] ?? ""} ${styles["scanline"] ?? ""}`}
     >
       <div className={styles.content}>
         <p className={styles.title}>BRUTALWAV</p>

@@ -26,8 +26,61 @@
 }
 
 .title {
-  font-size: var(--text-2xl);
-  margin-bottom: var(--space-2);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-4);
+  animation: glitch 3s steps(1) infinite;
+}
+
+@keyframes glitch {
+  0%,
+  95% {
+    text-shadow: none;
+  }
+  96% {
+    text-shadow:
+      -2px 0 var(--color-pink),
+      2px 0 var(--color-cyan);
+  }
+  97% {
+    text-shadow:
+      2px 0 var(--color-pink),
+      -2px 0 var(--color-cyan);
+  }
+  98% {
+    text-shadow:
+      -1px 0 var(--color-green),
+      1px 0 var(--color-pink);
+  }
+  99% {
+    text-shadow: none;
+  }
+}
+
+.scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    transparent 0px,
+    transparent 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 4px
+  );
+  pointer-events: none;
+  animation: scanScroll 8s linear infinite;
+}
+
+@keyframes scanScroll {
+  to {
+    background-position-y: 100%;
+  }
 }
 
 .status {
@@ -47,4 +100,28 @@
 .hint {
   font-size: var(--text-base);
   color: var(--color-gray-300);
+  animation: hintPulse 2s ease-in-out infinite;
+}
+
+@keyframes hintPulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title {
+    animation: none;
+  }
+  .scanline::after {
+    animation: none;
+  }
+  .hint {
+    animation: none;
+    opacity: 1;
+  }
 }

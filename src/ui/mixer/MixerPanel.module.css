@@ -62,6 +62,11 @@
   min-width: 20px;
   text-align: center;
   user-select: none;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .btn:hover {
@@ -110,6 +115,7 @@
 
 .strip-muted {
   opacity: 0.5;
+  transition: opacity var(--transition-normal);
 }
 
 .db-label {

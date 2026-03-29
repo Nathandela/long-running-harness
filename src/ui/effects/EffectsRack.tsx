@@ -7,6 +7,7 @@ import { useState, useCallback } from "react";
 import { useEffectsStore } from "@state/effects";
 import { useEffectsBridgeContext } from "@audio/effects/EffectsBridgeProvider";
 import { tokens } from "@ui/tokens/tokens";
+import { useReducedMotion } from "@ui/hooks/useReducedMotion";
 import { EffectPanel } from "./EffectPanel";
 import { UndoToast, type UndoToastState } from "@ui/primitives/UndoToast";
 import type { EffectSlotState } from "@state/effects/types";
@@ -34,6 +35,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
   const toggleBypass = useEffectsStore((s) => s.toggleBypass);
   const swapEffectType = useEffectsStore((s) => s.swapEffectType);
 
+  const reducedMotion = useReducedMotion();
   const [showSelector, setShowSelector] = useState(false);
   const [undoPending, setUndoPending] = useState<UndoToastState | null>(null);
 
@@ -112,6 +114,14 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
         minHeight: 40,
       }}
     >
+      {!reducedMotion && (
+        <style>{`
+          @keyframes selectorSlideIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
+      )}
       {slots.map((slot) => {
         const factory = registry.get(slot.typeId);
         if (!factory) return null;
@@ -156,6 +166,9 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
             display: "flex",
             flexWrap: "wrap",
             gap: tokens.space[1],
+            animation: reducedMotion
+              ? undefined
+              : "selectorSlideIn 150ms ease-out",
           }}
         >
           {availableEffects.map((f) => (

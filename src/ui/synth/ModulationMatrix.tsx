@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { tokens } from "@ui/tokens/tokens";
+import { useReducedMotion } from "@ui/hooks/useReducedMotion";
 import {
   useModulationStore,
   MOD_SOURCE_LABELS,
@@ -98,6 +99,7 @@ function Port({
         outline:
           highlight === true ? `2px solid ${tokens.color.white}` : undefined,
         outlineOffset: 2,
+        transition: "box-shadow 100ms, border-color 100ms",
       }}
     />
   );
@@ -124,6 +126,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
   const [announcement, setAnnouncement] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const reducedMotion = useReducedMotion();
   const activeSource = dragSource ?? connectingSource;
 
   const handleSrcMouseDown = useCallback((source: ModSource) => {
@@ -289,6 +292,13 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
 
         {/* SVG cable visualization area */}
         <div style={{ position: "relative", width: 60, minHeight: 200 }}>
+          {!reducedMotion && (
+            <style>{`
+              @keyframes cablePulse {
+                to { stroke-dashoffset: -16; }
+              }
+            `}</style>
+          )}
           <svg
             viewBox="0 0 60 200"
             preserveAspectRatio="none"
@@ -306,17 +316,27 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               const destIdx = MOD_DESTINATIONS.indexOf(route.destination);
               const srcY = 20 + srcIdx * 22;
               const destY = 20 + destIdx * 22;
+              const midX = 30;
+              const droop = 10 + Math.abs(destY - srcY) * 0.15;
+              const ctrlY = (srcY + destY) / 2 + droop;
+              const d = `M 0 ${String(srcY)} Q ${String(midX)} ${String(ctrlY)} 60 ${String(destY)}`;
               return (
-                <line
+                <path
                   key={route.id}
                   data-testid={`cable-${route.source}-${route.destination}`}
-                  x1={0}
-                  y1={srcY}
-                  x2={60}
-                  y2={destY}
+                  d={d}
+                  fill="none"
                   stroke={SOURCE_COLORS[route.source]}
                   strokeWidth={2}
                   strokeOpacity={0.7 + Math.abs(route.amount) * 0.3}
+                  strokeDasharray={reducedMotion ? undefined : "8 8"}
+                  style={
+                    reducedMotion
+                      ? undefined
+                      : {
+                          animation: "cablePulse 0.8s linear infinite",
+                        }
+                  }
                 />
               );
             })}
@@ -344,11 +364,12 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               <Port
                 testId={`dest-port-${dest}`}
                 color={
-                  connectingSource !== null
+                  activeSource !== null
                     ? tokens.color.white
                     : tokens.color.gray500
                 }
                 label={`Destination: ${MOD_DEST_LABELS[dest]}`}
+                highlight={activeSource !== null}
                 onMouseUp={() => {
                   handleDestMouseUp(dest);
                 }}

@@ -248,6 +248,8 @@ function AccentRow({
                 : tokens.color.gray900,
               cursor: "pointer",
               borderColor: i === currentStep ? tokens.color.white : undefined,
+              borderWidth: step.accent ? 3 : undefined,
+              transition: "background-color 100ms, border-width 100ms",
             }}
           />
         ))}
