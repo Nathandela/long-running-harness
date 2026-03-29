@@ -99,6 +99,13 @@ describe("createAudioEngine", () => {
     );
   });
 
+  it("throws AudioEngineError when AudioContext constructor fails", () => {
+    vi.stubGlobal("AudioContext", function FailingAudioContext() {
+      throw new Error("Web Audio not supported");
+    });
+    expect(() => createAudioEngine()).toThrow(/audio context/i);
+  });
+
   it("AudioEngineError includes the original cause", async () => {
     const original = new Error("the root cause");
     vi.stubGlobal(

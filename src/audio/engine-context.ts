@@ -30,7 +30,15 @@ export type AudioEngineContext = {
  * Call resume() after a user gesture to start audio.
  */
 export function createAudioEngine(): AudioEngineContext {
-  const ctx = new AudioContext();
+  let ctx: AudioContext;
+  try {
+    ctx = new AudioContext();
+  } catch (err) {
+    throw new AudioEngineError(
+      "Failed to create audio context. Your browser may not support Web Audio.",
+      err,
+    );
+  }
 
   const engine: AudioEngineContext = {
     ctx,

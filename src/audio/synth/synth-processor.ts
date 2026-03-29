@@ -131,7 +131,16 @@ class SynthProcessor extends AudioWorkletProcessor {
     this.filterParams = { attack: 0, decay: 0, sustain: 0, release: 0 };
 
     this.port.onmessage = (e: MessageEvent) => {
-      this.handleMessage(e.data as SynthVoiceCommand);
+      const data = e.data as unknown;
+      if (
+        typeof data !== "object" ||
+        data === null ||
+        !("type" in data) ||
+        typeof (data as { type: unknown }).type !== "string"
+      ) {
+        return;
+      }
+      this.handleMessage(data as SynthVoiceCommand);
     };
   }
 

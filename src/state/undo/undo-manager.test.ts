@@ -130,4 +130,51 @@ describe("UndoManager", () => {
     }
     expect(mgr.size).toBe(200);
   });
+
+  it("restores command to undo stack if undo() throws", () => {
+    const mgr = createUndoManager();
+    const failCmd: UndoCommand = {
+      type: "fail",
+      execute(): void {},
+      undo(): void {
+        throw new Error("undo failed");
+      },
+      serialize(): Record<string, unknown> {
+        return {};
+      },
+    };
+    mgr.push(failCmd);
+    expect(mgr.size).toBe(1);
+
+    expect(() => mgr.undo()).toThrow("undo failed");
+    // Command should be restored to undo stack, not lost
+    expect(mgr.size).toBe(1);
+    expect(mgr.canUndo).toBe(true);
+    // Should NOT be on the redo stack
+    expect(mgr.canRedo).toBe(false);
+  });
+
+  it("restores command to redo stack if redo (execute) throws", () => {
+    const mgr = createUndoManager();
+    let shouldFail = false;
+    const cmd: UndoCommand = {
+      type: "fail-redo",
+      execute(): void {
+        if (shouldFail) throw new Error("redo failed");
+      },
+      undo(): void {},
+      serialize(): Record<string, unknown> {
+        return {};
+      },
+    };
+    mgr.push(cmd);
+    mgr.undo(); // succeeds
+    expect(mgr.canRedo).toBe(true);
+
+    shouldFail = true;
+    expect(() => mgr.redo()).toThrow("redo failed");
+    // Command should stay on redo stack
+    expect(mgr.canRedo).toBe(true);
+    expect(mgr.canUndo).toBe(false);
+  });
 });

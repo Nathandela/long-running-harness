@@ -172,4 +172,33 @@ describe("Voice Allocator", () => {
     expect(voice.stealFadeGain).toBeGreaterThan(0.3);
     expect(voice.stealFadeGain).toBeLessThan(0.7);
   });
+
+  it("force-allocates with proper steal when all voices are stealing", () => {
+    const alloc = createVoiceAllocator();
+
+    // Fill all voices
+    for (let i = 0; i < MAX_VOICES; i++) {
+      alloc.noteOn(60 + i, 100, false);
+    }
+
+    // Put all voices into stealing state
+    for (let i = 0; i < MAX_VOICES; i++) {
+      alloc.noteOn(80 + i, 100, false);
+    }
+
+    // Verify all are stealing
+    for (let i = 0; i < MAX_VOICES; i++) {
+      expect(at(alloc.voices, i).state).toBe("stealing");
+    }
+
+    // Force-allocate when all voices are stealing
+    const idx = alloc.noteOn(99, 127, false);
+    expect(idx).toBe(0); // Should steal voice 0 (oldest)
+    const voice = at(alloc.voices, idx);
+    // Should use proper steal sequence, not raw overwrite
+    expect(voice.state).toBe("stealing");
+    expect(voice.pendingNote).toBe(99);
+    expect(voice.pendingVelocity).toBe(127);
+    expect(voice.stealFadeGain).toBe(1);
+  });
 });

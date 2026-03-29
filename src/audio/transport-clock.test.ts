@@ -330,5 +330,24 @@ describe("createTransportClock", () => {
       expect(clock.getLoop()).toEqual({ enabled: true, start: 2.0, end: 6.0 });
       clock.dispose();
     });
+
+    it("does not divide by zero when loop.end === loop.start", () => {
+      const clock = createTransportClock(ctx, sab);
+      clock.setLoop({ enabled: true, start: 2.0, end: 2.0 });
+
+      ctx.currentTime = 0;
+      clock.play();
+      ctx.currentTime = 5.0;
+
+      // Should not wrap (zero-length loop treated as disabled)
+      const pos = clock.getCursorSeconds();
+      expect(Number.isFinite(pos)).toBe(true);
+      expect(pos).toBeCloseTo(5.0, 6);
+
+      // updateCursor should also be safe
+      const updated = clock.updateCursor();
+      expect(Number.isFinite(updated)).toBe(true);
+      clock.dispose();
+    });
   });
 });

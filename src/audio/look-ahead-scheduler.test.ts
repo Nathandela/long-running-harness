@@ -138,4 +138,59 @@ describe("createLookAheadScheduler", () => {
     scheduler.stop();
     expect(scheduler.isRunning).toBe(false);
   });
+
+  it("survives onTick throwing an error", () => {
+    let callCount = 0;
+    const onTick = vi.fn(() => {
+      callCount++;
+      if (callCount === 1) throw new Error("boom");
+    });
+    const onAdvance = vi.fn();
+
+    const scheduler = createLookAheadScheduler(
+      ctx,
+      clock,
+      { intervalMs: 25, lookAheadMs: 600 },
+      onTick,
+      onAdvance,
+    );
+
+    ctx.currentTime = 0;
+    clock.play();
+    // Should not throw despite callback error
+    expect(() => {
+      scheduler.start();
+    }).not.toThrow();
+    // onAdvance should still have been called
+    expect(onAdvance).toHaveBeenCalled();
+    // onTick should have been called at least twice (beat 0 throws, beat 1 still fires)
+    expect(onTick.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+    scheduler.stop();
+  });
+
+  it("survives onAdvance throwing an error", () => {
+    const onTick = vi.fn();
+    const onAdvance = vi.fn(() => {
+      throw new Error("advance boom");
+    });
+
+    const scheduler = createLookAheadScheduler(
+      ctx,
+      clock,
+      { intervalMs: 25, lookAheadMs: 600 },
+      onTick,
+      onAdvance,
+    );
+
+    ctx.currentTime = 0;
+    clock.play();
+    expect(() => {
+      scheduler.start();
+    }).not.toThrow();
+    // onTick should still fire despite onAdvance failure
+    expect(onTick).toHaveBeenCalled();
+
+    scheduler.stop();
+  });
 });

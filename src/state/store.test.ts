@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useDawStore } from "./store";
+import type { TrackModel, AudioClipModel } from "./track/types";
 
 describe("DawStore", () => {
   beforeEach(() => {
@@ -82,6 +83,59 @@ describe("DawStore", () => {
       expect(state.loopEnabled).toBe(false);
       expect(state.loopStart).toBe(1.0);
       expect(state.loopEnd).toBe(4.0);
+    });
+  });
+
+  describe("moveClip", () => {
+    const track1: TrackModel = {
+      id: "t1",
+      name: "Track 1",
+      type: "audio",
+      color: "#ff0000",
+      muted: false,
+      solo: false,
+      armed: false,
+      soloIsolate: false,
+      volume: 1,
+      pan: 0,
+      clipIds: [],
+    };
+    const track2: TrackModel = { ...track1, id: "t2", name: "Track 2" };
+    const clip: AudioClipModel = {
+      type: "audio",
+      id: "c1",
+      trackId: "t1",
+      sourceId: "src1",
+      startTime: 0,
+      sourceOffset: 0,
+      duration: 1,
+      gain: 1,
+      fadeIn: 0,
+      fadeOut: 0,
+      name: "Clip 1",
+    };
+
+    beforeEach(() => {
+      useDawStore.setState({ tracks: [], clips: {} });
+      useDawStore.getState().addTrack(track1);
+      useDawStore.getState().addTrack(track2);
+      useDawStore.getState().addClip(clip);
+    });
+
+    it("does not move clip to non-existent track", () => {
+      useDawStore.getState().moveClip("c1", 5.0, "nonexistent");
+      const state = useDawStore.getState();
+      const movedClip = state.clips["c1"];
+      // Clip should remain on original track
+      expect(movedClip?.trackId).toBe("t1");
+    });
+
+    it("moves clip to an existing track", () => {
+      useDawStore.getState().moveClip("c1", 5.0, "t2");
+      const state = useDawStore.getState();
+      const movedClip = state.clips["c1"];
+      expect(movedClip?.trackId).toBe("t2");
+      expect(movedClip?.startTime).toBe(5.0);
     });
   });
 

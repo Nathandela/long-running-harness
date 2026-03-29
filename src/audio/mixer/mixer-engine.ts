@@ -141,6 +141,7 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
     setFaderLevel(trackId: string, level: number): void {
       const strip = strips.get(trackId);
       if (!strip) return;
+      if (!Number.isFinite(level)) return;
       const clamped = clamp(level, 0, 2);
       strip.faderGain.gain.value = faderTaper(clamped);
     },
@@ -179,6 +180,7 @@ export function createMixerEngine(ctx: AudioContext): MixerEngine {
     },
 
     setMasterLevel(level: number): void {
+      if (!Number.isFinite(level)) return;
       savedMasterLevel = clamp(level, 0, 2);
       master.faderGain.gain.value = savedMasterLevel;
     },

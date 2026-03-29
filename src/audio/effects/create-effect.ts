@@ -141,12 +141,20 @@ export function createBaseEffect(opts: CreateEffectOptions): EffectInstance {
 
     dispose(): void {
       opts.disposeChain?.();
-      input.disconnect();
-      output.disconnect();
-      dryGain.disconnect();
-      wetGain.disconnect();
-      effectInput.disconnect();
-      effectOutput.disconnect();
+      for (const node of [
+        input,
+        output,
+        dryGain,
+        wetGain,
+        effectInput,
+        effectOutput,
+      ]) {
+        try {
+          node.disconnect();
+        } catch {
+          // Node may not be connected -- safe to ignore
+        }
+      }
     },
   };
 

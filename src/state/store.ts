@@ -240,6 +240,13 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[id];
       if (!clip) return state;
+      // Validate target track exists
+      if (
+        toTrackId !== undefined &&
+        !state.tracks.some((t) => t.id === toTrackId)
+      ) {
+        return state;
+      }
       const updatedClip = {
         ...clip,
         startTime,

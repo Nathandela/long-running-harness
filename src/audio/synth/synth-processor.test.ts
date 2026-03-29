@@ -105,6 +105,25 @@ describe("SynthProcessor message handling", () => {
       sendMessage({ type: "setModRoutes", routes: [] });
     }).not.toThrow();
   });
+
+  it("ignores malformed messages without crashing", () => {
+    // null data
+    expect(() => {
+      portHandler?.({ data: null } as MessageEvent);
+    }).not.toThrow();
+    // missing type field
+    expect(() => {
+      portHandler?.({ data: { note: 60 } } as MessageEvent);
+    }).not.toThrow();
+    // non-object data
+    expect(() => {
+      portHandler?.({ data: 42 } as MessageEvent);
+    }).not.toThrow();
+    // string data
+    expect(() => {
+      portHandler?.({ data: "bad" } as MessageEvent);
+    }).not.toThrow();
+  });
 });
 
 // Restore globals

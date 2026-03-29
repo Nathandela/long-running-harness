@@ -92,10 +92,18 @@ export function createLookAheadScheduler(
 
     // Fire window-level callback for continuous schedulers (automation, clips)
     const timeOffset = ctx.currentTime - clock.getCursorSeconds();
-    onAdvance?.(ctx.currentTime, effectiveUntil, timeOffset);
+    try {
+      onAdvance?.(ctx.currentTime, effectiveUntil, timeOffset);
+    } catch (e) {
+      console.error("[Scheduler] onAdvance callback error:", e);
+    }
 
     while (nextBeatTime < effectiveUntil) {
-      onTick?.(nextBeatTime, currentBeat);
+      try {
+        onTick?.(nextBeatTime, currentBeat);
+      } catch (e) {
+        console.error("[Scheduler] onTick callback error:", e);
+      }
       currentBeat++;
       nextBeatTime += spb;
     }

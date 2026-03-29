@@ -24,15 +24,21 @@ export function createUndoManager(
     push(command: UndoCommand): void {
       undoStack.push(command);
       redoStack.length = 0;
-      while (undoStack.length > maxSize) {
-        undoStack.shift();
+      const overflow = undoStack.length - maxSize;
+      if (overflow > 0) {
+        undoStack.splice(0, overflow);
       }
     },
 
     undo(): boolean {
       const cmd = undoStack.pop();
       if (cmd === undefined) return false;
-      cmd.undo();
+      try {
+        cmd.undo();
+      } catch (e) {
+        undoStack.push(cmd);
+        throw e;
+      }
       redoStack.push(cmd);
       return true;
     },
@@ -40,7 +46,12 @@ export function createUndoManager(
     redo(): boolean {
       const cmd = redoStack.pop();
       if (cmd === undefined) return false;
-      cmd.execute();
+      try {
+        cmd.execute();
+      } catch (e) {
+        redoStack.push(cmd);
+        throw e;
+      }
       undoStack.push(cmd);
       return true;
     },

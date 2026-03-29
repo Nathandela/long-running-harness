@@ -13,6 +13,9 @@ export const MAX_VOICES = 16;
 /** Crossfade time in seconds when stealing a voice (MIT-H4-5) */
 export const STEAL_CROSSFADE_S = 0.005;
 
+/** Maximum samples before force-completing a stuck steal (10x crossfade as safety) */
+export const STEAL_TIMEOUT_MULTIPLIER = 10;
+
 export type VoiceState = "idle" | "active" | "releasing" | "stealing";
 
 export type Voice = {
@@ -182,7 +185,16 @@ export function createVoiceAllocator(): VoiceAllocator {
       }
 
       if (idx === -1) {
+        // Fallback: steal voice 0 with proper crossfade
         idx = 0;
+        const voice = v(voices, idx);
+        voice.state = "stealing";
+        voice.stealFadeSamples = 0;
+        voice.stealFadeGain = 1;
+        voice.pendingNote = note;
+        voice.pendingVelocity = velocity;
+        voice.age = ageCounter;
+        return idx;
       }
 
       const voice = v(voices, idx);
@@ -220,7 +232,11 @@ export function createVoiceAllocator(): VoiceAllocator {
             0,
             1 - voice.stealFadeSamples / cachedCrossfadeSamples,
           );
-          if (voice.stealFadeSamples >= cachedCrossfadeSamples) {
+          const maxSamples = cachedCrossfadeSamples * STEAL_TIMEOUT_MULTIPLIER;
+          if (
+            voice.stealFadeSamples >= cachedCrossfadeSamples ||
+            voice.stealFadeSamples >= maxSamples
+          ) {
             // Crossfade complete — apply pending note
             voice.note = voice.pendingNote;
             voice.velocity = voice.pendingVelocity;
