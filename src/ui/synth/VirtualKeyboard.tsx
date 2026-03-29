@@ -38,8 +38,10 @@ export function VirtualKeyboard({
 }: VirtualKeyboardProps): React.JSX.Element {
   const activeNotes = useRef(new Set<number>());
 
-  const handleMouseDown = useCallback(
-    (note: number) => {
+  const handlePointerDown = useCallback(
+    (note: number, e: React.PointerEvent) => {
+      // Capture pointer so pointerUp always fires even on double-click
+      e.currentTarget.setPointerCapture(e.pointerId);
       // Release first if already active (prevents stuck notes on rapid clicks)
       if (activeNotes.current.has(note)) {
         onNoteOff(note);
@@ -50,7 +52,7 @@ export function VirtualKeyboard({
     [onNoteOn, onNoteOff],
   );
 
-  const handleMouseUp = useCallback(
+  const handlePointerUp = useCallback(
     (note: number) => {
       if (activeNotes.current.has(note)) {
         activeNotes.current.delete(note);
@@ -60,7 +62,7 @@ export function VirtualKeyboard({
     [onNoteOff],
   );
 
-  const handleMouseLeave = useCallback(
+  const handlePointerLeave = useCallback(
     (note: number) => {
       if (activeNotes.current.has(note)) {
         activeNotes.current.delete(note);
@@ -83,14 +85,14 @@ export function VirtualKeyboard({
         <div
           key={"w-" + String(note)}
           data-testid={"key-" + String(note)}
-          onMouseDown={() => {
-            handleMouseDown(note);
+          onPointerDown={(e) => {
+            handlePointerDown(note, e);
           }}
-          onMouseUp={() => {
-            handleMouseUp(note);
+          onPointerUp={() => {
+            handlePointerUp(note);
           }}
-          onMouseLeave={() => {
-            handleMouseLeave(note);
+          onPointerLeave={() => {
+            handlePointerLeave(note);
           }}
           style={{
             position: "absolute",
@@ -121,14 +123,14 @@ export function VirtualKeyboard({
         <div
           key={"b-" + String(note)}
           data-testid={"key-" + String(note)}
-          onMouseDown={() => {
-            handleMouseDown(note);
+          onPointerDown={(e) => {
+            handlePointerDown(note, e);
           }}
-          onMouseUp={() => {
-            handleMouseUp(note);
+          onPointerUp={() => {
+            handlePointerUp(note);
           }}
-          onMouseLeave={() => {
-            handleMouseLeave(note);
+          onPointerLeave={() => {
+            handlePointerLeave(note);
           }}
           style={{
             position: "absolute",

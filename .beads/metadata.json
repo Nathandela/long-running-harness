@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "server",
-  "dolt_database": "long_running_harness",
-  "project_id": "57229b9c-1bd8-422e-b4e8-af37a72fa36a"
-}

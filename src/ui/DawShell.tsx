@@ -160,7 +160,7 @@ function DawShellInner({
           <MixerPanel />
           {effectivePanel === "piano-roll" ? (
             <div
-              style={{ position: "relative", overflow: "hidden", height: 240 }}
+              style={{ position: "relative", overflow: "hidden", height: 360 }}
             >
               <button
                 type="button"

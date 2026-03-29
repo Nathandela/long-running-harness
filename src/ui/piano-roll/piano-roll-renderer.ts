@@ -17,10 +17,10 @@ const COLOR = {
   gray700: "#333333",
   gray500: "#666666",
   gray400: "#888888",
-  whiteKeyRow: "#1c1c1c",
-  blackKeyRow: "#141414",
+  whiteKeyRow: "#242424",
+  blackKeyRow: "#161616",
   whiteKey: "#e0e0e0",
-  blackKey: "#222222",
+  blackKey: "#2a2a2a",
 } as const;
 
 const FONT_MONO = "'JetBrains Mono', monospace" as const;
@@ -111,18 +111,28 @@ function drawNoteGrid(rc: PianoRollRenderContext): void {
   const { ctx, width, height, view, velocityLaneHeight } = rc;
   const gridBottom = height - velocityLaneHeight;
 
-  // Determine visible pitch range
-  const topPitch = view.scrollY;
-  const visibleRows = Math.ceil(
-    (gridBottom - PR_RULER_HEIGHT) / view.noteHeight,
+  // Clip to grid area
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
+    view.keyboardWidth,
+    PR_RULER_HEIGHT,
+    width - view.keyboardWidth,
+    gridBottom - PR_RULER_HEIGHT,
   );
+  ctx.clip();
+
+  // Use integer pitches so grid rows align with note positions
+  const topPitch = Math.ceil(view.scrollY);
+  const visibleRows =
+    Math.ceil((gridBottom - PR_RULER_HEIGHT) / view.noteHeight) + 1;
   const bottomPitch = topPitch - visibleRows;
 
   for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
     const y = pitchToY(pitch, view);
     if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
 
-    // Row fill: slightly lighter for white keys
+    // Row fill: distinct shading for white vs black key rows
     ctx.fillStyle = isBlackKey(pitch) ? COLOR.blackKeyRow : COLOR.whiteKeyRow;
     ctx.fillRect(
       view.keyboardWidth,
@@ -131,14 +141,17 @@ function drawNoteGrid(rc: PianoRollRenderContext): void {
       view.noteHeight,
     );
 
-    // Horizontal separator
-    ctx.strokeStyle = COLOR.gray700;
-    ctx.lineWidth = 1;
+    // Horizontal separator -- stronger line at C notes (octave boundaries)
+    const isC = pitch % 12 === 0;
+    ctx.strokeStyle = isC ? COLOR.gray500 : COLOR.gray700;
+    ctx.lineWidth = isC ? 2 : 1;
     ctx.beginPath();
     ctx.moveTo(view.keyboardWidth, y + view.noteHeight);
     ctx.lineTo(width, y + view.noteHeight);
     ctx.stroke();
   }
+
+  ctx.restore();
 }
 
 function drawTimeGrid(rc: PianoRollRenderContext): void {
@@ -180,7 +193,19 @@ function drawTimeGrid(rc: PianoRollRenderContext): void {
 
 function drawNotes(rc: PianoRollRenderContext): void {
   const { ctx, view, height, notes, selectedNoteIds, velocityLaneHeight } = rc;
+  const gridBottom = height - velocityLaneHeight;
   const selectedSet = new Set(selectedNoteIds);
+
+  // Clip notes to grid area
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
+    view.keyboardWidth,
+    PR_RULER_HEIGHT,
+    rc.width - view.keyboardWidth,
+    gridBottom - PR_RULER_HEIGHT,
+  );
+  ctx.clip();
 
   for (const note of notes) {
     const x = secondsToX(note.startTime, view);
@@ -202,11 +227,24 @@ function drawNotes(rc: PianoRollRenderContext): void {
     ctx.lineWidth = BORDER_WIDTH;
     ctx.strokeRect(x, y, w, h);
   }
+
+  ctx.restore();
 }
 
 function drawKeyboard(rc: PianoRollRenderContext): void {
   const { ctx, view, height, velocityLaneHeight } = rc;
   const gridBottom = height - velocityLaneHeight;
+
+  // Clip keyboard to its area
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
+    0,
+    PR_RULER_HEIGHT,
+    view.keyboardWidth,
+    gridBottom - PR_RULER_HEIGHT,
+  );
+  ctx.clip();
 
   // Keyboard background
   ctx.fillStyle = COLOR.black;
@@ -217,43 +255,61 @@ function drawKeyboard(rc: PianoRollRenderContext): void {
     gridBottom - PR_RULER_HEIGHT,
   );
 
-  const topPitch = view.scrollY;
-  const visibleRows = Math.ceil(
-    (gridBottom - PR_RULER_HEIGHT) / view.noteHeight,
-  );
+  const topPitch = Math.ceil(view.scrollY);
+  const visibleRows =
+    Math.ceil((gridBottom - PR_RULER_HEIGHT) / view.noteHeight) + 1;
   const bottomPitch = topPitch - visibleRows;
 
+  // Draw white keys first (full width), then black keys on top (narrower)
+  // Pass 1: white keys (full width)
   for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
+    if (isBlackKey(pitch)) continue;
     const y = pitchToY(pitch, view);
     if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
 
-    const black = isBlackKey(pitch);
+    ctx.fillStyle = COLOR.whiteKey;
+    ctx.fillRect(0, y, view.keyboardWidth - 1, view.noteHeight);
 
-    // Key fill
-    ctx.fillStyle = black ? COLOR.blackKey : COLOR.whiteKey;
-    const keyWidth = black ? view.keyboardWidth * 0.6 : view.keyboardWidth - 1;
-    ctx.fillRect(0, y, keyWidth, view.noteHeight);
-
-    // Key separator
-    ctx.strokeStyle = COLOR.gray700;
-    ctx.lineWidth = 1;
+    // Separator between white keys
+    ctx.strokeStyle = COLOR.gray500;
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
     ctx.moveTo(0, y + view.noteHeight);
     ctx.lineTo(view.keyboardWidth, y + view.noteHeight);
     ctx.stroke();
 
-    // Label C notes
-    if (pitch % 12 === 0) {
-      const label = noteName(pitch);
-      ctx.font = `${String(TEXT_XS)}px ${FONT_MONO}`;
-      ctx.fillStyle = black ? COLOR.white : COLOR.black;
-      ctx.textBaseline = "middle";
-      ctx.textAlign = "left";
-      ctx.fillText(label, 2, y + view.noteHeight / 2);
-    }
+    // Label every white key with note name
+    const label = noteName(pitch);
+    ctx.font = `${String(view.noteHeight > 14 ? TEXT_XS : 8)}px ${FONT_MONO}`;
+    // C notes get brighter label to mark octave boundaries
+    ctx.fillStyle = pitch % 12 === 0 ? COLOR.black : COLOR.gray500;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "right";
+    ctx.fillText(label, view.keyboardWidth - 6, y + view.noteHeight / 2);
   }
 
-  // Keyboard right border
+  // Pass 2: black keys (narrower, drawn on top)
+  for (let pitch = topPitch; pitch >= bottomPitch; pitch--) {
+    if (!isBlackKey(pitch)) continue;
+    const y = pitchToY(pitch, view);
+    if (y + view.noteHeight < PR_RULER_HEIGHT || y > gridBottom) continue;
+
+    const keyWidth = view.keyboardWidth * 0.55;
+    ctx.fillStyle = COLOR.blackKey;
+    ctx.fillRect(0, y + 1, keyWidth, view.noteHeight - 2);
+
+    // Label black keys too
+    const label = noteName(pitch);
+    ctx.font = `${String(view.noteHeight > 14 ? TEXT_XS : 8)}px ${FONT_MONO}`;
+    ctx.fillStyle = COLOR.gray400;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "right";
+    ctx.fillText(label, keyWidth - 4, y + view.noteHeight / 2);
+  }
+
+  ctx.restore();
+
+  // Keyboard right border (drawn outside clip region)
   ctx.strokeStyle = COLOR.gray700;
   ctx.lineWidth = BORDER_WIDTH;
   ctx.beginPath();

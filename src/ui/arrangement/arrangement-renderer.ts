@@ -2,7 +2,7 @@
  * Pure canvas renderer for the arrangement view.
  * No DOM access -- only draws to the CanvasRenderingContext2D passed in.
  */
-import { isAudioClip } from "@state/track/types";
+import { isAudioClip, isMidiClip } from "@state/track/types";
 import type { TrackModel, ClipModel } from "@state/track/types";
 import type { AutomationLane } from "@audio/automation/automation-types";
 import { evaluateCurve } from "@audio/automation/automation-curve";
@@ -20,6 +20,7 @@ const COLOR = {
   white: "#ffffff",
   red: "#ff0000",
   pink: "#ff2d6f",
+  blue: "#0066ff",
   gray900: "#111111",
   gray700: "#333333",
   gray500: "#666666",
@@ -53,6 +54,9 @@ export type RenderContext = {
   bpm: number;
   automationLanes?: Record<string, readonly AutomationLane[]>;
   clipPeaks?: Record<string, { peaks: Float32Array; length: number }>;
+  loopEnabled?: boolean;
+  loopStart?: number;
+  loopEnd?: number;
 };
 
 // -- Helpers ------------------------------------------------------------------
@@ -271,6 +275,38 @@ function drawClips(rc: RenderContext): void {
       ctx.fillStyle = hexToRgba(track.color, 0.6);
       ctx.fillRect(x, clipY, w, clipH);
 
+      // MIDI note visualization (MIDI clips)
+      if (isMidiClip(clip) && clip.noteEvents.length > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, clipY, w, clipH);
+        ctx.clip();
+
+        // Find pitch range of notes in this clip
+        let minPitch = 127;
+        let maxPitch = 0;
+        for (const note of clip.noteEvents) {
+          if (note.pitch < minPitch) minPitch = note.pitch;
+          if (note.pitch > maxPitch) maxPitch = note.pitch;
+        }
+        // Add padding so notes don't sit at the very edges
+        const pitchRange = Math.max(1, maxPitch - minPitch + 2);
+        const noteAreaTop = clipY + 14; // leave room for clip name
+        const noteAreaH = clipH - 16;
+        const rowH = Math.max(1, Math.min(4, noteAreaH / pitchRange));
+
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        for (const note of clip.noteEvents) {
+          const nx = x + (note.startTime / clip.duration) * w;
+          const nw = Math.max(1, (note.duration / clip.duration) * w);
+          const pitchOffset = maxPitch + 1 - note.pitch;
+          const ny = noteAreaTop + (pitchOffset / pitchRange) * noteAreaH;
+          ctx.fillRect(nx, ny, nw, rowH);
+        }
+
+        ctx.restore();
+      }
+
       // Waveform peaks (audio clips only)
       if (isAudioClip(clip)) {
         const peakData = rc.clipPeaks?.[clip.id];
@@ -412,10 +448,55 @@ function drawPlayhead(rc: RenderContext): void {
 
 // -- Public API ---------------------------------------------------------------
 
+function drawLoopRegion(rc: RenderContext): void {
+  if (
+    rc.loopEnabled !== true ||
+    rc.loopStart === undefined ||
+    rc.loopEnd === undefined
+  )
+    return;
+  if (rc.loopEnd <= rc.loopStart) return;
+
+  const { ctx, height, view } = rc;
+  const x1 = secondsToX(rc.loopStart, view);
+  const x2 = secondsToX(rc.loopEnd, view);
+
+  // Skip if completely out of view
+  if (x2 < view.headerWidth || x1 > rc.width) return;
+
+  const left = Math.max(view.headerWidth, x1);
+  const right = Math.min(rc.width, x2);
+
+  // Tinted overlay on the loop region
+  ctx.fillStyle = "rgba(0, 102, 255, 0.08)";
+  ctx.fillRect(left, RULER_HEIGHT, right - left, height - RULER_HEIGHT);
+
+  // Loop boundary lines
+  ctx.strokeStyle = COLOR.blue;
+  ctx.lineWidth = 2;
+  if (x1 >= view.headerWidth) {
+    ctx.beginPath();
+    ctx.moveTo(x1, 0);
+    ctx.lineTo(x1, height);
+    ctx.stroke();
+  }
+  if (x2 <= rc.width) {
+    ctx.beginPath();
+    ctx.moveTo(x2, 0);
+    ctx.lineTo(x2, height);
+    ctx.stroke();
+  }
+
+  // Loop bar in ruler
+  ctx.fillStyle = "rgba(0, 102, 255, 0.3)";
+  ctx.fillRect(left, 0, right - left, RULER_HEIGHT);
+}
+
 export function renderArrangement(rc: RenderContext): void {
   drawBackground(rc);
   drawTimeRuler(rc);
   drawGrid(rc);
+  drawLoopRegion(rc);
   drawTrackLanes(rc);
   drawTrackHeaders(rc);
   drawClips(rc);

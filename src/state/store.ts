@@ -7,6 +7,28 @@ import type {
 } from "./track/types";
 import { isAudioClip, isMidiClip } from "./track/types";
 
+/**
+ * Auto-fit MIDI clip duration to its note content.
+ * Snaps to the next bar boundary after the last note ends.
+ * Never shrinks below 1 bar. If no notes, keeps the current duration.
+ */
+function fitMidiClipDuration(
+  notes: readonly MIDINoteEvent[],
+  currentDuration: number,
+  bpm: number,
+): number {
+  if (notes.length === 0) return currentDuration;
+  const barLength = (60 / bpm) * 4;
+  let lastEnd = 0;
+  for (const n of notes) {
+    const end = n.startTime + n.duration;
+    if (end > lastEnd) lastEnd = end;
+  }
+  // Snap to next bar boundary, minimum 1 bar
+  const bars = Math.max(1, Math.ceil(lastEnd / barLength));
+  return bars * barLength;
+}
+
 export type TransportState = "stopped" | "playing" | "paused";
 
 export type AudioEngineStatus =
@@ -433,9 +455,11 @@ export const useDawStore = create<DawStore>()((set, get) => ({
         startTime: Math.max(0, note.startTime),
         duration: Math.max(0.01, note.duration),
       };
+      const newEvents = [...clip.noteEvents, clamped];
       const updated: MidiClipModel = {
         ...clip,
-        noteEvents: [...clip.noteEvents, clamped],
+        noteEvents: newEvents,
+        duration: fitMidiClipDuration(newEvents, clip.duration, state.bpm),
       };
       return { clips: { ...state.clips, [clipId]: updated } };
     });
@@ -445,9 +469,11 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
+      const newEvents = clip.noteEvents.filter((n) => n.id !== noteId);
       const updated: MidiClipModel = {
         ...clip,
-        noteEvents: clip.noteEvents.filter((n) => n.id !== noteId),
+        noteEvents: newEvents,
+        duration: fitMidiClipDuration(newEvents, clip.duration, state.bpm),
       };
       return { clips: { ...state.clips, [clipId]: updated } };
     });
@@ -464,13 +490,15 @@ export const useDawStore = create<DawStore>()((set, get) => ({
       if (!clip || !isMidiClip(clip)) return state;
       const clampedPitch = Math.max(0, Math.min(127, Math.round(newPitch)));
       const clampedStartTime = Math.max(0, newStartTime);
+      const newEvents = clip.noteEvents.map((n) =>
+        n.id === noteId
+          ? { ...n, startTime: clampedStartTime, pitch: clampedPitch }
+          : n,
+      );
       const updated: MidiClipModel = {
         ...clip,
-        noteEvents: clip.noteEvents.map((n) =>
-          n.id === noteId
-            ? { ...n, startTime: clampedStartTime, pitch: clampedPitch }
-            : n,
-        ),
+        noteEvents: newEvents,
+        duration: fitMidiClipDuration(newEvents, clip.duration, state.bpm),
       };
       return { clips: { ...state.clips, [clipId]: updated } };
     });
@@ -481,11 +509,13 @@ export const useDawStore = create<DawStore>()((set, get) => ({
       const clip = state.clips[clipId];
       if (!clip || !isMidiClip(clip)) return state;
       const clampedDuration = Math.max(0.01, newDuration);
+      const newEvents = clip.noteEvents.map((n) =>
+        n.id === noteId ? { ...n, duration: clampedDuration } : n,
+      );
       const updated: MidiClipModel = {
         ...clip,
-        noteEvents: clip.noteEvents.map((n) =>
-          n.id === noteId ? { ...n, duration: clampedDuration } : n,
-        ),
+        noteEvents: newEvents,
+        duration: fitMidiClipDuration(newEvents, clip.duration, state.bpm),
       };
       return { clips: { ...state.clips, [clipId]: updated } };
     });

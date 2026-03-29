@@ -225,7 +225,8 @@ export function RotaryKnob({
           color: tokens.color.white,
         }}
       >
-        {valueText ?? String(value)}
+        {valueText ??
+          (Number.isInteger(value) ? String(value) : value.toFixed(2))}
       </span>
     </div>
   );

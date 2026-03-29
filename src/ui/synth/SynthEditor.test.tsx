@@ -59,10 +59,11 @@ describe("SynthEditor", () => {
 
     // C3 = MIDI 48
     const key = screen.getByTestId("key-48");
-    fireEvent.mouseDown(key);
+    key.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(key, { pointerId: 1 });
     expect(onNoteOn).toHaveBeenCalledWith(48, 100);
 
-    fireEvent.mouseUp(key);
+    fireEvent.pointerUp(key);
     expect(onNoteOff).toHaveBeenCalledWith(48);
   });
 

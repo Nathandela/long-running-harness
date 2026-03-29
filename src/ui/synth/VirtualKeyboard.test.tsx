@@ -5,24 +5,31 @@ import { VirtualKeyboard } from "./VirtualKeyboard";
 const C3 = 48;
 const KEY_ID = "key-" + String(C3);
 
+/** Helper: fire pointerDown with setPointerCapture stub */
+function pointerDown(el: HTMLElement): void {
+  // jsdom doesn't implement setPointerCapture -- stub it
+  el.setPointerCapture = vi.fn();
+  fireEvent.pointerDown(el, { pointerId: 1 });
+}
+
 describe("VirtualKeyboard", () => {
-  it("fires noteOn on mouseDown", () => {
+  it("fires noteOn on pointerDown", () => {
     const onNoteOn = vi.fn();
     render(<VirtualKeyboard onNoteOn={onNoteOn} onNoteOff={vi.fn()} />);
 
-    fireEvent.mouseDown(screen.getByTestId(KEY_ID));
+    pointerDown(screen.getByTestId(KEY_ID));
 
     expect(onNoteOn).toHaveBeenCalledOnce();
     expect(onNoteOn).toHaveBeenCalledWith(C3, 100);
   });
 
-  it("fires noteOff on mouseUp", () => {
+  it("fires noteOff on pointerUp", () => {
     const onNoteOff = vi.fn();
     render(<VirtualKeyboard onNoteOn={vi.fn()} onNoteOff={onNoteOff} />);
     const key = screen.getByTestId(KEY_ID);
 
-    fireEvent.mouseDown(key);
-    fireEvent.mouseUp(key);
+    pointerDown(key);
+    fireEvent.pointerUp(key);
 
     expect(onNoteOff).toHaveBeenCalledOnce();
     expect(onNoteOff).toHaveBeenCalledWith(C3);
@@ -35,12 +42,12 @@ describe("VirtualKeyboard", () => {
     const key = screen.getByTestId(KEY_ID);
 
     // First press
-    fireEvent.mouseDown(key);
+    pointerDown(key);
     expect(onNoteOn).toHaveBeenCalledTimes(1);
     expect(onNoteOff).not.toHaveBeenCalled();
 
-    // Rapid re-trigger: mouseDown again without mouseUp
-    fireEvent.mouseDown(key);
+    // Rapid re-trigger: pointerDown again without pointerUp
+    pointerDown(key);
     expect(onNoteOff).toHaveBeenCalledTimes(1);
     expect(onNoteOff).toHaveBeenCalledWith(C3);
     expect(onNoteOn).toHaveBeenCalledTimes(2);
@@ -55,28 +62,28 @@ describe("VirtualKeyboard", () => {
     }
   });
 
-  it("fires noteOff on mouseLeave", () => {
+  it("fires noteOff on pointerLeave", () => {
     const onNoteOff = vi.fn();
     render(<VirtualKeyboard onNoteOn={vi.fn()} onNoteOff={onNoteOff} />);
     const key = screen.getByTestId(KEY_ID);
 
-    fireEvent.mouseDown(key);
-    fireEvent.mouseLeave(key);
+    pointerDown(key);
+    fireEvent.pointerLeave(key);
 
     expect(onNoteOff).toHaveBeenCalledOnce();
     expect(onNoteOff).toHaveBeenCalledWith(C3);
   });
 
-  it("does not fire duplicate noteOff on mouseUp after mouseLeave", () => {
+  it("does not fire duplicate noteOff on pointerUp after pointerLeave", () => {
     const onNoteOff = vi.fn();
     render(<VirtualKeyboard onNoteOn={vi.fn()} onNoteOff={onNoteOff} />);
     const key = screen.getByTestId(KEY_ID);
 
-    fireEvent.mouseDown(key);
-    fireEvent.mouseLeave(key);
-    fireEvent.mouseUp(key);
+    pointerDown(key);
+    fireEvent.pointerLeave(key);
+    fireEvent.pointerUp(key);
 
-    // Only one noteOff from mouseLeave; mouseUp should not fire another
+    // Only one noteOff from pointerLeave; pointerUp should not fire another
     expect(onNoteOff).toHaveBeenCalledOnce();
   });
 });

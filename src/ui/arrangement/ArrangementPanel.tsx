@@ -38,6 +38,7 @@ export function ArrangementPanel({
 }: ArrangementPanelProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
+  const renderRef = useRef(() => {});
   const [view, setView] = useState(DEFAULT_VIEW);
   const [gridSnap] = useState<GridSnap>("1/4");
   const interactions = useArrangementInteractions(
@@ -134,6 +135,9 @@ export function ArrangementPanel({
   const cursorSeconds = useDawStore((s) => s.cursorSeconds);
   const bpm = useDawStore((s) => s.bpm);
   const transportState = useDawStore((s) => s.transportState);
+  const loopEnabled = useDawStore((s) => s.loopEnabled);
+  const loopStart = useDawStore((s) => s.loopStart);
+  const loopEnd = useDawStore((s) => s.loopEnd);
   const automationLanes = useAutomationStore((s) => s.lanes);
   const pool = useMediaPool();
   const engine = useAudioEngine();
@@ -200,6 +204,9 @@ export function ArrangementPanel({
       bpm,
       automationLanes,
       clipPeaks,
+      loopEnabled,
+      loopStart,
+      loopEnd,
     });
   }, [
     view,
@@ -208,9 +215,13 @@ export function ArrangementPanel({
     selectedClipIds,
     cursorSeconds,
     bpm,
+    loopEnabled,
+    loopStart,
+    loopEnd,
     automationLanes,
     clipPeaks,
   ]);
+  renderRef.current = render;
 
   // Schedule re-render when state changes or during playback.
   // During playback, read cursor from SAB (updated by audio thread) to keep
@@ -239,6 +250,9 @@ export function ArrangementPanel({
             bpm,
             automationLanes,
             clipPeaks,
+            loopEnabled,
+            loopStart,
+            loopEnd,
           });
         }
       }
@@ -271,6 +285,10 @@ export function ArrangementPanel({
       if (ctx !== null) {
         ctx.scale(dpr, dpr);
       }
+      // Re-render immediately after resize so the canvas doesn't go blank
+      requestAnimationFrame(() => {
+        renderRef.current();
+      });
     };
 
     if (typeof ResizeObserver === "undefined") return;

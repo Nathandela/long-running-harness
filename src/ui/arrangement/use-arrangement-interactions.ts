@@ -50,6 +50,10 @@ type DragState =
       kind: "rubber-band";
       startX: number;
       startY: number;
+    }
+  | {
+      kind: "loop-drag";
+      startSeconds: number;
     };
 
 export type ArrangementInteractions = {
@@ -144,7 +148,10 @@ export function useArrangementInteractions(
           break;
         }
         case "ruler": {
-          state.setCursor(Math.max(0, hit.timeSeconds));
+          const rulerTime = Math.max(0, hit.timeSeconds);
+          state.setCursor(rulerTime);
+          e.currentTarget.setPointerCapture(e.pointerId);
+          dragRef.current = { kind: "loop-drag", startSeconds: rulerTime };
           break;
         }
         case "empty-lane": {
@@ -156,8 +163,6 @@ export function useArrangementInteractions(
           break;
         }
         case "track-delete-button": {
-          // Require double-click to prevent accidental track deletion
-          if (e.detail < 2) break;
           const cmd = new RemoveTrackCommand(hit.trackId);
           cmd.execute();
           sharedUndoManager.push(cmd);
@@ -285,6 +290,18 @@ export function useArrangementInteractions(
             }
           }
           state.setSelectedClipIds(selected);
+          break;
+        }
+        case "loop-drag": {
+          const timeSec = Math.max(0, xToSeconds(x, view));
+          const snapped = snapToGrid(timeSec, state.bpm, gridSnap);
+          const loopA = drag.startSeconds;
+          const loopB = snapped;
+          const loopStart = Math.min(loopA, loopB);
+          const loopEnd = Math.max(loopA, loopB);
+          if (loopEnd - loopStart > 0.01) {
+            state.setLoop(true, loopStart, loopEnd);
+          }
           break;
         }
       }

@@ -10,7 +10,12 @@ import { useEffectsBridgeContext } from "@audio/effects/EffectsBridgeProvider";
 import { useTransport } from "@audio/use-transport";
 import { useMediaPool } from "@audio/media-pool/use-media-pool";
 import { useDawStore } from "@state/store";
-import { isAudioClip } from "@state/track/types";
+import {
+  isAudioClip,
+  isMidiClip,
+  type MidiClipModel,
+} from "@state/track/types";
+import { mapPitchToDrum } from "@audio/drum-machine/drum-types";
 import {
   createTrackAudioBridge,
   type TrackAudioBridge,
@@ -99,12 +104,16 @@ export function TrackAudioBridgeProvider({
     return unsub;
   }, [pool]);
 
+  // Track which MIDI notes have been scheduled to avoid double-triggering
+  const scheduledMidiNotesRef = useRef(new Set<string>());
+  // Track previous arrangement time to detect loop wraps (cursor jumps backward)
+  const prevArrTimeRef = useRef(0);
+
   // Wire clip scheduler into transport's onAdvance callback
   useEffect(() => {
     transport.setOnAdvanceCallback(
       (windowStart: number, windowEnd: number, timeOffset: number) => {
         const state = useDawStore.getState();
-        const audioClips = Object.values(state.clips).filter(isAudioClip);
         // Filter to non-muted tracks
         const hasSolo = state.tracks.some((t) => t.solo);
         const activeTrackIds = new Set(
@@ -116,18 +125,35 @@ export function TrackAudioBridgeProvider({
             })
             .map((t) => t.id),
         );
-        const activeClips = audioClips.filter((c) =>
+
+        // Arrangement time window
+        const arrStart = windowStart - timeOffset;
+        const arrEnd = windowEnd - timeOffset;
+
+        // Detect loop wrap: arrangement time jumped backward
+        if (arrStart < prevArrTimeRef.current - 0.05) {
+          // Clear scheduled notes so they re-trigger on the new loop iteration
+          scheduledMidiNotesRef.current.clear();
+          // Silence all synth voices immediately to prevent sustained notes
+          for (const track of state.tracks) {
+            if (track.type === "instrument") {
+              value.bridge.getInstrument(track.id)?.allNotesOff();
+            }
+          }
+        }
+        prevArrTimeRef.current = arrEnd;
+
+        // --- Audio clip scheduling ---
+        const audioClips = Object.values(state.clips).filter(isAudioClip);
+        const activeAudioClips = audioClips.filter((c) =>
           activeTrackIds.has(c.trackId),
         );
-
-        // Schedule clips per track (each goes to its own mixer strip)
-        const byTrack = new Map<string, typeof activeClips>();
-        for (const clip of activeClips) {
+        const byTrack = new Map<string, typeof activeAudioClips>();
+        for (const clip of activeAudioClips) {
           const arr = byTrack.get(clip.trackId) ?? [];
           arr.push(clip);
           byTrack.set(clip.trackId, arr);
         }
-
         for (const [trackId, clips] of byTrack) {
           const strip = mixer.getStrip(trackId);
           if (!strip) continue;
@@ -140,12 +166,64 @@ export function TrackAudioBridgeProvider({
             strip.inputGain,
           );
         }
+
+        // --- MIDI clip scheduling ---
+        const midiClips = Object.values(state.clips).filter(
+          (c): c is MidiClipModel =>
+            isMidiClip(c) && activeTrackIds.has(c.trackId),
+        );
+        const scheduled = scheduledMidiNotesRef.current;
+
+        for (const clip of midiClips) {
+          const track = state.tracks.find((t) => t.id === clip.trackId);
+          if (!track) continue;
+
+          for (const note of clip.noteEvents) {
+            const noteStartArr = clip.startTime + note.startTime;
+            const noteEndArr = noteStartArr + note.duration;
+            const noteKey = clip.id + ":" + note.id;
+
+            // Schedule noteOn if note starts within this window
+            if (
+              noteStartArr >= arrStart &&
+              noteStartArr < arrEnd &&
+              !scheduled.has(noteKey)
+            ) {
+              scheduled.add(noteKey);
+              const audioTime = noteStartArr + timeOffset;
+
+              if (track.type === "instrument") {
+                const instrument = value.bridge.getInstrument(track.id);
+                instrument?.noteOn(note.pitch, note.velocity, audioTime);
+              } else if (track.type === "drum") {
+                const kit = value.bridge.getDrumKit(track.id);
+                if (kit) {
+                  const drumId = mapPitchToDrum(note.pitch);
+                  if (drumId) {
+                    kit.trigger(drumId, audioTime, note.velocity / 127);
+                  }
+                }
+              }
+            }
+
+            // Schedule noteOff if note ends within this window (synth only)
+            if (
+              track.type === "instrument" &&
+              noteEndArr >= arrStart &&
+              noteEndArr < arrEnd
+            ) {
+              const audioTime = noteEndArr + timeOffset;
+              const instrument = value.bridge.getInstrument(track.id);
+              instrument?.noteOff(note.pitch, audioTime);
+            }
+          }
+        }
       },
     );
     return () => {
       transport.setOnAdvanceCallback(null);
     };
-  }, [transport, mixer, value.clipScheduler]);
+  }, [transport, mixer, value.clipScheduler, value.bridge]);
 
   // Stop all clip playback and silence synths when transport stops
   useEffect(() => {
@@ -155,6 +233,8 @@ export function TrackAudioBridgeProvider({
         state.transportState === "stopped"
       ) {
         value.clipScheduler.stopAll();
+        // Clear MIDI note scheduling state
+        scheduledMidiNotesRef.current.clear();
         // allNotesOff on all synth instruments
         for (const track of state.tracks) {
           if (track.type === "instrument") {
