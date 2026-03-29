@@ -64,17 +64,24 @@ vi.mock("@ui/mixer/useMeterData", () => ({
   }),
 }));
 
+const mockAudioEngine = { ctx: { sampleRate: 44100 }, resume: vi.fn() };
+vi.mock("@audio/use-audio-engine", () => ({
+  useAudioEngine: () => mockAudioEngine,
+}));
+
+// Stable reference to avoid infinite re-render loops from useMediaPool returning new objects
+const mockMediaPool = {
+  importFile: vi.fn(),
+  getSource: () => undefined,
+  getAudioBuffer: vi.fn().mockResolvedValue(undefined),
+  getPeaks: vi.fn().mockResolvedValue(undefined),
+  listSources: () => [],
+  removeSource: vi.fn(),
+  count: 0,
+  init: vi.fn().mockResolvedValue(undefined),
+};
 vi.mock("@audio/media-pool/use-media-pool", () => ({
-  useMediaPool: (): object => ({
-    importFile: vi.fn(),
-    getSource: () => undefined,
-    getAudioBuffer: vi.fn().mockResolvedValue(undefined),
-    getPeaks: vi.fn().mockResolvedValue(undefined),
-    listSources: () => [],
-    removeSource: vi.fn(),
-    count: 0,
-    init: vi.fn().mockResolvedValue(undefined),
-  }),
+  useMediaPool: () => mockMediaPool,
 }));
 
 describe("DawShell", () => {

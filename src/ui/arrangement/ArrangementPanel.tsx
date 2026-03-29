@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import { useAutomationStore } from "@state/automation";
-import type { AudioClipModel } from "@state/track/types";
+import { isAudioClip, type AudioClipModel } from "@state/track/types";
 import { AddClipCommand } from "@state/track/track-commands";
 import { sharedUndoManager } from "@state/undo";
+import { useMediaPool } from "@audio/media-pool/use-media-pool";
+import { useAudioEngine } from "@audio/use-audio-engine";
+import { useTransport } from "@audio/use-transport";
+import { useTransportCursor } from "@ui/hooks/useTransportCursor";
 import {
   renderArrangement,
   type ArrangementViewState,
@@ -42,6 +46,8 @@ export function ArrangementPanel({
     onOpenPianoRoll,
   );
   const bpmForDrop = useDawStore((s) => s.bpm);
+  const transport = useTransport();
+  const sabCursorRef = useTransportCursor(transport.getTransportSAB());
 
   const handleDragOver = useCallback(
     (e: React.DragEvent<HTMLCanvasElement>): void => {
@@ -129,14 +135,58 @@ export function ArrangementPanel({
   const bpm = useDawStore((s) => s.bpm);
   const transportState = useDawStore((s) => s.transportState);
   const automationLanes = useAutomationStore((s) => s.lanes);
+  const pool = useMediaPool();
+  const engine = useAudioEngine();
 
-  // Render loop
+  // Fetch and slice waveform peaks per audio clip
+  const SAMPLES_PER_PEAK = 256;
+  const [clipPeaks, setClipPeaks] = useState<
+    Record<string, { peaks: Float32Array; length: number }>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const sampleRate = engine.ctx.sampleRate;
+
+    async function fetchPeaks(): Promise<void> {
+      const result: Record<string, { peaks: Float32Array; length: number }> =
+        {};
+      for (const clip of Object.values(clips)) {
+        if (!isAudioClip(clip)) continue;
+        const wp = await pool.getPeaks(clip.sourceId, SAMPLES_PER_PEAK);
+        if (cancelled) return;
+        if (!wp || wp.length === 0) continue;
+
+        // Slice peaks to match clip's sourceOffset and duration
+        const startPeak = Math.floor(
+          (clip.sourceOffset * sampleRate) / wp.samplesPerPeak,
+        );
+        const peakCount = Math.ceil(
+          (clip.duration * sampleRate) / wp.samplesPerPeak,
+        );
+        const endPeak = Math.min(startPeak + peakCount, wp.length);
+        const sliceLen = Math.max(0, endPeak - startPeak);
+
+        result[clip.id] = {
+          peaks: wp.peaks.slice(startPeak * 2, endPeak * 2),
+          length: sliceLen,
+        };
+      }
+      if (!cancelled) setClipPeaks(result);
+    }
+
+    void fetchPeaks();
+    return () => {
+      cancelled = true;
+    };
+  }, [clips, pool, engine.ctx.sampleRate]);
+
+  // Render the arrangement canvas
   const render = useCallback((): void => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
-
     const rect = canvas.getBoundingClientRect();
     renderArrangement({
       ctx,
@@ -149,6 +199,7 @@ export function ArrangementPanel({
       cursorSeconds,
       bpm,
       automationLanes,
+      clipPeaks,
     });
   }, [
     view,
@@ -158,21 +209,47 @@ export function ArrangementPanel({
     cursorSeconds,
     bpm,
     automationLanes,
+    clipPeaks,
   ]);
 
-  // Schedule re-render when state changes or during playback
+  // Schedule re-render when state changes or during playback.
+  // During playback, read cursor from SAB (updated by audio thread) to keep
+  // the playback cursor moving smoothly.
   useEffect(() => {
-    const tick = (): void => {
+    if (transportState !== "playing") {
       render();
-      if (transportState === "playing") {
-        rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    const tick = (): void => {
+      const canvas = canvasRef.current;
+      if (canvas !== null) {
+        const ctx = canvas.getContext("2d");
+        if (ctx !== null) {
+          const rect = canvas.getBoundingClientRect();
+          renderArrangement({
+            ctx,
+            width: rect.width,
+            height: rect.height,
+            view,
+            tracks,
+            clips,
+            selectedClipIds,
+            cursorSeconds: sabCursorRef.current,
+            bpm,
+            automationLanes,
+            clipPeaks,
+          });
+        }
       }
+      rafRef.current = requestAnimationFrame(tick);
     };
 
     rafRef.current = requestAnimationFrame(tick);
     return (): void => {
       cancelAnimationFrame(rafRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- RAF loop reads SAB directly; deps trigger effect restart on state changes
   }, [render, transportState]);
 
   // Handle canvas sizing with ResizeObserver

@@ -16,10 +16,8 @@ import {
 import { subscribeModRoutes } from "./synth/modulation-bridge";
 import { createDrumKit } from "./drum-machine/drum-kit";
 import type { DrumKit } from "./drum-machine/drum-types";
-import {
-  DRUM_INSTRUMENTS,
-  type DrumInstrumentId,
-} from "./drum-machine/drum-types";
+import { type DrumInstrumentId } from "./drum-machine/drum-types";
+import { synthesize808Samples } from "./drum-machine/drum-synthesis";
 import type { MixerEngine } from "./mixer/types";
 import type { TrackModel } from "@state/track/types";
 
@@ -64,15 +62,22 @@ function subscribeSynthParams(
   });
 }
 
-/** Create silent placeholder AudioBuffers for each drum instrument. */
-function createPlaceholderSamples(
+// Shared 808 sample cache: synthesize once per AudioContext, reuse across tracks
+let sampleCachePromise: Promise<Map<DrumInstrumentId, AudioBuffer>> | null =
+  null;
+
+function getOrSynthesize808Samples(
   ctx: AudioContext,
-): Map<DrumInstrumentId, AudioBuffer> {
-  const samples = new Map<DrumInstrumentId, AudioBuffer>();
-  for (const inst of DRUM_INSTRUMENTS) {
-    samples.set(inst.id, ctx.createBuffer(1, 1, ctx.sampleRate));
+): Promise<Map<DrumInstrumentId, AudioBuffer>> {
+  if (sampleCachePromise === null) {
+    sampleCachePromise = synthesize808Samples(ctx);
   }
-  return samples;
+  return sampleCachePromise;
+}
+
+/** Reset the sample cache (for testing only). */
+export function _resetSampleCache(): void {
+  sampleCachePromise = null;
 }
 
 export function createTrackAudioBridge(
@@ -115,15 +120,22 @@ export function createTrackAudioBridge(
   }
 
   function addDrumTrack(trackId: string): void {
-    const samples = createPlaceholderSamples(ctx);
-    const kit = createDrumKit(ctx, samples);
-    drumKits.set(trackId, kit);
-    kit.connectToMixer(mixer, trackId);
+    const gen = (trackGeneration.get(trackId) ?? 0) + 1;
+    trackGeneration.set(trackId, gen);
+    mixer.getOrCreateStrip(trackId);
 
-    trackCleanups.set(trackId, () => {
-      kit.disconnectFromMixer(mixer, trackId);
-      kit.dispose();
-      drumKits.delete(trackId);
+    void getOrSynthesize808Samples(ctx).then((samples) => {
+      if (trackGeneration.get(trackId) !== gen || disposed) return;
+
+      const kit = createDrumKit(ctx, samples);
+      drumKits.set(trackId, kit);
+      kit.connectToMixer(mixer, trackId);
+
+      trackCleanups.set(trackId, () => {
+        kit.disconnectFromMixer(mixer, trackId);
+        kit.dispose();
+        drumKits.delete(trackId);
+      });
     });
   }
 

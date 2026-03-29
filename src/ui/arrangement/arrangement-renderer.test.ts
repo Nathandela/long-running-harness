@@ -384,21 +384,29 @@ describe("arrangement-renderer", () => {
         sourceId: "src-1",
       });
       const clips: Record<string, ClipModel> = { c1: clip };
+
+      // Baseline: render without peaks to count base fillRect calls
+      const baseline = makeRenderContext({ tracks, clips });
+      renderArrangement(baseline.rc);
+      const baseFillCount = baseline.mock.fillRect.mock.calls.length;
+
       // 4 peak pairs: interleaved [min, max, min, max, ...]
       const peaksData = new Float32Array([
         -0.5, 0.5, -0.3, 0.3, -0.8, 0.8, -0.1, 0.1,
       ]);
       const clipPeaks: Record<string, { peaks: Float32Array; length: number }> =
         {
-          "src-1": { peaks: peaksData, length: 4 },
+          c1: { peaks: peaksData, length: 4 },
         };
       const { rc, mock } = makeRenderContext({ tracks, clips, clipPeaks });
       renderArrangement(rc);
 
-      // Should draw waveform bars (fillRect calls beyond background/headers/clip fill)
-      // The peaks rendering draws additional fillRect calls for each peak pair
-      const fillCalls = mock.fillRect.mock.calls;
-      expect(fillCalls.length).toBeGreaterThan(5);
+      // Clip path must be set for waveform bounds
+      expect(mock.clip.mock.calls.length).toBeGreaterThanOrEqual(1);
+
+      // Exactly 4 additional fillRect calls (one per peak pair)
+      const peakFillCount = mock.fillRect.mock.calls.length - baseFillCount;
+      expect(peakFillCount).toBe(4);
     });
 
     it("skips waveform peaks for midi clips", () => {

@@ -4,6 +4,7 @@ import { SynthEditor } from "@ui/synth";
 import { DrumMachinePanel } from "@ui/drum-machine";
 import { useTrackAudioBridge } from "@audio/TrackAudioBridgeProvider";
 import type { TrackAudioBridge } from "@audio/track-audio-bridge";
+import { useAudioEngine } from "@audio/use-audio-engine";
 import {
   createStepSequencer,
   type StepSequencer,
@@ -41,12 +42,29 @@ useDawStore.subscribe((state) => {
 function getOrCreateSequencer(trackId: string): StepSequencer {
   let seq = sequencerCache.get(trackId);
   if (!seq) {
-    seq = createStepSequencer(() => {
-      // Trigger callback - audio playback handled separately
+    seq = createStepSequencer((trigger) => {
+      // Look up drum kit via the bridge at trigger time (kit may load async)
+      const bridge = bridgeRef;
+      if (!bridge) return;
+      const kit = bridge.getDrumKit(trackId);
+      kit?.trigger(
+        trigger.instrumentId,
+        trigger.time,
+        trigger.velocity,
+        trigger.flamMs,
+      );
     });
     sequencerCache.set(trackId, seq);
   }
   return seq;
+}
+
+// Module-level bridge reference for trigger callbacks
+let bridgeRef: TrackAudioBridge | null = null;
+
+/** Set the bridge reference for drum trigger callbacks. Called by DrumMachineController. */
+export function setBridgeRef(bridge: TrackAudioBridge | null): void {
+  bridgeRef = bridge;
 }
 
 function getOrCreateParams(
@@ -79,6 +97,7 @@ function useDrumMachineState(trackId: string): {
   onClearPattern: () => void;
 } {
   const transport = useTransport();
+  const engine = useAudioEngine();
   const transportState = useDawStore((s) => s.transportState);
   const bpm = useDawStore((s) => s.bpm);
 
@@ -122,6 +141,53 @@ function useDrumMachineState(trackId: string): {
       cancelAnimationFrame(rafRef.current);
     };
   }, [transportState, transport, bpm, pattern.steps.length]);
+
+  // Audio scheduling: schedule drum steps within look-ahead window
+  useEffect(() => {
+    if (transportState !== "playing") return;
+    const clock = transport.getClock();
+    if (!clock) return;
+    const ctx = engine.ctx;
+
+    const stepsPerBeat = 4;
+    const stepDuration = 60 / (bpm * stepsPerBeat);
+    const lookAheadSec = 0.1;
+    const intervalMs = 25;
+
+    // Sync to current position
+    const cursor = clock.getCursorSeconds();
+    const totalSteps = cursor / stepDuration;
+    const wholeStep = Math.floor(totalSteps + 1e-9);
+    const remainder = totalSteps - wholeStep;
+    let nextStepIndex: number;
+    let nextStepArrangementTime: number;
+    if (remainder < 1e-6) {
+      nextStepIndex = wholeStep % pattern.steps.length;
+      nextStepArrangementTime = wholeStep * stepDuration;
+    } else {
+      nextStepIndex = (wholeStep + 1) % pattern.steps.length;
+      nextStepArrangementTime = (wholeStep + 1) * stepDuration;
+    }
+
+    const timerId = setInterval(() => {
+      if (clock.state !== "playing") return;
+      const cursorNow = clock.getCursorSeconds();
+      const windowEnd = cursorNow + lookAheadSec;
+      // timeOffset converts arrangement time to AudioContext time
+      const timeOffset = ctx.currentTime - cursorNow;
+
+      while (nextStepArrangementTime < windowEnd) {
+        const audioTime = nextStepArrangementTime + timeOffset;
+        seq.scheduleStep(nextStepIndex, Math.max(0, audioTime));
+        nextStepIndex = (nextStepIndex + 1) % pattern.steps.length;
+        nextStepArrangementTime += stepDuration;
+      }
+    }, intervalMs);
+
+    return () => {
+      clearInterval(timerId);
+    };
+  }, [transportState, transport, engine, bpm, seq, pattern.steps.length]);
 
   // Derive currentStep: 0 when stopped, liveStep when playing/paused
   const currentStep = transportState === "stopped" ? 0 : liveStep;
@@ -266,6 +332,14 @@ export function InstrumentPanel(): React.JSX.Element {
   const tracks = useDawStore((s) => s.tracks);
   const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
   const bridge = useTrackAudioBridge();
+
+  // Keep bridge ref current for drum trigger callbacks
+  useEffect(() => {
+    setBridgeRef(bridge);
+    return () => {
+      setBridgeRef(null);
+    };
+  }, [bridge]);
 
   if (selectedTrack?.type === "instrument") {
     return <SynthTrackPanel trackId={selectedTrack.id} bridge={bridge} />;

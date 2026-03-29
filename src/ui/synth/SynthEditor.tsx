@@ -70,14 +70,28 @@ function ToggleGroup<T extends string>({
         aria-label={label}
         data-testid={"toggle-" + label.toLowerCase().replace(/\s/g, "-")}
         style={{ display: "flex", gap: 0 }}
+        onKeyDown={(e) => {
+          const idx = options.indexOf(value);
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            e.preventDefault();
+            const next = options[(idx + 1) % options.length];
+            if (next !== undefined) onChange(next);
+          } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const prev = options[(idx - 1 + options.length) % options.length];
+            if (prev !== undefined) onChange(prev);
+          }
+        }}
       >
         {options.map((opt) => {
           const active = opt === value;
           return (
             <button
               key={opt}
+              type="button"
               role="radio"
               aria-checked={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => {
                 onChange(opt);
               }}

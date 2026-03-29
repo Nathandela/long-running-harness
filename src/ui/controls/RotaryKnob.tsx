@@ -225,7 +225,7 @@ export function RotaryKnob({
           color: tokens.color.white,
         }}
       >
-        {value}
+        {valueText ?? String(value)}
       </span>
     </div>
   );

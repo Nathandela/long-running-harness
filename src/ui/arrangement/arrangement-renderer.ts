@@ -253,7 +253,7 @@ function drawClips(rc: RenderContext): void {
 
       // Waveform peaks (audio clips only)
       if (isAudioClip(clip)) {
-        const peakData = rc.clipPeaks?.[clip.sourceId];
+        const peakData = rc.clipPeaks?.[clip.id];
         if (peakData && peakData.length > 0) {
           ctx.save();
           ctx.beginPath();

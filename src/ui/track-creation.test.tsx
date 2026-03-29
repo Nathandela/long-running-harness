@@ -36,6 +36,10 @@ vi.mock("@audio/TrackAudioBridgeProvider", () => ({
   }),
 }));
 
+vi.mock("@audio/use-audio-engine", () => ({
+  useAudioEngine: () => ({ ctx: { sampleRate: 44100, currentTime: 0 } }),
+}));
+
 // Mock synth store - shallow mock sufficient for non-instrument tests,
 // instrument test initializes real store via dynamic import
 vi.mock("@state/synth/synth-store", async (importOriginal) => {

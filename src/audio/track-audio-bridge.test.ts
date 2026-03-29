@@ -24,6 +24,27 @@ vi.mock("./synth/modulation-bridge", () => ({
   subscribeModRoutes: vi.fn(() => mockUnsubMod),
 }));
 
+// Mock drum synthesis — OfflineAudioContext is not available in jsdom
+vi.mock("./drum-machine/drum-synthesis", () => ({
+  synthesize808Samples: vi.fn((ctx: AudioContext) =>
+    Promise.resolve(
+      new Map([
+        ["bd", ctx.createBuffer(1, 4410, 44100)],
+        ["sd", ctx.createBuffer(1, 4410, 44100)],
+        ["ch", ctx.createBuffer(1, 4410, 44100)],
+        ["oh", ctx.createBuffer(1, 4410, 44100)],
+        ["cp", ctx.createBuffer(1, 4410, 44100)],
+        ["lt", ctx.createBuffer(1, 4410, 44100)],
+        ["mt", ctx.createBuffer(1, 4410, 44100)],
+        ["ht", ctx.createBuffer(1, 4410, 44100)],
+        ["rs", ctx.createBuffer(1, 4410, 44100)],
+        ["cb", ctx.createBuffer(1, 4410, 44100)],
+        ["cy", ctx.createBuffer(1, 4410, 44100)],
+      ]),
+    ),
+  ),
+}));
+
 function createMockInstrument(): SynthInstrument {
   return {
     output: {} as AudioNode,
@@ -41,7 +62,8 @@ function createMockInstrument(): SynthInstrument {
 }
 
 // Lazy import after mocks are set up
-const { createTrackAudioBridge } = await import("./track-audio-bridge");
+const { createTrackAudioBridge, _resetSampleCache } =
+  await import("./track-audio-bridge");
 
 describe("createTrackAudioBridge", () => {
   let ctx: AudioContext;
@@ -52,9 +74,10 @@ describe("createTrackAudioBridge", () => {
     ctx = createMockAudioContext();
     mixer = createMixerEngine(ctx);
 
-    // Reset stores
+    // Reset stores and caches
     useDawStore.setState({ tracks: [], clips: {} });
     useSynthStore.setState({ synths: {} });
+    _resetSampleCache();
 
     // Default: factory returns a mock instrument
     const inst = createMockInstrument();
@@ -83,13 +106,15 @@ describe("createTrackAudioBridge", () => {
     expect(inst!.connectToMixer).toHaveBeenCalledWith(mixer, "t1");
   });
 
-  it("creates drum kit when drum track is added", () => {
+  it("creates drum kit when drum track is added", async () => {
     bridge = createTrackAudioBridge(ctx, mixer);
 
     const track = makeTrack({ id: "t2", type: "drum" });
     useDawStore.getState().addTrack(track);
 
-    expect(bridge.getDrumKit("t2")).toBeDefined();
+    await vi.waitFor(() => {
+      expect(bridge.getDrumKit("t2")).toBeDefined();
+    });
   });
 
   it("creates mixer strip for audio track", () => {
@@ -120,13 +145,15 @@ describe("createTrackAudioBridge", () => {
     expect(bridge.getInstrument("t1")).toBeUndefined();
   });
 
-  it("disposes drum kit when track is removed", () => {
+  it("disposes drum kit when track is removed", async () => {
     bridge = createTrackAudioBridge(ctx, mixer);
 
     const track = makeTrack({ id: "t2", type: "drum" });
     useDawStore.getState().addTrack(track);
 
-    expect(bridge.getDrumKit("t2")).toBeDefined();
+    await vi.waitFor(() => {
+      expect(bridge.getDrumKit("t2")).toBeDefined();
+    });
 
     useDawStore.getState().removeTrack("t2");
     expect(bridge.getDrumKit("t2")).toBeUndefined();
@@ -200,6 +227,9 @@ describe("createTrackAudioBridge", () => {
 
     await vi.waitFor(() => {
       expect(bridge.getInstrument("t1")).toBeDefined();
+    });
+    await vi.waitFor(() => {
+      expect(bridge.getDrumKit("t2")).toBeDefined();
     });
 
     const inst = bridge.getInstrument("t1");

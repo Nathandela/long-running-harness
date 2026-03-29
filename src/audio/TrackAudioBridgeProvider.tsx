@@ -56,13 +56,23 @@ export function TrackAudioBridgeProvider({
             !inFlightRef.current.has(clip.sourceId)
           ) {
             inFlightRef.current.add(clip.sourceId);
+            const sid = clip.sourceId;
             void pool
-              .getAudioBuffer(clip.sourceId)
+              .getAudioBuffer(sid)
               .then((buf) => {
-                if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
+                // Re-check that this sourceId is still referenced by an active clip
+                // before caching — the last clip may have been removed while in flight
+                if (!buf) return;
+                const currentClips = useDawStore.getState().clips;
+                const stillActive = Object.values(currentClips).some(
+                  (c) => isAudioClip(c) && c.sourceId === sid,
+                );
+                if (stillActive) {
+                  bufferCacheRef.current.set(sid, buf);
+                }
               })
-              .catch(() => {
-                // Failed fetch — allow retry on next sync pass
+              .catch((err: unknown) => {
+                console.warn("Failed to prefetch buffer:", clip.sourceId, err);
               })
               .finally(() => {
                 inFlightRef.current.delete(clip.sourceId);
@@ -133,7 +143,7 @@ export function TrackAudioBridgeProvider({
     };
   }, [transport, mixer, value.clipScheduler]);
 
-  // Stop all clip playback when transport stops
+  // Stop all clip playback and silence synths when transport stops
   useEffect(() => {
     return useDawStore.subscribe((state, prev) => {
       if (
@@ -141,9 +151,39 @@ export function TrackAudioBridgeProvider({
         state.transportState === "stopped"
       ) {
         value.clipScheduler.stopAll();
+        // allNotesOff on all synth instruments
+        for (const track of state.tracks) {
+          if (track.type === "instrument") {
+            value.bridge.getInstrument(track.id)?.allNotesOff();
+          }
+        }
       }
     });
-  }, [value.clipScheduler]);
+  }, [value.clipScheduler, value.bridge]);
+
+  // Forward track volume/pan/mute/solo changes to MixerEngine
+  useEffect(() => {
+    let prevTracks = useDawStore.getState().tracks;
+    return useDawStore.subscribe((state) => {
+      for (const track of state.tracks) {
+        const prev = prevTracks.find((t) => t.id === track.id);
+        if (!prev) continue;
+        if (track.volume !== prev.volume) {
+          mixer.setFaderLevel(track.id, track.volume);
+        }
+        if (track.pan !== prev.pan) {
+          mixer.setPan(track.id, track.pan);
+        }
+        if (track.muted !== prev.muted) {
+          mixer.setMute(track.id, track.muted);
+        }
+        if (track.solo !== prev.solo) {
+          mixer.setSolo(track.id, track.solo);
+        }
+      }
+      prevTracks = state.tracks;
+    });
+  }, [mixer]);
 
   // Guard against StrictMode double-mount (same pattern as EffectsBridgeProvider)
   const mountedRef = useRef(true);

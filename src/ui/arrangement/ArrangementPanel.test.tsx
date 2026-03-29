@@ -1,7 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ArrangementPanel } from "./ArrangementPanel";
 import { useDawStore } from "@state/store";
+
+// Mock media pool and audio engine hooks (stable references to avoid infinite re-render loops)
+const mockPool = { getPeaks: vi.fn().mockResolvedValue(undefined) };
+vi.mock("@audio/media-pool/use-media-pool", () => ({
+  useMediaPool: () => mockPool,
+}));
+
+const mockEngine = { ctx: { sampleRate: 44100 } };
+vi.mock("@audio/use-audio-engine", () => ({
+  useAudioEngine: () => mockEngine,
+}));
+
+vi.mock("@audio/use-transport", () => ({
+  useTransport: () => ({
+    getTransportSAB: () => null,
+  }),
+}));
+
+vi.mock("@ui/hooks/useTransportCursor", () => ({
+  useTransportCursor: () => ({ current: 0 }),
+}));
 
 // Mock ResizeObserver
 vi.stubGlobal(
@@ -12,6 +32,9 @@ vi.stubGlobal(
     disconnect = vi.fn();
   },
 );
+
+// Import after mocks
+const { ArrangementPanel } = await import("./ArrangementPanel");
 
 describe("ArrangementPanel", () => {
   beforeEach(() => {
