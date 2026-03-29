@@ -1,0 +1,71 @@
+{
+  "P0": [],
+  "P1": [
+    "TransportBar not visible"
+  ],
+  "P2": [
+    "10 design tokens not set: --color-gray-800, --color-gray-600, --color-gray-400, --color-accent, --color-accent-hover, --radius-sm, --radius-md, --spacing-xs, --spacing-sm, --spacing-md"
+  ],
+  "P3": [
+    "PianoRollEditor not visible (may require track selection)",
+    "SynthEditor not visible (requires instrument track)",
+    "DrumMachinePanel not visible (requires drum track)",
+    "No heading elements (h1-h6) found - impacts screen reader navigation"
+  ],
+  "passed": [
+    "Click-to-start gate rendered and dismissed",
+    "DawShell renders successfully",
+    "MixerPanel renders correctly",
+    "ArrangementPanel renders correctly",
+    "InstrumentPanel renders correctly",
+    "MediaPoolPanel renders correctly",
+    "No horizontal overflow at 1024px width",
+    "Keyboard Tab reaches 18 interactive elements",
+    "Focus indicators visible on keyboard navigation",
+    "Space key triggers transport",
+    "Hover states tested on 7 buttons",
+    "Fader hover tested (1 found)",
+    "2 canvas elements rendering",
+    "No console errors",
+    "No network errors (4xx/5xx)"
+  ],
+  "domSummary": {
+    "buttons": 7,
+    "inputs": 2,
+    "canvases": 2,
+    "sections": 4,
+    "headings": 0,
+    "ariaLabels": 9,
+    "testIds": 10,
+    "images": 0
+  },
+  "consoleLogs": [
+    "[debug] [vite] connecting...",
+    "[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+    "[debug] [vite] connected."
+  ],
+  "consoleErrors": [],
+  "networkErrors": [],
+  "tokenCheck": {
+    "--color-black": "#000000",
+    "--color-white": "#ffffff",
+    "--color-gray-900": "#111111",
+    "--color-gray-800": "NOT SET",
+    "--color-gray-700": "#333333",
+    "--color-gray-600": "NOT SET",
+    "--color-gray-500": "#666666",
+    "--color-gray-400": "NOT SET",
+    "--color-gray-300": "#999999",
+    "--color-accent": "NOT SET",
+    "--color-accent-hover": "NOT SET",
+    "--radius-sm": "NOT SET",
+    "--radius-md": "NOT SET",
+    "--spacing-xs": "NOT SET",
+    "--spacing-sm": "NOT SET",
+    "--spacing-md": "NOT SET",
+    "--font-mono": "\"JetBrains Mono\", monospace",
+    "--text-xs": "10px",
+    "--text-sm": "12px",
+    "--text-base": "14px"
+  }
+}
