@@ -24,6 +24,8 @@ export type CreateEffectOptions = {
   buildChain(inputNode: GainNode, outputNode: GainNode): void;
   /** Called when a parameter changes. Use setMix callback for mix params. */
   applyParam: ApplyParamFn;
+  /** Resolve a param key to its underlying AudioParam for automation */
+  resolveAudioParam?: (key: string) => AudioParam | undefined;
   /** Clean up internal effect nodes (stop oscillators, disconnect nodes) */
   disposeChain?: () => void;
 };
@@ -126,6 +128,16 @@ export function createBaseEffect(opts: CreateEffectOptions): EffectInstance {
     },
 
     setMix,
+
+    getAudioParam(key: string): AudioParam | undefined {
+      return opts.resolveAudioParam?.(key);
+    },
+
+    getParamRange(key: string): { min: number; max: number } | undefined {
+      const entry = paramMap.get(key);
+      if (!entry) return undefined;
+      return { min: entry.schema.min, max: entry.schema.max };
+    },
 
     dispose(): void {
       opts.disposeChain?.();

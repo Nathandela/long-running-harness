@@ -17,6 +17,14 @@ import {
   createBiquadFilter,
 } from "@audio/synth/dsp/biquad-coeffs";
 import { createLFO } from "@audio/synth/dsp/lfo";
+import {
+  createModAccumulators,
+  resetAccumulators,
+  applyModRoute,
+  SOURCE_INDEX,
+  type WorkletModRoute,
+  type ModAccumulators,
+} from "@audio/synth/modulation-engine";
 
 const MAX_VOICES = 16;
 
@@ -68,12 +76,14 @@ export type RenderedAudio = {
  * @param duration - Total duration to render in seconds
  * @param sampleRate - Sample rate
  * @param params - Synth parameter snapshot
+ * @param modRoutes - Optional modulation routes (mirrors SynthProcessor mod matrix)
  */
 export function renderMidiClipToAudio(
   notes: readonly MIDINoteEvent[],
   duration: number,
   sampleRate: number,
   params: SynthParameterMap,
+  modRoutes: readonly WorkletModRoute[] = [],
 ): RenderedAudio {
   const totalSamples = Math.ceil(duration * sampleRate);
   const left = new Float32Array(totalSamples);
@@ -106,10 +116,13 @@ export function renderMidiClipToAudio(
     createOfflineVoice(),
   );
 
-  // LFOs not yet wired to modulation targets — created but not processed.
-  // TODO: Wire LFO to pitch/filter/amp modulation to match SynthProcessor.
-  void createLFO(params.lfo1Shape);
-  void createLFO(params.lfo2Shape);
+  // LFOs for modulation (mirrors SynthProcessor)
+  const lfo1 = createLFO(params.lfo1Shape);
+  const lfo2 = createLFO(params.lfo2Shape);
+  const modSourceValues = new Float64Array(8);
+  const modAccGlobal: ModAccumulators = createModAccumulators();
+  const modAccVoice: ModAccumulators = createModAccumulators();
+  const voiceSrcValues = new Float64Array(8);
 
   // ADSR params (pre-allocated)
   const ampParams: ADSRParams = {
@@ -147,6 +160,37 @@ export function renderMidiClipToAudio(
       eventIdx++;
     }
 
+    // LFO processing (global, before voice loop — mirrors SynthProcessor)
+    const lfo1Rate = Math.max(0.01, params.lfo1Rate + modAccGlobal.lfo1Rate);
+    const lfo2Rate = Math.max(0.01, params.lfo2Rate + modAccGlobal.lfo2Rate);
+    const lfo1Val = lfo1.process(lfo1Rate, sampleRate);
+    const lfo2Val = lfo2.process(lfo2Rate, sampleRate);
+
+    modSourceValues[SOURCE_INDEX.lfo1] = lfo1Val * params.lfo1Depth;
+    modSourceValues[SOURCE_INDEX.lfo2] = lfo2Val * params.lfo2Depth;
+
+    // Compute global modulation accumulation
+    resetAccumulators(modAccGlobal);
+    for (const route of modRoutes) {
+      const si = route.sourceIdx;
+      if (
+        si === SOURCE_INDEX.lfo1 ||
+        si === SOURCE_INDEX.lfo2 ||
+        si === SOURCE_INDEX.aftertouch ||
+        si === SOURCE_INDEX.modWheel ||
+        si === SOURCE_INDEX.pitchBend
+      ) {
+        applyModRoute(
+          modAccGlobal,
+          modSourceValues,
+          si,
+          route.destIdx,
+          route.amount,
+          route.bipolar,
+        );
+      }
+    }
+
     let mixL = 0;
     let mixR = 0;
 
@@ -175,26 +219,75 @@ export function renderMidiClipToAudio(
       const filterEnvVal = v.filterEnv.process(filterParams, sampleRate);
       const ampLevel = v.ampEnv.process(ampParams, sampleRate);
 
+      // Per-voice modulation
+      resetAccumulators(modAccVoice);
+      if (modRoutes.length > 0) {
+        voiceSrcValues[SOURCE_INDEX.ampEnv] = ampLevel;
+        voiceSrcValues[SOURCE_INDEX.filterEnv] = filterEnvVal;
+        voiceSrcValues[SOURCE_INDEX.velocity] = v.velocity;
+
+        for (const route of modRoutes) {
+          const si = route.sourceIdx;
+          if (
+            si === SOURCE_INDEX.ampEnv ||
+            si === SOURCE_INDEX.filterEnv ||
+            si === SOURCE_INDEX.velocity
+          ) {
+            applyModRoute(
+              modAccVoice,
+              voiceSrcValues,
+              si,
+              route.destIdx,
+              route.amount,
+              route.bipolar,
+            );
+          }
+        }
+      }
+
+      // Combined modulation (global + per-voice)
+      const modPitchOsc1 = modAccGlobal.osc1Pitch + modAccVoice.osc1Pitch;
+      const modPitchOsc2 = modAccGlobal.osc2Pitch + modAccVoice.osc2Pitch;
+      const modFilterCutoff =
+        modAccGlobal.filterCutoff + modAccVoice.filterCutoff;
+      const modFilterReso =
+        modAccGlobal.filterResonance + modAccVoice.filterResonance;
+      const modAmpLevel = modAccGlobal.ampLevel + modAccVoice.ampLevel;
+      const modOscMix = modAccGlobal.oscMix + modAccVoice.oscMix;
+
+      // Pitch modulation (scaled to semitones, max +/-24)
+      const pitchMult1 = Math.pow(2, (modPitchOsc1 * 24) / 12);
+      const pitchMult2 = Math.pow(2, (modPitchOsc2 * 24) / 12);
+
       // Oscillators
-      const freq1 = baseFreq * osc1OctMul * osc1DetMul;
-      const freq2 = baseFreq * osc2OctMul * osc2DetMul;
+      const freq1 = baseFreq * osc1OctMul * osc1DetMul * pitchMult1;
+      const freq2 = baseFreq * osc2OctMul * osc2DetMul * pitchMult2;
       const osc1Out = v.osc1.next(freq1, sampleRate) * params.osc1Level;
       const osc2Out = v.osc2.next(freq2, sampleRate) * params.osc2Level;
-      let sample = osc1Out + osc2Out;
+
+      // Osc mix modulation
+      const osc1Gain = Math.max(0, Math.min(1, 1 - modOscMix));
+      const osc2Gain = Math.max(0, Math.min(1, 1 + modOscMix));
+      let sample = osc1Out * osc1Gain + osc2Out * osc2Gain;
 
       // Filter (recompute coefficients periodically for efficiency)
       if (s % 128 === 0) {
-        const cutoffModSt = filterEnvVal * params.filterEnvDepth;
+        const cutoffModSt =
+          filterEnvVal * params.filterEnvDepth + modFilterCutoff * 60;
         const modulatedCutoff =
           params.filterCutoff * Math.pow(2, cutoffModSt / 12);
         const clampedCutoff = Math.min(
           Math.max(modulatedCutoff, 20),
           sampleRate / 2 - 100,
         );
+        const modulatedReso = Math.max(
+          0.5,
+          Math.min(20, params.filterResonance + modFilterReso * 10),
+        );
         computeBiquadCoeffs(
           params.filterType,
           clampedCutoff,
-          params.filterResonance,
+          modulatedReso,
           sampleRate,
           v.filter.coeffs,
         );
@@ -202,9 +295,12 @@ export function renderMidiClipToAudio(
 
       sample = v.filter.process(sample);
 
+      // Amplitude modulation: base envelope * (1 + mod offset)
+      const ampMod = Math.max(0, 1 + modAmpLevel);
+
       // Velocity -> amplitude
       const velAmp = 0.5 + v.velocity * 0.5;
-      sample *= ampLevel * velAmp * params.masterGain;
+      sample *= ampLevel * ampMod * velAmp * params.masterGain;
 
       // Clamp to prevent overflow
       if (!isFinite(sample)) sample = 0;

@@ -99,6 +99,14 @@ export function createReverbFactory(): EffectFactory {
               break;
           }
         },
+        resolveAudioParam(key) {
+          switch (key) {
+            case "preDelay":
+              return preDelayNode.delayTime;
+            default:
+              return undefined;
+          }
+        },
       });
     },
   };

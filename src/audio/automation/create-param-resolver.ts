@@ -16,13 +16,13 @@ const PAN_RANGE = { min: -1, max: 1 } as const;
 
 export function createParamResolver(
   mixer: MixerEngine,
-  _effectsBridge: EffectsBridge,
+  effectsBridge: EffectsBridge,
 ): ParamResolver {
   return (lane: AutomationLane): ResolvedParam | undefined => {
-    const { target, trackId } = lane;
+    const { target } = lane;
 
     if (target.type === "mixer") {
-      const strip = mixer.getStrip(trackId);
+      const strip = mixer.getStrip(lane.trackId);
       if (!strip) return undefined;
 
       switch (target.param) {
@@ -33,9 +33,19 @@ export function createParamResolver(
       }
     }
 
-    // Effect and synth params require AudioParam exposure from the effect/synth layer.
-    // Currently effects use setParam() which doesn't expose raw AudioParams.
-    // TODO: expose AudioParams from EffectInstance for sample-accurate automation.
+    if (target.type === "effect") {
+      const instance = effectsBridge.getInstance(target.effectId);
+      if (!instance) return undefined;
+
+      const param = instance.getAudioParam(target.paramKey);
+      if (!param) return undefined;
+
+      const range = instance.getParamRange(target.paramKey);
+      if (!range) return undefined;
+
+      return { param, range };
+    }
+
     return undefined;
   };
 }

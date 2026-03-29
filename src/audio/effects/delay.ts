@@ -79,6 +79,16 @@ export function createDelayFactory(): EffectFactory {
               break;
           }
         },
+        resolveAudioParam(key) {
+          switch (key) {
+            case "time":
+              return delayNode.delayTime;
+            case "feedback":
+              return feedbackGain.gain;
+            default:
+              return undefined;
+          }
+        },
       });
     },
   };

@@ -33,6 +33,10 @@ export type EffectInstance = {
   setParam(key: string, value: number): void;
   setBypassed(bypassed: boolean): void;
   setMix(wet: number): void;
+  /** Get the raw AudioParam for a parameter key (for sample-accurate automation) */
+  getAudioParam(key: string): AudioParam | undefined;
+  /** Get the min/max range for a parameter key */
+  getParamRange(key: string): { min: number; max: number } | undefined;
   dispose(): void;
 };
 

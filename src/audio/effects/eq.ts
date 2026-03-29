@@ -138,6 +138,26 @@ export function createEqFactory(): EffectFactory {
               break;
           }
         },
+        resolveAudioParam(key) {
+          switch (key) {
+            case "lowFreq":
+              return lowShelf.frequency;
+            case "lowGain":
+              return lowShelf.gain;
+            case "midFreq":
+              return mid.frequency;
+            case "midGain":
+              return mid.gain;
+            case "midQ":
+              return mid.Q;
+            case "highFreq":
+              return highShelf.frequency;
+            case "highGain":
+              return highShelf.gain;
+            default:
+              return undefined;
+          }
+        },
       });
 
       return effect;

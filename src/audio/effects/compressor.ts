@@ -92,6 +92,22 @@ export function createCompressorFactory(): EffectFactory {
               break;
           }
         },
+        resolveAudioParam(key) {
+          switch (key) {
+            case "threshold":
+              return comp.threshold;
+            case "ratio":
+              return comp.ratio;
+            case "knee":
+              return comp.knee;
+            case "attack":
+              return comp.attack;
+            case "release":
+              return comp.release;
+            default:
+              return undefined;
+          }
+        },
       });
 
       return effect;

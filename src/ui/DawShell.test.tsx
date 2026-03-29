@@ -44,6 +44,13 @@ vi.mock("@ui/hooks/useTransportCursor", () => ({
   useTransportCursor: (): { current: number } => ({ current: 0 }),
 }));
 
+vi.mock("@ui/mixer/useMeterData", () => ({
+  useMeterData: () => ({
+    channels: {},
+    master: { level: 0, peak: 0, clipping: false },
+  }),
+}));
+
 vi.mock("@audio/media-pool/use-media-pool", () => ({
   useMediaPool: (): object => ({
     importFile: vi.fn(),

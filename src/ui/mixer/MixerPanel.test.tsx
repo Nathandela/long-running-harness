@@ -1,8 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useDawStore } from "@state/store";
 import type { TrackModel } from "@state/track/types";
 import { MixerPanel } from "./MixerPanel";
+
+vi.mock("./useMeterData", () => ({
+  useMeterData: () => ({
+    channels: {},
+    master: { level: 0, peak: 0, clipping: false },
+  }),
+}));
 
 function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
   return {

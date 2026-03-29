@@ -77,15 +77,68 @@ describe("createParamResolver", () => {
     expect(result).toBeUndefined();
   });
 
-  it("returns undefined for effect targets (not yet supported)", () => {
+  it("resolves effect param when bridge returns AudioParam", () => {
     const strip = mockStrip();
-    const resolver = createParamResolver(mockMixer(strip), stubBridge);
+    const mockParam = { value: 0.5 } as unknown as AudioParam;
+    const mockInstance = {
+      getAudioParam: vi.fn().mockReturnValue(mockParam),
+      getParamRange: vi.fn().mockReturnValue({ min: -60, max: 0 }),
+    };
+    const bridge = {
+      getInstance: vi.fn().mockReturnValue(mockInstance),
+    } as unknown as EffectsBridge;
 
+    const resolver = createParamResolver(mockMixer(strip), bridge);
     const result = resolver(
       makeLane("t1", {
         type: "effect",
         effectId: "eq-1",
         paramKey: "lowGain",
+      }),
+    );
+
+    expect(result).toBeDefined();
+    expect(result?.param).toBe(mockParam);
+    expect(result?.range).toEqual({ min: -60, max: 0 });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(bridge.getInstance).toHaveBeenCalledWith("eq-1");
+    expect(mockInstance.getAudioParam).toHaveBeenCalledWith("lowGain");
+  });
+
+  it("returns undefined for effect when instance not found", () => {
+    const strip = mockStrip();
+    const bridge = {
+      getInstance: vi.fn().mockReturnValue(undefined),
+    } as unknown as EffectsBridge;
+
+    const resolver = createParamResolver(mockMixer(strip), bridge);
+    const result = resolver(
+      makeLane("t1", {
+        type: "effect",
+        effectId: "missing-fx",
+        paramKey: "rate",
+      }),
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined for effect when AudioParam not exposed", () => {
+    const strip = mockStrip();
+    const mockInstance = {
+      getAudioParam: vi.fn().mockReturnValue(undefined),
+      getParamRange: vi.fn().mockReturnValue({ min: 0, max: 1 }),
+    };
+    const bridge = {
+      getInstance: vi.fn().mockReturnValue(mockInstance),
+    } as unknown as EffectsBridge;
+
+    const resolver = createParamResolver(mockMixer(strip), bridge);
+    const result = resolver(
+      makeLane("t1", {
+        type: "effect",
+        effectId: "eq-1",
+        paramKey: "unknownParam",
       }),
     );
 

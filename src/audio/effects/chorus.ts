@@ -87,6 +87,16 @@ export function createChorusFactory(): EffectFactory {
               break;
           }
         },
+        resolveAudioParam(key) {
+          switch (key) {
+            case "rate":
+              return lfo.frequency;
+            case "depth":
+              return lfoGain.gain;
+            default:
+              return undefined;
+          }
+        },
       });
     },
   };

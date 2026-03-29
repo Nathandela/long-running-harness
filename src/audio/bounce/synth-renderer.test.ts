@@ -137,4 +137,89 @@ describe("renderMidiClipToAudio", () => {
     const levelAt200ms = Math.abs(result.left[sampleAt200ms] ?? 0);
     expect(levelAt200ms).toBeGreaterThan(0);
   });
+
+  it("applies LFO pitch modulation when depth > 0", () => {
+    // Render with no LFO modulation
+    const noLfo: MIDINoteEvent[] = [makeNote(69, 100, 0, 0.5)];
+    const paramsNoLfo = { ...DEFAULT_SYNTH_PARAMS, lfo1Depth: 0 };
+    const resultNoLfo = renderMidiClipToAudio(noLfo, 0.5, SR, paramsNoLfo);
+
+    // Render with LFO1 pitch modulation via modRoutes
+    const paramsLfo = {
+      ...DEFAULT_SYNTH_PARAMS,
+      lfo1Depth: 0.5,
+      lfo1Rate: 5,
+      lfo1Shape: "sine" as const,
+    };
+    const resultLfo = renderMidiClipToAudio(
+      [makeNote(69, 100, 0, 0.5)],
+      0.5,
+      SR,
+      paramsLfo,
+      [{ sourceIdx: 0, destIdx: 0, amount: 0.5, bipolar: true }], // LFO1 -> osc1Pitch
+    );
+
+    // The audio should differ when LFO pitch modulation is active
+    let diffSum = 0;
+    for (let i = 0; i < resultNoLfo.left.length; i++) {
+      diffSum += Math.abs(
+        (resultLfo.left[i] ?? 0) - (resultNoLfo.left[i] ?? 0),
+      );
+    }
+    expect(diffSum).toBeGreaterThan(0.1);
+  });
+
+  it("applies LFO filter cutoff modulation", () => {
+    const notes: MIDINoteEvent[] = [makeNote(60, 100, 0, 0.5)];
+    const paramsNoLfo = { ...DEFAULT_SYNTH_PARAMS, lfo1Depth: 0 };
+    const resultNoLfo = renderMidiClipToAudio(notes, 0.5, SR, paramsNoLfo);
+
+    const paramsLfo = {
+      ...DEFAULT_SYNTH_PARAMS,
+      lfo1Depth: 0.8,
+      lfo1Rate: 4,
+    };
+    const resultLfo = renderMidiClipToAudio(
+      [makeNote(60, 100, 0, 0.5)],
+      0.5,
+      SR,
+      paramsLfo,
+      [{ sourceIdx: 0, destIdx: 3, amount: 0.7, bipolar: true }], // LFO1 -> filterCutoff
+    );
+
+    let diffSum = 0;
+    for (let i = 0; i < resultNoLfo.left.length; i++) {
+      diffSum += Math.abs(
+        (resultLfo.left[i] ?? 0) - (resultNoLfo.left[i] ?? 0),
+      );
+    }
+    expect(diffSum).toBeGreaterThan(0.1);
+  });
+
+  it("applies LFO amplitude modulation", () => {
+    const notes: MIDINoteEvent[] = [makeNote(60, 100, 0, 0.5)];
+    const paramsNoLfo = { ...DEFAULT_SYNTH_PARAMS, lfo1Depth: 0 };
+    const resultNoLfo = renderMidiClipToAudio(notes, 0.5, SR, paramsNoLfo);
+
+    const paramsLfo = {
+      ...DEFAULT_SYNTH_PARAMS,
+      lfo1Depth: 0.6,
+      lfo1Rate: 6,
+    };
+    const resultLfo = renderMidiClipToAudio(
+      [makeNote(60, 100, 0, 0.5)],
+      0.5,
+      SR,
+      paramsLfo,
+      [{ sourceIdx: 0, destIdx: 5, amount: 0.5, bipolar: true }], // LFO1 -> ampLevel
+    );
+
+    let diffSum = 0;
+    for (let i = 0; i < resultNoLfo.left.length; i++) {
+      diffSum += Math.abs(
+        (resultLfo.left[i] ?? 0) - (resultNoLfo.left[i] ?? 0),
+      );
+    }
+    expect(diffSum).toBeGreaterThan(0.1);
+  });
 });
