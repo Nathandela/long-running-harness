@@ -16,8 +16,12 @@ import {
 } from "@audio/drum-machine/drum-types";
 import styles from "./panels.module.css";
 
-// Module-level cache: preserves sequencer state across unmount/remount cycles
+// Module-level caches: preserve state across unmount/remount cycles
 const sequencerCache = new Map<string, StepSequencer>();
+const paramsCache = new Map<
+  string,
+  Record<DrumInstrumentId, DrumInstrumentParams>
+>();
 
 function getOrCreateSequencer(trackId: string): StepSequencer {
   let seq = sequencerCache.get(trackId);
@@ -28,6 +32,20 @@ function getOrCreateSequencer(trackId: string): StepSequencer {
     sequencerCache.set(trackId, seq);
   }
   return seq;
+}
+
+function getOrCreateParams(
+  trackId: string,
+): Record<DrumInstrumentId, DrumInstrumentParams> {
+  let cached = paramsCache.get(trackId);
+  if (!cached) {
+    cached = {} as Record<DrumInstrumentId, DrumInstrumentParams>;
+    for (const inst of DRUM_INSTRUMENTS) {
+      cached[inst.id] = { ...DEFAULT_INSTRUMENT_PARAMS[inst.id] };
+    }
+    paramsCache.set(trackId, cached);
+  }
+  return cached;
 }
 
 function useDrumMachineState(trackId: string): {
@@ -55,13 +73,7 @@ function useDrumMachineState(trackId: string): {
   const [liveStep, setLiveStep] = useState(0);
   const [params, setParams] = useState<
     Record<DrumInstrumentId, DrumInstrumentParams>
-  >(() => {
-    const initial = {} as Record<DrumInstrumentId, DrumInstrumentParams>;
-    for (const inst of DRUM_INSTRUMENTS) {
-      initial[inst.id] = { ...DEFAULT_INSTRUMENT_PARAMS[inst.id] };
-    }
-    return initial;
-  });
+  >(() => getOrCreateParams(trackId));
 
   // Sync pattern when trackId changes (sequencer instance changes)
   useEffect(() => {
@@ -125,12 +137,16 @@ function useDrumMachineState(trackId: string): {
       key: keyof DrumInstrumentParams,
       value: number,
     ) => {
-      setParams((prev) => ({
-        ...prev,
-        [instrumentId]: { ...prev[instrumentId], [key]: value },
-      }));
+      setParams((prev) => {
+        const next = {
+          ...prev,
+          [instrumentId]: { ...prev[instrumentId], [key]: value },
+        };
+        paramsCache.set(trackId, next);
+        return next;
+      });
     },
-    [],
+    [trackId],
   );
 
   const onSwitchPattern = useCallback(

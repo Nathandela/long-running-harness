@@ -182,4 +182,44 @@ describe("InstrumentPanel", () => {
     render(<InstrumentPanel />);
     expect(screen.getByTestId("drum-machine-panel")).toBeInTheDocument();
   });
+
+  it("preserves drum params when switching tracks and back", async () => {
+    const drumTrack = makeTrack({ id: "d3", type: "drum", color: "#FF6B35" });
+    const audioTrack = makeTrack({ id: "a3", type: "audio" });
+    useDawStore.setState({
+      tracks: [drumTrack, audioTrack],
+      selectedTrackIds: ["d3"],
+    });
+    const { InstrumentPanel } = await import("@ui/panels");
+    const { rerender } = render(<InstrumentPanel />);
+
+    // Find the "Vol" range input inside bass drum row
+    const bdRow = screen.getByTestId("instrument-row-bd");
+    const volSlider = bdRow.querySelector(
+      'input[aria-label="Vol"]',
+    ) as HTMLInputElement;
+    expect(volSlider).not.toBeNull();
+    expect(volSlider.value).toBe("0.9"); // DEFAULT_INSTRUMENT_PARAMS.bd.volume
+
+    // Change volume via the range input
+    fireEvent.change(volSlider, { target: { value: "0.42" } });
+    expect(volSlider.value).toBe("0.42");
+
+    // Switch to audio track (unmounts drum controller)
+    useDawStore.setState({ selectedTrackIds: ["a3"] });
+    rerender(<InstrumentPanel />);
+    expect(screen.getByText("AUDIO TRACK")).toBeInTheDocument();
+
+    // Switch back to drum track (remounts drum controller)
+    useDawStore.setState({ selectedTrackIds: ["d3"] });
+    rerender(<InstrumentPanel />);
+    expect(screen.getByTestId("drum-machine-panel")).toBeInTheDocument();
+
+    // Verify the param was preserved (not reset to default)
+    const bdRowAfter = screen.getByTestId("instrument-row-bd");
+    const volSliderAfter = bdRowAfter.querySelector(
+      'input[aria-label="Vol"]',
+    ) as HTMLInputElement;
+    expect(volSliderAfter.value).toBe("0.42");
+  });
 });
