@@ -1,14 +1,14 @@
-All checks pass, committed. 
+Committed. All lint, format, type-check, and tests pass (1562/1562).
+
+**Fixes applied:**
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| `useDawStore(s => s.tracks)` re-renders on every mutation | P1 | Scoped selector returning `boolean` primitive |
+| `showMediaPoolOverride` not reset on track change | P2 | Derived-state pattern: `mediaPoolOverrideTrackId === selectedTrackId` |
+| Test doesn't cover stale-override | P2 | New test: toggle override, switch tracks, verify reset |
+| Layout jitter (240px vs 200px) | P2 | Fixed `height: 240` on instrument/drum wrapper |
+| O(n*m) lookup with `.includes()` | P3 | Direct `t.id === id` comparison using `selectedTrackIds[0]` |
+| Inline style duplication | P3 | Extracted `panelBtnBase` shared style object |
 
 FIXES_APPLIED
-
-**Summary of fixes:**
-
-| Finding | Fix |
-|---------|-----|
-| **P1 - Multi-delete undo not atomic** | Added `BatchCommand` class to undo system. Multi-delete of clips/tracks now wraps all sub-commands in a single `BatchCommand` -- one Ctrl+Z undoes the entire batch. |
-| **P1/P2 - MIDI clip trim doesn't adjust noteEvents** | Left-edge trim now shifts note start times by the delta and filters notes that fall outside `[0, duration)`. Right-edge trim filters notes past the new duration. |
-| **P2 - Unsafe cast in onCommitToTimeline** | Replaced `Object.keys(step.triggers) as DrumInstrumentId[]` with iteration over `DRUM_INSTRUMENTS` -- type-safe, no cast needed. |
-| **P3 - Orphaned comment** | Removed the redundant `// mapPitchToDrum imported from...` comment. |
-
-All 1551 tests pass. Lint + Prettier clean.

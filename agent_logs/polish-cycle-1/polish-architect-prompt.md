@@ -64,15 +64,15 @@ POLISH_EPIC: <epic-id>
 ## Polish Report
 # Polish Report -- Cycle 1
 
-Generated: 2026-03-29T12:33:43Z
+Generated: 2026-03-29T14:35:23Z
 
 ## claude-sonnet
 
-Context loaded. What would you like to work on?
+It looks like your message came through as just `-`. Did you mean to send something else?
 
 ## claude-opus
 
-Ready. What can I help you with?
+Ready. What would you like to work on?
 
 ## gemini
 

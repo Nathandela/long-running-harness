@@ -1,9 +1,7 @@
-All three findings from the previous review are resolved:
+All three findings are addressed:
 
-- **P2 (multi-delete undo)**: `BatchCommand` added to undo system; clips and tracks are now deleted atomically, undone in reverse order with a single Ctrl+Z.
-- **P3 (redundant comment)**: Removed from `bounce-engine.ts`.
-- **Bonus fixes** (not in my review but correct): MIDI `trimClip` now shifts/filters `noteEvents` on left-edge trim, filters on right-edge trim; `Object.keys` cast replaced with `DRUM_INSTRUMENTS` iteration for type safety.
-
-`BatchCommand.undo()` correctly iterates in reverse. `execute()` re-captures `savedClip`/`savedTrack` on each call so redo is safe. MIDI trim note filtering logic is correct for the sequential newStart/newEnd case.
+- **P2 (stale override)**: Replaced `showMediaPoolOverride: boolean` with `mediaPoolOverrideTrackId: string | undefined` — the override is scoped to a track ID and auto-invalidates on track switch without a `useEffect`.
+- **P2 (missing test)**: New test "resets stale media-pool override when switching tracks" covers exactly the scenario: toggle on t1, switch to t2, switch to t3, assert instrument panel shown.
+- **P3 (selector efficiency)**: `selectedTrackId` and `isInstrumentOrDrum` now use scoped selectors returning primitives, avoiding full array subscriptions.
 
 REVIEW_APPROVED

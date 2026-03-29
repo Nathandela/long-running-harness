@@ -29,9 +29,9 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-7908340 Fix review findings: atomic batch undo, MIDI trim note adjustment, type safety
-6a95eca chore: auto-commit uncommitted changes from long-running-harness-vmpp
-47f6a54 Fix track management, MIDI clip editing, stuck notes, and 808 timeline commit
+7b4864d Fix review findings: scoped selector, override reset, layout jitter
+d88ddcf chore: auto-commit uncommitted changes from long-running-harness-sln3
+075a9da Fix bottom panel layout, close button visibility, and master volume bridge
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

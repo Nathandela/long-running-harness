@@ -1,6 +1,3 @@
-Types clean, tests pass. The changes are clean and correct:
-
-- **Track delete button now requires double-click** (`e.detail < 2` guard) -- addresses the P2 accidental deletion concern.
-- **Bridge ref moved from `InstrumentPanel` to `TrackAudioBridgeProvider`** -- drums now play regardless of which bottom panel is visible. This is a correctness improvement beyond the original review scope but is sound: the bridge lifecycle is tied to the provider, not the UI panel.
+Both DawShell and InstrumentPanel now use `selectedTrackIds[0]` consistently. The selector in InstrumentPanel returns the full track object (referential equality means it re-renders when any track field changes, not just selection), but that's fine -- InstrumentPanel already needs track data to render the correct sub-panel. Test covers the multi-select divergence regression.
 
 REVIEW_APPROVED

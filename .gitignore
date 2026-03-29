@@ -32,3 +32,9 @@ diff.txt
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Beads credential material
+.beads/
+
+# Claude Code local permissions (machine-specific)
+.claude/settings.local.json

@@ -8,39 +8,31 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
-**1. P2 — Multi-item delete pushes N separate undo entries**
-`use-arrangement-interactions.ts:420-440`: When N clips (or tracks) are selected and deleted, each `RemoveClipCommand`/`RemoveTrackCommand` is pushed individually. Restoring a 3-clip batch delete requires 3 undos. Since multi-select is fully supported (shift-click, rubber-band), this is a real usability regression. Fix: group into a composite/batch undo command, or wrap the loop with a single `BatchCommand`.
+**1. P2 — `showMediaPoolOverride` not reset on track change** (`DawShell.tsx:48`)
 
-**2. P3 — Redundant comment in bounce-engine.ts**
-`src/audio/bounce/bounce-engine.ts:387`: The comment `// mapPitchToDrum imported from @audio/drum-machine/drum-types` is noise — the import at the top of the file makes this self-evident. Remove it.
+`showMediaPoolOverride` is never reset when the selected track changes. If a user toggles to media pool view for an instrument track, switches to an audio track (side-by-side layout), then switches back to an instrument track, `showMediaPoolOverride` is still `true` — the instrument panel never appears. A `useEffect` keyed on `selectedTrack?.id` should reset it to `false`.
 
----
+**2. P2 — Test doesn't cover the stale-override scenario** (`DawShell-bottom-panel.test.tsx:208`)
 
-Everything else is clean: the `trimClip` MIDI branch is correct (no `sourceOffset`), the VirtualKeyboard noteOff-before-noteOn fix is correct, `DRUM_TO_PITCH`/`mapPitchToDrum` extraction is clean, delete-button hit-test coordinates are consistent with the renderer, and the `onKeyDown` empty `[]` dep array is correct since it reads fresh state via `getState()`.
+The test named "resets to instrument view when switching from audio to instrument track" passes only because `showMediaPoolOverride` was never toggled to `true` before the track switch. It doesn't verify actual reset behavior. A test should click the toggle button first, then switch tracks, and assert InstrumentPanel is shown.
+
+**3. P3 — `selectedTrack` uses `Array.find` over all tracks for each render** (`DawShell.tsx:53`)
+
+`tracks.find((t) => selectedTrackIds.includes(t.id))` does an O(n×m) scan on every render. With many tracks this is wasteful; prefer `tracks.find((t) => t.id === selectedTrackIds[0])` or a Map lookup if the selection is expected to be single or primary-track semantics apply here.
 </claude-sonnet-review>
 
 <claude-opus-review>
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 - Multi-delete undo is not atomic.** `onKeyDown` pushes one `RemoveClipCommand`/`RemoveTrackCommand` per selected item. Undoing requires N separate undo actions to restore N items. Users expect a single Ctrl+Z to undo a batch delete. Wrap multiple commands in a `CompositeCommand` (or equivalent batch undo) and push once.
+1. **P2 — `showMediaPoolOverride` not reset on track selection change.** When a user toggles to media pool view on an instrument track, then selects an audio track (side-by-side mode), then selects another instrument track, `showMediaPoolOverride` remains `true` — they see the media pool instead of the instrument panel. Add an effect to reset it:
+   ```tsx
+   useEffect(() => { setShowMediaPoolOverride(false); }, [isInstrumentOrDrum]);
+   ```
+   The existing test "resets to instrument view when switching from audio to instrument track" doesn't cover this because it never toggles `showMediaPoolOverride` before switching tracks.
 
-   `src/ui/arrangement/use-arrangement-interactions.ts:170-186`
+2. **P3 — `selectedTrack` picks first match with multi-select.** `tracks.find((t) => selectedTrackIds.includes(t.id))` silently takes the first match in `tracks` array order when multiple tracks are selected. If the user selects both an audio and an instrument track, the layout depends on which appears first in the tracks array. Consider using the *last* selected track ID (`selectedTrackIds.at(-1)`) for more predictable behavior, or document the current heuristic.
 
-2. **P2 - MIDI clip trim doesn't adjust `noteEvents`.** When trimming a MIDI clip's start, `startTime` advances but `noteEvents[].startTime` values remain relative to the original start. Notes that now fall outside `[0, duration)` should be removed or clipped, and if the left edge moves, note start times should shift so they remain correct relative to the new clip start. Currently notes will play at wrong times or outside the visible clip.
-
-   `src/state/store.ts:342-362`
-
-3. **P2 - No confirmation on track delete button click.** A single click on the tiny 16x16 delete button permanently removes a track and all its clips. Accidental clicks are easy, especially on a dense arrangement. Consider requiring a modifier key, double-click, or a brief confirm tooltip. The undo path exists, but accidental track deletion is disruptive.
-
-   `src/ui/arrangement/use-arrangement-interactions.ts:158-162`
-
-4. **P2 - `onCommitToTimeline` iterates trigger keys with unsafe cast.** `Object.keys(step.triggers) as DrumInstrumentId[]` is not type-safe if `triggers` ever contains unexpected keys. Additionally, the step type check `if (!step.triggers[instId]) continue` doesn't distinguish between `false` and `undefined` -- both are falsy, so this works, but the `as` cast is a maintenance risk.
-
-   `src/ui/panels.tsx:167`
-
-5. **P3 - Orphaned comment.** The line `// mapPitchToDrum imported from @audio/drum-machine/drum-types` restates the import above it and adds no value. Remove it.
-
-   `src/audio/bounce/bounce-engine.ts:364`
+3. **P3 — Inline style duplication.** The close button and toggle button share nearly identical absolute-positioned button styling (position, top, right, zIndex, cursor, fontFamily). Consider extracting a shared style object to avoid drift between the two.
 </claude-opus-review>
 
 <gemini-review>
@@ -102,12 +94,14 @@ MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
-
-1. **P1 - Multi-delete undo is not atomic.** `onKeyDown` in `use-arrangement-interactions.ts` pushes one `RemoveClipCommand` or `RemoveTrackCommand` per selected item. Undoing requires N separate undo actions to restore N items. Users expect a single Ctrl+Z to undo a batch delete. Wrap multiple commands in a `CompositeCommand` (or equivalent batch undo) and push once.
-2. **P1 - MIDI clip trim doesn't adjust `noteEvents`.** When trimming a MIDI clip's start (`newStart !== undefined` in `store.ts`), `startTime` advances but the `startTime` values of the notes in `noteEvents` remain relative to the original start. Notes that fall before the new start time should be removed or clipped, and all remaining note start times must shift so they maintain their correct absolute position relative to the new clip start.
-3. **P2 - Unsafe track deletion.** A single click on the tiny 16x16 delete button permanently removes a track and all its clips. Accidental clicks are easy, especially on a dense arrangement. Consider requiring a modifier key, double-click, or a brief confirm tooltip. The undo path exists, but accidental track deletion is disruptive.
-4. **P2 - `onCommitToTimeline` iterates trigger keys with unsafe cast.** `Object.keys(step.triggers) as DrumInstrumentId[]` is not type-safe if `triggers` ever contains unexpected keys. Additionally, the step type check `if (!step.triggers[instId]) continue` doesn't distinguish between `false` and `undefined` -- both are falsy, so this works, but the `as` cast is a maintenance risk.
-5. **P3 - Orphaned comment.** The line `// mapPitchToDrum imported from @audio/drum-machine/drum-types` in `src/audio/bounce/bounce-engine.ts` restates the import above it and adds no value. Remove it.
+1. **P1 - Severe Performance Regression in `DawShell.tsx`**: You are calling `const tracks = useDawStore((s) => s.tracks)`. Because this returns the entire array by reference, `DawShellInner` (which wraps almost all the DAW UI) will now re-render on *every* track mutation, such as moving a volume fader, panning, or soloing. You must use a scoped selector to only return the primitive boolean value so React bails out of re-renders:
+   ```typescript
+   const isInstrumentOrDrum = useDawStore((s) => {
+     const track = s.tracks.find((t) => s.selectedTrackIds.includes(t.id));
+     return track?.type === "instrument" || track?.type === "drum";
+   });
+   ```
+2. **P2 - Layout Jitter on Toggle**: The `InstrumentPanel` has a height of 240px, while the `MediaPoolPanel` has a height of 200px. When the user clicks the "Media Pool / Instrument" toggle button, the bottom panel's height shifts by 40px, causing the main `ArrangementPanel` to snap back and forth. You should add a fixed `height: 240` to the wrapper `div` in the `isInstrumentOrDrum` branch to prevent layout shifting.
 </gemini-review>
 
 

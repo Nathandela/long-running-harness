@@ -1,0 +1,35 @@
+All epics created and wired. Here's the summary:
+
+---
+
+## Polish Cycle 3 -- Architect Output
+
+All 4 reviewers (Claude Sonnet, Claude Opus, Gemini, Codex) crashed or timed out with zero output. I conducted a deep independent audit via three parallel exploration agents covering UI polish, audio/state quality, and error handling.
+
+### Created Epics (4 total)
+
+**1. QA Ground Truth** (P1, runs first)
+- `long-running-harness-3l94` -- Browser verification with screenshots, workflow testing, boundary inputs
+- Depends on: `mzn1` (parent meta-epic)
+
+**2. Session Safety** (P2)
+- `long-running-harness-x2z0` -- No `beforeunload` handler (zero unsaved-changes protection), no `visibilitychange` handling, ambiguous IDB degraded mode
+- Depends on: QA epic
+
+**3. Audio Precision & Long-Session Stability** (P2)
+- `long-running-harness-q7rt` -- 9 findings: fade ramp zero-duration clicks, BPM change race in drum scheduling, reverb dispose race, event listener accumulation, sample cache never evicted, epsilon-unsafe loop boundaries, drum synthesis sample rate mismatch, synth enum -1 to worklet, silent onAdvance failures
+- Depends on: QA epic
+
+**4. Control Discoverability** (P2)
+- `long-running-harness-rgpe` -- Tooltips on cryptic M/S/FX buttons, transport shortcut hints, fader/knob hover feedback, snap select titles, dB contrast fix, cursor:pointer gaps
+- Depends on: QA epic
+
+### Dependency Chain
+```
+mzn1 (parent) → 3l94 (QA) → x2z0, q7rt, rgpe (parallel fixes)
+```
+
+POLISH_EPIC: long-running-harness-3l94
+POLISH_EPIC: long-running-harness-x2z0
+POLISH_EPIC: long-running-harness-q7rt
+POLISH_EPIC: long-running-harness-rgpe

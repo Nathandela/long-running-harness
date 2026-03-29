@@ -56,9 +56,11 @@ MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
 REVIEW_CHANGES_REQUESTED
-
-1. **P1 - Multi-delete undo is not atomic.** `onKeyDown` in `use-arrangement-interactions.ts` pushes one `RemoveClipCommand` or `RemoveTrackCommand` per selected item. Undoing requires N separate undo actions to restore N items. Users expect a single Ctrl+Z to undo a batch delete. Wrap multiple commands in a `CompositeCommand` (or equivalent batch undo) and push once.
-2. **P1 - MIDI clip trim doesn't adjust `noteEvents`.** When trimming a MIDI clip's start (`newStart !== undefined` in `store.ts`), `startTime` advances but the `startTime` values of the notes in `noteEvents` remain relative to the original start. Notes that fall before the new start time should be removed or clipped, and all remaining note start times must shift so they maintain their correct absolute position relative to the new clip start.
-3. **P2 - Unsafe track deletion.** A single click on the tiny 16x16 delete button permanently removes a track and all its clips. Accidental clicks are easy, especially on a dense arrangement. Consider requiring a modifier key, double-click, or a brief confirm tooltip. The undo path exists, but accidental track deletion is disruptive.
-4. **P2 - `onCommitToTimeline` iterates trigger keys with unsafe cast.** `Object.keys(step.triggers) as DrumInstrumentId[]` is not type-safe if `triggers` ever contains unexpected keys. Additionally, the step type check `if (!step.triggers[instId]) continue` doesn't distinguish between `false` and `undefined` -- both are falsy, so this works, but the `as` cast is a maintenance risk.
-5. **P3 - Orphaned comment.** The line `// mapPitchToDrum imported from @audio/drum-machine/drum-types` in `src/audio/bounce/bounce-engine.ts` restates the import above it and adds no value. Remove it.
+1. **P1 - Severe Performance Regression in `DawShell.tsx`**: You are calling `const tracks = useDawStore((s) => s.tracks)`. Because this returns the entire array by reference, `DawShellInner` (which wraps almost all the DAW UI) will now re-render on *every* track mutation, such as moving a volume fader, panning, or soloing. You must use a scoped selector to only return the primitive boolean value so React bails out of re-renders:
+   ```typescript
+   const isInstrumentOrDrum = useDawStore((s) => {
+     const track = s.tracks.find((t) => s.selectedTrackIds.includes(t.id));
+     return track?.type === "instrument" || track?.type === "drum";
+   });
+   ```
+2. **P2 - Layout Jitter on Toggle**: The `InstrumentPanel` has a height of 240px, while the `MediaPoolPanel` has a height of 200px. When the user clicks the "Media Pool / Instrument" toggle button, the bottom panel's height shifts by 40px, causing the main `ArrangementPanel` to snap back and forth. You should add a fixed `height: 240` to the wrapper `div` in the `isInstrumentOrDrum` branch to prevent layout shifting.

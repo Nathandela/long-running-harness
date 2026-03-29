@@ -6,19 +6,25 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All three findings from the previous review are resolved:
+All three findings are addressed:
 
-- **P2 (multi-delete undo)**: `BatchCommand` added to undo system; clips and tracks are now deleted atomically, undone in reverse order with a single Ctrl+Z.
-- **P3 (redundant comment)**: Removed from `bounce-engine.ts`.
-- **Bonus fixes** (not in my review but correct): MIDI `trimClip` now shifts/filters `noteEvents` on left-edge trim, filters on right-edge trim; `Object.keys` cast replaced with `DRUM_INSTRUMENTS` iteration for type safety.
-
-`BatchCommand.undo()` correctly iterates in reverse. `execute()` re-captures `savedClip`/`savedTrack` on each call so redo is safe. MIDI trim note filtering logic is correct for the sequential newStart/newEnd case.
+- **P2 (stale override)**: Replaced `showMediaPoolOverride: boolean` with `mediaPoolOverrideTrackId: string | undefined` — the override is scoped to a track ID and auto-invalidates on track switch without a `useEffect`.
+- **P2 (missing test)**: New test "resets stale media-pool override when switching tracks" covers exactly the scenario: toggle on t1, switch to t2, switch to t3, assert instrument panel shown.
+- **P3 (selector efficiency)**: `selectedTrackId` and `isInstrumentOrDrum` now use scoped selectors returning primitives, avoiding full array subscriptions.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-Types clean, all 47 tests pass. Findings 1, 2, 4, 5 are properly resolved. Finding 3 (delete confirmation) was a P2 UX suggestion — acceptable to defer given undo support exists.
+All three findings are addressed:
+
+1. **P2 override reset** — Fixed elegantly by scoping the override to a specific track ID (`mediaPoolOverrideTrackId`). When the selected track changes, `showMediaPoolOverride` becomes `false` automatically without needing an effect. New test covers the exact scenario (toggle on instrument track, switch to audio, switch to different instrument track).
+
+2. **P3 multi-select ambiguity** — Now uses `selectedTrackIds[0]` consistently via scoped selectors instead of `.find()`, making the behavior explicit and deterministic.
+
+3. **P3 style duplication** — Extracted shared properties into `panelBtnBase` and spread into both buttons.
+
+Bonus: the instrument/drum panel now has `height: 240` matching the piano roll panel, fixing potential layout jitter.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -74,23 +80,23 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-
-1. **P2 - Unsafe track deletion:** The track delete button logic in `use-arrangement-interactions.ts` was not updated to prevent accidental clicks. A single click on the small button still permanently removes a track instantly. Please require a modifier key (e.g., `if (!e.shiftKey) return;`), check for a double-click (`if (e.detail !== 2) return;`), or add a confirmation tooltip before executing the `RemoveTrackCommand`.
+REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Drum playback still depends on `InstrumentPanel` being mounted, so opening the piano roll can silence all drum triggers** ([TrackAudioBridgeProvider.tsx:191](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:191), [sequencer-cache.ts:23](/Users/Nathan/Documents/Code/long-running-harness/src/audio/drum-machine/sequencer-cache.ts:23), [sequencer-cache.ts:33](/Users/Nathan/Documents/Code/long-running-harness/src/audio/drum-machine/sequencer-cache.ts:33), [panels.tsx:285](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:285), [panels.tsx:287](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:287), [DawShell.tsx:134](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.tsx:134))  
-  The scheduler is persistent now, but each sequencer callback still reads the module-level `bridgeRef`, and that ref is only set from `InstrumentPanel` and cleared on unmount. When the bottom panel switches to piano-roll, `InstrumentPanel` unmounts, `bridgeRef` becomes `null`, and the scheduler keeps running but emits no drum audio. Move the bridge wiring out of `InstrumentPanel` so drum triggering is independent of whether that UI panel is mounted.</codex-review>
+- **[P1] `DawShell` and `InstrumentPanel` now disagree on which track is “selected” under multi-select** ([DawShell.tsx:55](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.tsx:55), [DawShell.tsx:57](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.tsx:57), [panels.tsx:277](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:277), [panels.tsx:279](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:279))  
+  `DawShell` now keys its bottom-panel mode and media-pool override off `selectedTrackIds[0]`, while `InstrumentPanel` still derives `selectedTrack` as the first matching track in `tracks` order. Those are not equivalent once shift-selection preserves click order. In a mixed multi-select, `DawShell` can render the full-width instrument/drum layout for one track while `InstrumentPanel` renders a different track type, so the bottom-panel layout and toggle state can become inconsistent. Use one shared selected-track selector in both places, and add a regression test for multi-select where selection order differs from track order.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

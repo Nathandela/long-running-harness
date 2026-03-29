@@ -48,13 +48,13 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-
-1. **P2 - Unsafe track deletion:** The track delete button logic in `use-arrangement-interactions.ts` was not updated to prevent accidental clicks. A single click on the small button still permanently removes a track instantly. Please require a modifier key (e.g., `if (!e.shiftKey) return;`), check for a double-click (`if (e.detail !== 2) return;`), or add a confirmation tooltip before executing the `RemoveTrackCommand`.
+REVIEW_APPROVED

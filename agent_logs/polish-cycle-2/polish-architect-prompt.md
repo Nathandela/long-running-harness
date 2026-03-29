@@ -64,15 +64,15 @@ POLISH_EPIC: <epic-id>
 ## Polish Report
 # Polish Report -- Cycle 2
 
-Generated: 2026-03-29T12:42:19Z
+Generated: 2026-03-29T14:44:52Z
 
 ## claude-sonnet
 
-Could you clarify what you'd like to do?
+What can I help you with?
 
 ## claude-opus
 
-Ready. What do you need?
+Ready. What would you like to work on?
 
 ## gemini
 

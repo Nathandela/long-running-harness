@@ -1,1 +1,1 @@
-Ready. What can I help you with?
+Ready. What would you like to work on?

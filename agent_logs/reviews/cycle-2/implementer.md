@@ -1,8 +1,11 @@
-All 1551 tests pass, lint clean (only pre-existing warnings), types clean.
-
-**Fixes applied:**
-
-- **P1 (Codex)**: Moved `setBridgeRef` wiring from `InstrumentPanel` (which unmounts when piano-roll opens) to `TrackAudioBridgeProvider` (always mounted). Drum playback now persists regardless of which bottom panel is visible.
-- **P2 (Gemini)**: Track delete button now requires double-click (`e.detail < 2` guard), preventing accidental single-click deletions. Undo still works as a safety net.
+Commit succeeded (lint + format checks passed).
 
 FIXES_APPLIED
+
+**Summary of changes:**
+
+- **P1 fix** (`panels.tsx:276`): Replaced `tracks.find(t => selectedTrackIds.includes(t.id))` with a scoped selector using `selectedTrackIds[0]`. This ensures `InstrumentPanel` resolves the same track as `DawShell` under multi-select, where selection order can differ from track-array order.
+
+- **Regression test** (`DawShell-bottom-panel.test.tsx`): Added "multi-select uses selection order, not track array order" test — sets up tracks in `[audio, instrument, drum]` order but selects `[drum, instrument]`, verifying that both `DawShell` and `InstrumentPanel` agree on the drum track being primary.
+
+All 480 UI tests pass. TypeScript compiles cleanly.
