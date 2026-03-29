@@ -4,6 +4,7 @@ import { useDawStore } from "@state/index";
 import type { TrackType } from "@state/track/types";
 import { BpmInput } from "./BpmInput";
 import { CursorDisplay } from "./CursorDisplay";
+import { BounceDialog } from "@ui/session/BounceDialog";
 import styles from "./TransportBar.module.css";
 
 const TRACK_PRESETS: {
@@ -37,6 +38,7 @@ export function TransportBar(): React.JSX.Element {
   const setSelectedTrackIds = useDawStore((s) => s.setSelectedTrackIds);
   const [metronomeOn, setMetronomeOn] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [bounceOpen, setBounceOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLoopToggle = useCallback((): void => {
@@ -217,7 +219,25 @@ export function TransportBar(): React.JSX.Element {
             MET
           </button>
         </div>
+
+        <button
+          type="button"
+          className={styles["transportBtn"]}
+          aria-label="Export"
+          onClick={() => {
+            setBounceOpen(true);
+          }}
+        >
+          EXP
+        </button>
       </div>
+
+      <BounceDialog
+        open={bounceOpen}
+        onClose={() => {
+          setBounceOpen(false);
+        }}
+      />
 
       <span
         className={styles["shortcutHint"]}

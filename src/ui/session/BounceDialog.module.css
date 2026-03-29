@@ -1,0 +1,76 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 340px;
+}
+
+.rangeGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rangeLabel {
+  font-size: var(--text-xs);
+  color: var(--color-gray-300);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.radioRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-white);
+  cursor: pointer;
+}
+
+.radioRow input[type="radio"] {
+  accent-color: var(--color-blue);
+}
+
+.formatInfo {
+  font-size: var(--text-sm);
+  color: var(--color-gray-300);
+}
+
+.progressSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progressBar {
+  width: 100%;
+  height: 6px;
+  appearance: none;
+  background: var(--color-gray-700);
+  border: none;
+}
+
+.progressBar::-webkit-progress-bar {
+  background: var(--color-gray-700);
+}
+
+.progressBar::-webkit-progress-value {
+  background: var(--color-blue);
+  transition: width 100ms linear;
+}
+
+.progressBar::-moz-progress-bar {
+  background: var(--color-blue);
+}
+
+.progressLabel {
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  text-transform: uppercase;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}

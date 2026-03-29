@@ -3,6 +3,8 @@
  * No DOM access -- only draws to the CanvasRenderingContext2D passed in.
  */
 import type { TrackModel, ClipModel } from "@state/track/types";
+import type { AutomationLane } from "@audio/automation/automation-types";
+import { evaluateCurve } from "@audio/automation/automation-curve";
 import { RULER_HEIGHT, CLIP_PADDING } from "./constants";
 
 // -- Design token constants (canvas cannot read CSS vars) ---------------------
@@ -43,6 +45,7 @@ export type RenderContext = {
   selectedClipIds: readonly string[];
   cursorSeconds: number;
   bpm: number;
+  automationLanes?: Record<string, readonly AutomationLane[]>;
 };
 
 // -- Helpers ------------------------------------------------------------------
@@ -267,6 +270,82 @@ function drawClips(rc: RenderContext): void {
   }
 }
 
+const AUTOMATION_LINE_COLOR = "#00ccff";
+const AUTOMATION_POINT_RADIUS = 3;
+const AUTOMATION_SAMPLES_PER_PX = 4; // evaluate every 4 pixels for smooth curves
+
+function drawAutomationLanes(rc: RenderContext): void {
+  const { ctx, view, tracks, automationLanes } = rc;
+  if (!automationLanes) return;
+
+  for (let i = 0; i < tracks.length; i++) {
+    const track = tracks[i];
+    if (track === undefined) continue;
+    const lanes = automationLanes[track.id];
+    if (!lanes || lanes.length === 0) continue;
+
+    const y = trackY(i, view);
+    const laneBottom = y + view.trackHeight;
+    if (laneBottom < RULER_HEIGHT || y > rc.height) continue;
+
+    for (const lane of lanes) {
+      if (lane.points.length === 0) continue;
+
+      ctx.save();
+
+      // Clip to track lane area (past the header)
+      ctx.beginPath();
+      ctx.rect(
+        view.headerWidth,
+        y + CLIP_PADDING,
+        rc.width - view.headerWidth,
+        view.trackHeight - CLIP_PADDING * 2,
+      );
+      ctx.clip();
+
+      // Draw the curve as connected line segments
+      const startSec = view.scrollX;
+      const endSec =
+        view.scrollX + (rc.width - view.headerWidth) / view.pixelsPerSecond;
+      const step = AUTOMATION_SAMPLES_PER_PX / view.pixelsPerSecond;
+      const laneH = view.trackHeight - CLIP_PADDING * 2;
+      const laneTop = y + CLIP_PADDING;
+
+      ctx.strokeStyle = AUTOMATION_LINE_COLOR;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+
+      let first = true;
+      for (let t = startSec; t <= endSec; t += step) {
+        const val = evaluateCurve(lane.points, t);
+        const px = secondsToX(t, view);
+        const py = laneTop + laneH * (1 - val); // 1.0 at top, 0.0 at bottom
+        if (first) {
+          ctx.moveTo(px, py);
+          first = false;
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.stroke();
+
+      // Draw point handles
+      ctx.fillStyle = AUTOMATION_LINE_COLOR;
+      for (const pt of lane.points) {
+        const px = secondsToX(pt.time, view);
+        const py = laneTop + laneH * (1 - pt.value);
+        if (px < view.headerWidth || px > rc.width) continue;
+
+        ctx.beginPath();
+        ctx.arc(px, py, AUTOMATION_POINT_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+}
+
 function drawPlayhead(rc: RenderContext): void {
   const { ctx, height, view, cursorSeconds } = rc;
   const x = secondsToX(cursorSeconds, view);
@@ -290,5 +369,6 @@ export function renderArrangement(rc: RenderContext): void {
   drawTrackLanes(rc);
   drawTrackHeaders(rc);
   drawClips(rc);
+  drawAutomationLanes(rc);
   drawPlayhead(rc);
 }

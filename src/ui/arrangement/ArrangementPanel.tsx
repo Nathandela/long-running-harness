@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
+import { useAutomationStore } from "@state/automation";
 import type { AudioClipModel } from "@state/track/types";
 import { AddClipCommand } from "@state/track/track-commands";
 import { sharedUndoManager } from "@state/undo";
@@ -127,6 +128,7 @@ export function ArrangementPanel({
   const cursorSeconds = useDawStore((s) => s.cursorSeconds);
   const bpm = useDawStore((s) => s.bpm);
   const transportState = useDawStore((s) => s.transportState);
+  const automationLanes = useAutomationStore((s) => s.lanes);
 
   // Render loop
   const render = useCallback((): void => {
@@ -146,8 +148,17 @@ export function ArrangementPanel({
       selectedClipIds,
       cursorSeconds,
       bpm,
+      automationLanes,
     });
-  }, [view, tracks, clips, selectedClipIds, cursorSeconds, bpm]);
+  }, [
+    view,
+    tracks,
+    clips,
+    selectedClipIds,
+    cursorSeconds,
+    bpm,
+    automationLanes,
+  ]);
 
   // Schedule re-render when state changes or during playback
   useEffect(() => {
