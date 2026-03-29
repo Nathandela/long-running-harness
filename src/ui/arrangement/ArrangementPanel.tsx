@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
+import type { AudioClipModel } from "@state/track/types";
 import {
   renderArrangement,
   type ArrangementViewState,
 } from "./arrangement-renderer";
 import { useArrangementInteractions } from "./use-arrangement-interactions";
-import type { GridSnap } from "./hit-test";
+import { xToSeconds, snapToGrid, type GridSnap } from "./hit-test";
+import { RULER_HEIGHT } from "./constants";
 import styles from "./ArrangementPanel.module.css";
 
 const DEFAULT_VIEW: ArrangementViewState = {
@@ -20,12 +22,82 @@ const MIN_PPS = 10;
 const MAX_PPS = 500;
 const ZOOM_FACTOR = 1.1;
 
-export function ArrangementPanel(): React.JSX.Element {
+type ArrangementPanelProps = {
+  onOpenPianoRoll?: (clipId: string) => void;
+};
+
+export function ArrangementPanel({
+  onOpenPianoRoll,
+}: ArrangementPanelProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
   const [view, setView] = useState(DEFAULT_VIEW);
   const [gridSnap] = useState<GridSnap>("1/4");
-  const interactions = useArrangementInteractions(view, gridSnap);
+  const interactions = useArrangementInteractions(
+    view,
+    gridSnap,
+    onOpenPianoRoll,
+  );
+  const bpmForDrop = useDawStore((s) => s.bpm);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLCanvasElement>): void => {
+      if (e.dataTransfer.types.includes("application/x-media-pool-source")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+      }
+    },
+    [],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLCanvasElement>): void => {
+      const raw = e.dataTransfer.getData("application/x-media-pool-source");
+      if (!raw) return;
+      e.preventDefault();
+
+      let data: { sourceId: string; name: string; durationSeconds: number };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const state = useDawStore.getState();
+      const trackIndex = Math.floor(
+        (y - RULER_HEIGHT + view.scrollY) / view.trackHeight,
+      );
+      const track = state.tracks[trackIndex];
+      if (track === undefined || track.type !== "audio") return;
+
+      const dropTime = snapToGrid(
+        Math.max(0, xToSeconds(x, view)),
+        bpmForDrop,
+        gridSnap,
+      );
+
+      const clip: AudioClipModel = {
+        type: "audio",
+        id: "clip-" + crypto.randomUUID(),
+        trackId: track.id,
+        sourceId: data.sourceId,
+        startTime: dropTime,
+        sourceOffset: 0,
+        duration: data.durationSeconds,
+        gain: 1,
+        fadeIn: 0,
+        fadeOut: 0,
+        name: data.name,
+      };
+
+      state.addClip(clip);
+    },
+    [view, gridSnap, bpmForDrop],
+  );
 
   const tracks = useDawStore((s) => s.tracks);
   const clips = useDawStore((s) => s.clips);
@@ -153,6 +225,8 @@ export function ArrangementPanel(): React.JSX.Element {
         onPointerMove={interactions.onPointerMove}
         onPointerUp={interactions.onPointerUp}
         onDoubleClick={interactions.onDoubleClick}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       />
     </section>
   );

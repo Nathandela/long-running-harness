@@ -60,8 +60,25 @@ export function MediaPoolItem({
   peaks,
   onRemove,
 }: MediaPoolItemProps): React.JSX.Element {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>): void => {
+    e.dataTransfer.setData(
+      "application/x-media-pool-source",
+      JSON.stringify({
+        sourceId: source.id,
+        name: source.name,
+        durationSeconds: source.durationSeconds,
+      }),
+    );
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   return (
-    <div style={itemStyle} data-testid={`media-item-${source.id}`}>
+    <div
+      style={itemStyle}
+      data-testid={`media-item-${source.id}`}
+      draggable
+      onDragStart={handleDragStart}
+    >
       {peaks !== undefined ? (
         <WaveformPreview peaks={peaks} width={48} height={20} />
       ) : (

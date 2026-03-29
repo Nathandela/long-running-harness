@@ -5,8 +5,8 @@
  */
 import { useCallback, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
-import type { ClipModel } from "@state/track/types";
-import { isAudioClip } from "@state/track/types";
+import type { ClipModel, MidiClipModel } from "@state/track/types";
+import { isAudioClip, isMidiClip } from "@state/track/types";
 import type { UndoCommand } from "@state/undo";
 import { sharedUndoManager } from "@state/undo";
 import { SplitClipCommand } from "@state/track/track-commands";
@@ -58,6 +58,7 @@ export type ArrangementInteractions = {
 export function useArrangementInteractions(
   view: ArrangementViewState,
   gridSnap: GridSnap,
+  onOpenPianoRoll?: (clipId: string) => void,
 ): ArrangementInteractions {
   const dragRef = useRef<DragState>({ kind: "idle" });
   const [cursor, setCursor] = useState("default");
@@ -354,13 +355,59 @@ export function useArrangementInteractions(
       const hit = hitTest(x, y, view, state.tracks, state.clips);
 
       if (hit.kind === "clip-body") {
+        const clip = state.clips[hit.clipId];
+        if (clip !== undefined && isMidiClip(clip)) {
+          onOpenPianoRoll?.(hit.clipId);
+          return;
+        }
         const timeSec = xToSeconds(x, view);
         const cmd = new SplitClipCommand(hit.clipId, timeSec);
         cmd.execute();
         sharedUndoManager.push(cmd);
+        return;
+      }
+
+      // Double-click on empty lane of instrument/drum track creates a MIDI clip
+      if (hit.kind === "empty-lane") {
+        const track = state.tracks.find((t) => t.id === hit.trackId);
+        if (
+          track !== undefined &&
+          (track.type === "instrument" || track.type === "drum")
+        ) {
+          const timeSec = snapToGrid(
+            Math.max(0, xToSeconds(x, view)),
+            state.bpm,
+            gridSnap,
+          );
+          const barsInSeconds = (60 / state.bpm) * 4; // 1 bar = 4 beats
+          const clip: MidiClipModel = {
+            type: "midi",
+            id: "clip-" + crypto.randomUUID(),
+            trackId: track.id,
+            startTime: timeSec,
+            duration: barsInSeconds,
+            noteEvents: [],
+            name: "MIDI Clip",
+          };
+          const clipId = clip.id;
+          const cmd: UndoCommand = {
+            type: "create-midi-clip",
+            execute() {
+              useDawStore.getState().addMidiClip(clip);
+            },
+            undo() {
+              useDawStore.getState().removeMidiClip(clipId);
+            },
+            serialize() {
+              return { clip };
+            },
+          };
+          cmd.execute();
+          sharedUndoManager.push(cmd);
+        }
       }
     },
-    [view, getCanvasPos],
+    [view, gridSnap, getCanvasPos, onOpenPianoRoll],
   );
 
   return {

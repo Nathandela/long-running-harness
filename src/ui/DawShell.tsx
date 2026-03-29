@@ -4,6 +4,7 @@ import { ArrangementPanel } from "@ui/arrangement";
 import { InstrumentPanel } from "./panels";
 import { MixerPanel } from "./mixer";
 import { MediaPoolPanel } from "./media-pool/MediaPoolPanel";
+import { PianoRollEditor } from "@ui/piano-roll/PianoRollEditor";
 import { CommandRegistry } from "./keyboard/command-registry";
 import { ShortcutMap } from "./keyboard/shortcut-map";
 import { useKeyboardShortcuts } from "./keyboard/useKeyboardShortcuts";
@@ -23,6 +24,8 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { KeyboardShortcutsPanel } from "./keyboard/KeyboardShortcutsPanel";
 import { ActionToast } from "./primitives/ActionToast";
 
+export type BottomPanelMode = "default" | "piano-roll";
+
 function DawShellInner({
   sessionStorage,
   idbWarning,
@@ -38,6 +41,18 @@ function DawShellInner({
   const [dismissed, setDismissed] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [bottomPanel, setBottomPanel] = useState<BottomPanelMode>("default");
+  const [editingClipId, setEditingClipId] = useState<string | null>(null);
+
+  const openPianoRoll = useCallback((clipId: string) => {
+    setEditingClipId(clipId);
+    setBottomPanel("piano-roll");
+  }, []);
+
+  const closePianoRoll = useCallback(() => {
+    setEditingClipId(null);
+    setBottomPanel("default");
+  }, []);
   const toastCountRef = useRef(0);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
@@ -104,16 +119,44 @@ function DawShellInner({
             overflow: "hidden",
           }}
         >
-          <ArrangementPanel />
+          <ArrangementPanel onOpenPianoRoll={openPianoRoll} />
           <MixerPanel />
-          <div style={{ display: "flex", overflow: "hidden" }}>
-            <div style={{ flex: 1 }}>
-              <InstrumentPanel />
+          {bottomPanel === "piano-roll" ? (
+            <div
+              style={{ position: "relative", overflow: "hidden", height: 240 }}
+            >
+              <button
+                type="button"
+                data-testid="close-piano-roll"
+                onClick={closePianoRoll}
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 8,
+                  zIndex: 10,
+                  background: "none",
+                  border: "var(--border)",
+                  color: "var(--color-gray-300)",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "var(--text-xs)",
+                  padding: "2px 8px",
+                }}
+              >
+                Close
+              </button>
+              <PianoRollEditor clipId={editingClipId} />
             </div>
-            <div style={{ flex: 1 }}>
-              <MediaPoolPanel pool={pool} />
+          ) : (
+            <div style={{ display: "flex", overflow: "hidden" }}>
+              <div style={{ flex: 1 }}>
+                <InstrumentPanel />
+              </div>
+              <div style={{ flex: 1 }}>
+                <MediaPoolPanel pool={pool} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </ErrorBoundary>
       <KeyboardShortcutsPanel
