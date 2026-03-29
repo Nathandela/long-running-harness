@@ -1,10 +1,11 @@
-All clean. The pre-existing warnings are from other files, not from this change.
+All hooks pass, commit successful.
+
+FIXES_APPLIED
 
 **Summary of fixes:**
 
-- **Codex P2 (cache leak on same-size track replacement)**: Removed the `trackIds.size < prevTrackIds.size` guard in `src/ui/panels.tsx:30`. The subscription now diffs track IDs on every update, purging cache entries for any removed track regardless of array size changes.
-- **Regression test**: Added `src/ui/panels-cache.test.ts` with two cases — same-size full replacement and partial replacement — confirming stale entries are purged correctly.
+1. **[P1] Duplicate point on click** (`AutomationLaneEditor.tsx:97`): Set `didDragRef.current = true` in `handlePointerDown` when a hit is detected, not only on pointer move. This prevents `handleClick` from inserting a new point when you click an existing point without dragging. Added regression test with mocked `getBoundingClientRect`.
 
-All 1490 tests pass. Type check clean. Lint clean.
+2. **[P1] Tests red - missing analyser mock** (`App.test.tsx:80`): Added `getFloatTimeDomainData`, `getByteTimeDomainData`, and `getByteFrequencyData` to the mock `createAnalyser()` return value, fixing the `TypeError` that was breaking App-level tests.
 
-FIXES_APPLIED
+3. **Guard `setPointerCapture`** (`AutomationLaneEditor.tsx:100`): Added runtime check before calling `setPointerCapture` since jsdom doesn't implement it, preventing unhandled exceptions in tests.

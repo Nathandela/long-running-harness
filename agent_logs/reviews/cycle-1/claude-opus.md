@@ -1,11 +1,53 @@
+Now I have a complete picture. Here's the review.
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P2 - Drop handler missing undo support** (`ArrangementPanel.tsx:53-97`): `handleDrop` calls `state.addClip(clip)` directly without creating an `UndoCommand` and pushing it to `sharedUndoManager`. The MIDI clip creation on double-click correctly uses undo. Users who drop an audio file onto the arrangement cannot Ctrl+Z to remove it. Wrap in an undo command like the MIDI clip creation does.
+---
 
-2. **P2 - Drop handler has no field validation on parsed JSON** (`ArrangementPanel.tsx:59-64`): The `JSON.parse` result is cast with `as typeof data` but no runtime check verifies the fields exist or have correct types. If the drag data is malformed (e.g. `durationSeconds` is a string or missing), the clip gets created with `NaN` or `undefined` duration. Add a guard like `if (typeof data.sourceId !== 'string' || typeof data.durationSeconds !== 'number') return;`.
+**1. P1 -- BounceDialog: cancel does not prevent empty file download**
 
-3. **P2 - Drop handler allows negative trackIndex** (`ArrangementPanel.tsx:71-74`): When `y - RULER_HEIGHT + view.scrollY` is negative (dragging above the first track), `Math.floor` produces a negative index. `state.tracks[-1]` evaluates to `undefined` in JS (safe, bails out), but the intent would be clearer with an explicit `if (trackIndex < 0) return;` guard, matching defensive patterns elsewhere.
+`BounceDialog.tsx:62-83` -- When the user cancels during a bounce, `handleCancel` sets `cancelFlag` via `engine.cancel()` and closes the dialog. But the async `handleBounce` generator loop continues running. When the engine eventually checks `isCancelled()` it returns `emptyResult` (with `blob: new Blob()`). Since `result.done === true`, the code falls through to lines 75-80 and triggers a browser download of an empty `bounce.wav`. It also calls `onClose()` a second time.
 
-4. **P3 - `editingClipId` can go stale if clip is deleted** (`DawShell.tsx:42`): If a user opens the piano roll for a clip, then undoes the clip creation, `editingClipId` still holds the deleted clip's ID. `PianoRollEditor` handles null clipId but not a stale/nonexistent one -- it would render an empty grid for a clip that no longer exists. Either subscribe to store changes to detect clip deletion, or have `PianoRollEditor` treat a missing clip the same as `null`.
+Fix: Check for cancellation (or check blob size > 0) before triggering the download:
+```ts
+const bounceResult = result.value;
+if (bounceResult.blob.size === 0) {
+  setBounceState({ status: "idle" });
+  return;
+}
+```
 
-5. **P3 - DawShell piano-roll test doesn't actually test the open-then-close flow** (`DawShell-piano-roll.test.tsx:86-123`): The test named "shows piano roll when MIDI clip is double-clicked and close returns to default" never actually opens the piano roll. The comment says "We can't easily simulate canvas double-click" and only asserts the close button is absent. This test name is misleading -- rename it to match what it actually verifies, or use `act` to call `openPianoRoll` via store state/callback.
+---
+
+**2. P1 -- AutomationLaneEditor: clicking near existing point adds a duplicate AND starts drag**
+
+`AutomationLaneEditor.tsx:61-98` -- Both `onClick` (adds a new point) and `onPointerDown` (starts dragging) fire when the user clicks near an existing automation point. `e.preventDefault()` on `pointerdown` does not prevent the `click` event. This creates a duplicate point at the click position while simultaneously starting a drag on the existing point.
+
+Fix: Track whether a drag was initiated in `onPointerDown` and skip `onClick` when that flag is set, or use a `pointerup` check to decide whether to add a point (e.g., only add on click if no drag occurred).
+
+---
+
+**3. P2 -- arrangement-renderer.test.ts: `ClipModel` used but never imported**
+
+`arrangement-renderer.test.ts:228,253,268,319,369` -- The type `ClipModel` is used in 5 `Record<string, ClipModel>` annotations but only `AudioClipModel` is imported (line 2). This passes vitest (which strips types) but will fail `tsc`/`pnpm check`.
+
+Fix: Add `ClipModel` to the import on line 2:
+```ts
+import type { TrackModel, AudioClipModel, ClipModel } from "@state/track/types";
+```
+
+---
+
+**4. P3 -- AutomationLaneEditor: unused `trackTop` prop**
+
+`AutomationLaneEditor.tsx:9,17` -- `trackTop` is declared in `AutomationLaneEditorProps` but never destructured or used in the component body.
+
+Fix: Remove from the props type, or destructure it if it's needed for layout positioning.
+
+---
+
+**5. P3 -- BounceDialog: `createBounceEngine()` called on every render**
+
+`BounceDialog.tsx:28` -- `useRef(createBounceEngine())` evaluates the factory on every render; only the mount value is kept. The engine is also overwritten on every bounce click (line 47-48), so the initial one is always wasted.
+
+Fix: Use lazy initialization: `useRef<ReturnType<typeof createBounceEngine> | null>(null)` and assign in `handleBounce` only.

@@ -1,10 +1,10 @@
-All four findings from my previous review are addressed:
+All five findings from the prior review are addressed in commit `141c726`:
 
-- **P1 (undo for drop)**: `handleDrop` now uses `AddClipCommand` + `sharedUndoManager.push`.
-- **P2 (drag cursor over non-audio tracks)**: `handleDragOver` now resolves the track from y-position and only sets `dropEffect = "copy"` on audio tracks.
-- **P2 (misleading test)**: Test rewritten to capture `onOpenPianoRoll` callback via mock, trigger it, assert piano roll opens, click close, assert default returns.
-- **P3 (inline undo / redundant addMidiClip)**: Inline command replaced with `new AddClipCommand(clip)` throughout.
-
-The stale `editingClipId` fix (panel falls back to default when clip is deleted via undo) was a bonus finding addressed correctly via the `clipStillExists` selector.
+- **P1**: `didDragRef` correctly gates `handleClick` — set on first `pointerMove`, consumed and cleared in `handleClick`.
+- **P2 (silent error)**: Error state added to `BounceState` union, error message surfaced in the UI.
+- **P2 (URL revoke race)**: Anchor appended to DOM before `.click()`, removed after, revoke deferred via `setTimeout(0)`.
+- **P2 (test import)**: `ClipModel` import added to `arrangement-renderer.test.ts`.
+- **P3 (wasted engine)**: Ref changed to nullable, lazy init in `handleBounce`, safe optional-chain in `handleCancel`.
+- **P3 (unused prop)**: `trackTop` removed from type and tests.
 
 REVIEW_APPROVED

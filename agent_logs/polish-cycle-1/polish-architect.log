@@ -2,36 +2,32 @@ All 5 epics created and wired. Here's the summary:
 
 ## Polish Cycle 1 -- Epic Plan
 
-Since all 4 reviewers crashed/timed out, I conducted an independent deep audit of the BRUTALWAV codebase. Found **25+ polish issues** across resilience, audio feedback, accessibility, and visual craft.
-
-### Epics Created
-
-| # | Priority | Epic ID | Title |
-|---|----------|---------|-------|
-| 1 | **P1** | `ba9` | QA verification via browser automation |
-| 2 | P2 | `3tn` | Resilience and data safety |
-| 3 | P2 | `wzc` | Live audio metering and bounce fidelity |
-| 4 | P2 | `wjm` | Accessibility and interaction quality |
-| 5 | P2 | `kza` | Visual craft and design system completeness |
+Since all 4 audit reviewers crashed (producing zero findings), I conducted my own thorough assessment using 4 parallel audit agents covering UI polish, audio engine, design system, and test coverage.
 
 ### Dependency Graph
+
 ```
-ba9 (QA) ──blocks──> 3tn (Resilience)
-          ──blocks──> wzc (Metering/Bounce)  
-          ──blocks──> wjm (Accessibility)
-          ──blocks──> kza (Visual Craft)
+long-running-harness-mzn1 (Meta-Epic: UI Wiring Fix)
+  └── long-running-harness-o084 [P1] QA Verification (browser evidence)
+        ├── long-running-harness-k5z3 [P2] Accessibility & Motion Safety
+        ├── long-running-harness-vzur [P2] Design System Consistency
+        ├── long-running-harness-oeml [P2] Interaction Quality & Micro-feedback
+        └── long-running-harness-t6m2 [P2] Audio Engine Robustness
 ```
 
-### Key Discoveries Beyond What Reviewers Would Have Caught
-- **Mixer meters are completely dead** (hardcoded 0 despite full AnalyserNode infrastructure existing)
-- **Session data lost on every refresh** (in-memory storage with a "temporary" comment)
-- **No ErrorBoundary anywhere** -- single component error = white screen
-- **Touch input completely unsupported** on Fader/RotaryKnob (mouse-only)
-- **Color contrast failures** on gray-500 labels against dark backgrounds
-- **Missing keyboard shortcuts legend** -- users can't discover shortcuts
+### Key Findings That Drove the Epics
 
-POLISH_EPIC: long-running-harness-ba9
-POLISH_EPIC: long-running-harness-3tn
-POLISH_EPIC: long-running-harness-wzc
-POLISH_EPIC: long-running-harness-wjm
-POLISH_EPIC: long-running-harness-kza
+- **8 CSS files** with animations but no `prefers-reduced-motion` support
+- **~30% of CSS values** bypass the token system with hardcoded pixels/colors
+- **Missing loading states** in SessionBrowser, MixerPanel, RecoveryDialog
+- **Silent audio failures** in synth processor (unsafe output array access)
+- **Memory leaks** in decode pipeline (timeout race), effects bridge (subscription leak)
+- **Negative modulo bug** in step sequencer (`-1 % 16 = -1` in JS)
+- **No visual feedback** for playing notes on VirtualKeyboard, no drag zone indicators
+- **Console.error calls** leaking to production users from scheduler
+
+POLISH_EPIC: long-running-harness-o084
+POLISH_EPIC: long-running-harness-k5z3
+POLISH_EPIC: long-running-harness-vzur
+POLISH_EPIC: long-running-harness-oeml
+POLISH_EPIC: long-running-harness-t6m2

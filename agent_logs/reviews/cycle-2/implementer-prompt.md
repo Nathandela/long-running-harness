@@ -6,19 +6,28 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All three findings from my previous review are addressed:
+All five findings from the prior review are addressed in commit `141c726`:
 
-1. **Orphaned `.mixer` CSS class** — removed.
-2. **Missing `afterEach` cleanup** — `afterEach(() => bridge.dispose())` added.
-3. **Initial sync path untested** — new `"syncs pre-existing effects on creation"` test added.
-
-The fix commit also addressed additional issues from other reviewers (ReDoS, cache leaks, deleted-track guard, `mockGainNode.connect` correctness). The deleted-track guard in `MixerPanel.tsx` (`tracks.some((t) => t.id === selectedFxTrackId)`) correctly handles the edge case where a track is deleted while its FX rack is open.
+- **P1**: `didDragRef` correctly gates `handleClick` — set on first `pointerMove`, consumed and cleared in `handleClick`.
+- **P2 (silent error)**: Error state added to `BounceState` union, error message surfaced in the UI.
+- **P2 (URL revoke race)**: Anchor appended to DOM before `.click()`, removed after, revoke deferred via `setTimeout(0)`.
+- **P2 (test import)**: `ClipModel` import added to `arrangement-renderer.test.ts`.
+- **P3 (wasted engine)**: Ref changed to nullable, lazy init in `handleBounce`, safe optional-chain in `handleCancel`.
+- **P3 (unused prop)**: `trackTop` removed from type and tests.
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 40 tests pass, type-check was clean earlier. The P0-P2 findings are resolved.
+I can see from the applied changes that all 5 findings have been addressed:
+
+1. **P1 cancel/empty download** -- `blob.size === 0` guard added (line 74), deferred `revokeObjectURL`, error state with UI display.
+2. **P1 click+drag conflict** -- `didDragRef` added; set in `handlePointerMove`, checked/reset in `handleClick`.
+3. **P2 missing import** -- `ClipModel` added to the import on line 2.
+4. **P3 unused prop** -- `trackTop` removed from props type and test defaults.
+5. **P3 engine per render** -- `useRef<... | null>(null)` with optional chaining on cancel.
+
+No new issues introduced by the fixes.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -46,10 +55,11 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P2] Drum cache cleanup still misses same-size track replacement paths** ([panels.tsx:27](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:27), [panels.tsx:30](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:30), [use-session-persistence.ts:142](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:142), [use-session-persistence.ts:147](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:147))
-  - **Detail**: The new subscription only purges `sequencerCache` and `paramsCache` when the number of tracks decreases. `hydrateStore()` replaces `tracks` wholesale, so swapping one track set for another of the same size leaves the old cache entries behind.
-  - **Risk**: The cache-leak fix is still partial. Stale drum-machine state can accumulate across session loads or other whole-array track replacements.
-  - **Suggestion**: Diff `prevTrackIds` against `trackIds` on every update, not only when `size` shrinks, and add a regression test that hydrates from one drum-track set to a different same-length set.</codex-review>
+- **[P1] Clicking an existing automation point still creates a duplicate point** ([AutomationLaneEditor.tsx:61](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:61), [AutomationLaneEditor.tsx:81](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:81), [AutomationLaneEditor.tsx:107](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.tsx:107), [AutomationLaneEditor.test.tsx:51](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/AutomationLaneEditor.test.tsx:51))  
+  `didDragRef` is only set in `onPointerMove`. A pointerdown/pointerup on an existing point with no movement still falls through to `handleClick()`, which inserts a new point at the same coordinates. The spurious-point fix only covers actual drags, not simple point grabs. Suppress the subsequent click whenever pointerdown hits an existing point, and add a regression test for down/up on an existing point without moving.
+
+- **[P1] `pnpm test` is still red on the current branch** ([App.test.tsx:75](/Users/Nathan/Documents/Code/long-running-harness/src/App.test.tsx:75), [metering.ts:93](/Users/Nathan/Documents/Code/long-running-harness/src/audio/mixer/metering.ts:93), [useMeterData.ts:93](/Users/Nathan/Documents/Code/long-running-harness/src/ui/mixer/useMeterData.ts:93))  
+  The current run fails with an unhandled `TypeError: analyser.getFloatTimeDomainData is not a function` during `App.test.tsx`, because the mock analyser stub still lacks the method that `createAnalyserReader()` calls. The same run also timed out two DSP tests, so the branch does not currently pass the quality gate. Update the analyser mock to implement `getFloatTimeDomainData()` and rerun the full suite before landing.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

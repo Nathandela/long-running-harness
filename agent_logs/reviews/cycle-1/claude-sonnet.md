@@ -1,29 +1,36 @@
+Based on my review, here are the findings:
+
+---
+
 REVIEW_CHANGES_REQUESTED
 
-**1. [P1] Media-pool drop has no undo support**
+**1. [P1] `AutomationLaneEditor`: drag always adds a spurious point** (`src/ui/arrangement/AutomationLaneEditor.tsx:84`)
 
-`ArrangementPanel.tsx` `handleDrop` calls `state.addClip(clip)` directly with no `UndoCommand` pushed to `sharedUndoManager`. The commit description states "All features include undo support" — this is false for the drag feature. Double-click MIDI clip creation does push an undo command; drop does not.
+Both `onPointerDown` and `onClick` are registered on the same canvas element. When the user drags an existing point, the event sequence is: `pointerdown` (captures pointer, sets `draggingPointId`) → `pointermove` (moves point) → `pointerup` (clears `draggingPointId`) → **`click` fires at drag-end coordinates and calls `addPoint`**. Every successful drag also creates an unwanted new point. Fix: skip `handleClick` if a drag just completed, e.g. by tracking a `didDrag` ref that's set in `handlePointerMove` and cleared after `handleClick` consumes it.
 
-Fix: wrap `addClip` in an `UndoCommand` the same way the MIDI clip creation is handled in `use-arrangement-interactions.ts:394–415`.
+**2. [P2] `BounceDialog`: errors are silently swallowed** (`src/ui/session/BounceDialog.tsx:73`)
 
----
+```tsx
+} catch {
+  setBounceState({ status: "idle" });
+}
+```
 
-**2. [P2] `handleDragOver` shows copy cursor over non-audio tracks but `handleDrop` silently discards**
+The user gets no feedback when a bounce fails — the dialog just closes silently. At minimum, surface an error state in `BounceState` and show a message.
 
-`handleDragOver` (`ArrangementPanel.tsx:50–58`) accepts any drag with the correct MIME type and sets `dropEffect = "copy"`, regardless of which track the cursor is over. `handleDrop` then silently returns when `track.type !== "audio"`. The user sees a valid copy cursor, drops, and nothing happens — no feedback.
+**3. [P2] `BounceDialog`: `URL.revokeObjectURL` called before download is guaranteed** (`src/ui/session/BounceDialog.tsx:67–71`)
 
-Fix: in `handleDragOver`, check the target track type and only call `e.preventDefault()` / set `dropEffect` when the resolved track is an audio track. Alternatively show an error toast on rejected drops.
+```tsx
+a.click();
+URL.revokeObjectURL(url);  // races with browser download initiation
+```
 
----
+The anchor is never appended to the DOM. While this works in current Chrome/Safari, it's fragile. Standard safe pattern: `document.body.appendChild(a); a.click(); document.body.removeChild(a);` then revoke in a `setTimeout(0)`.
 
-**3. [P2] Misleading test — name claims piano roll opens but body tests nothing of the sort**
+**4. [P3] `AutomationLaneEditor`: `trackTop` prop declared but never used** (`src/ui/arrangement/AutomationLaneEditor.tsx:9,20`)
 
-`DawShell-piano-roll.test.tsx:71`: test named `"shows piano roll when MIDI clip is double-clicked and close returns to default"` sets up a MIDI clip, renders `DawShell`, then only asserts the *initial* state (no piano roll visible, no close button). The comment inside acknowledges `"we test the close button works by checking that the close button only appears when piano roll is open"` — but the close button is never clicked because the piano roll is never opened. The test name is false advertising; CI will pass regardless of whether the feature works.
+`trackTop` is in `AutomationLaneEditorProps` and destructured in the call sites (ArrangementPanel likely passes it), but is not destructured nor used inside the component. Either use it or remove it from the type.
 
-Fix: either remove the test or replace it with an integration test that uses `useDawStore.setState` to set `bottomPanel = "piano-roll"` / `editingClipId` or expose state-setting via props/context.
+**5. [P3] `BounceDialog`: wasted `BounceEngine` instance from `useRef` initializer** (`src/ui/session/BounceDialog.tsx:30`)
 
----
-
-**4. [P3] `addMidiClip`/`removeMidiClip` are functionally identical to `addClip`/`removeClip`**
-
-`store.ts:368–391` duplicates the exact logic of `addClip`/`removeClip`. The drop handler uses `addClip`; the inline undo command uses `addMidiClip`. Two code paths do the same thing via different methods, creating future confusion. No bug today, but one of the two should be removed (the generic `addClip` already accepts `MidiClipModel` through the `ClipModel` union).
+`useRef(createBounceEngine())` creates an engine on mount that is immediately replaced with a fresh one in `handleBounce`. Should be `useRef<ReturnType<typeof createBounceEngine> | null>(null)` and assigned lazily.

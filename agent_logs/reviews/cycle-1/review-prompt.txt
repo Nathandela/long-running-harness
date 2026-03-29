@@ -28,8 +28,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-54ef3b2 chore: auto-commit uncommitted changes from long-running-harness-ayef
-5caeaa0 Wire piano roll, media drag, and MIDI clip workflow (W3 epic)
+85084af chore: auto-commit uncommitted changes from long-running-harness-73v4
+d721096 Wire bounce/export dialog, automation lane UI, and scheduling bridge (W4 epic)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

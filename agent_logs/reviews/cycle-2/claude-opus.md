@@ -1,15 +1,11 @@
-Let me verify each original finding against the fix:
+I can see from the applied changes that all 5 findings have been addressed:
 
-**Finding 1 (P2 - Drop handler missing undo)**: Fixed. `handleDrop` now uses `new AddClipCommand(clip)` + `sharedUndoManager.push(cmd)` at `ArrangementPanel.tsx:117-119`.
+1. **P1 cancel/empty download** -- `blob.size === 0` guard added (line 74), deferred `revokeObjectURL`, error state with UI display.
+2. **P1 click+drag conflict** -- `didDragRef` added; set in `handlePointerMove`, checked/reset in `handleClick`.
+3. **P2 missing import** -- `ClipModel` added to the import on line 2.
+4. **P3 unused prop** -- `trackTop` removed from props type and test defaults.
+5. **P3 engine per render** -- `useRef<... | null>(null)` with optional chaining on cancel.
 
-**Finding 2 (P2 - No field validation on parsed JSON)**: Fixed. Parse result is typed as `unknown`, then cast to `Record<string, unknown>`, with explicit `typeof` guards for all three fields at `ArrangementPanel.tsx:77-83`.
-
-**Finding 3 (P2 - Negative trackIndex)**: Fixed. Explicit `if (trackIndex < 0) return;` guard at `ArrangementPanel.tsx:93`. Additionally, `handleDragOver` also guards with `trackIndex >= 0` at line 56.
-
-**Finding 4 (P3 - Stale clipId)**: Fixed. `DawShell.tsx:58-63` subscribes to the store with `useDawStore` to check `clipStillExists`, and derives `effectivePanel` that falls back to `"default"` when the clip no longer exists.
-
-**Finding 5 (P3 - Test doesn't test open-then-close)**: Fixed. The test now mocks `ArrangementPanel` to capture the `onOpenPianoRoll` callback, invokes it with `act`, asserts the piano roll is visible, clicks the close button with `userEvent.click`, and asserts it returns to default layout.
-
-One minor observation: the `handleDragOver` now calls `useDawStore.getState()` on every dragover event (fires rapidly during drag), which is fine since Zustand's `getState()` is synchronous and cheap -- no concern here.
+No new issues introduced by the fixes.
 
 REVIEW_APPROVED
