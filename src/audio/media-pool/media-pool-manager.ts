@@ -1,5 +1,5 @@
 import type { MediaPoolStorage } from "./idb-storage";
-import { decodeAudioFile } from "./decode-pipeline";
+import { decodeAudioFile, DECODE_TIMEOUT_MS } from "./decode-pipeline";
 import { computeWaveformPeaks } from "./waveform-peaks";
 import type {
   AudioSourceHandle,
@@ -123,10 +123,20 @@ export function createMediaPool(
       const blob = await storage.getBlob(id);
       if (blob === undefined) return undefined;
 
-      const arrayBuffer = await blob.arrayBuffer();
-      const decoded = await ctx.decodeAudioData(arrayBuffer);
-      cacheSet(id, decoded);
-      return decoded;
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const decodePromise = ctx.decodeAudioData(arrayBuffer);
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error("decode-timeout"));
+          }, DECODE_TIMEOUT_MS);
+        });
+        const decoded = await Promise.race([decodePromise, timeoutPromise]);
+        cacheSet(id, decoded);
+        return decoded;
+      } catch {
+        return undefined;
+      }
     },
 
     async getPeaks(

@@ -151,6 +151,56 @@ describe("createMediaPool", () => {
     expect(buf).toBeUndefined();
   });
 
+  it("getAudioBuffer returns undefined when re-decode fails", async () => {
+    const storage = createInMemoryStorage();
+    // Cache fits exactly 1 buffer; second import evicts the first
+    const oneBufferBytes = 44100 * 2 * 4; // 352,800
+    const tinyPool = createMediaPool(
+      ctx as unknown as BaseAudioContext,
+      storage,
+      oneBufferBytes,
+    );
+    await tinyPool.init();
+
+    const result = await tinyPool.importFile(makeWavFile("first.wav"));
+    if (!result.ok) throw new Error("unexpected");
+
+    // Import second file to evict the first from cache
+    await tinyPool.importFile(makeWavFile("second.wav"));
+
+    // Re-decode of first file will fail
+    ctx.decodeAudioData.mockRejectedValueOnce(new DOMException("corrupt"));
+    const buf = await tinyPool.getAudioBuffer(result.handle.id);
+    expect(buf).toBeUndefined();
+  });
+
+  it("getAudioBuffer returns undefined when re-decode times out", async () => {
+    vi.useFakeTimers();
+    const storage = createInMemoryStorage();
+    const oneBufferBytes = 44100 * 2 * 4;
+    const tinyPool = createMediaPool(
+      ctx as unknown as BaseAudioContext,
+      storage,
+      oneBufferBytes,
+    );
+    await tinyPool.init();
+
+    const result = await tinyPool.importFile(makeWavFile("slow.wav"));
+    if (!result.ok) throw new Error("unexpected");
+
+    // Evict from cache
+    await tinyPool.importFile(makeWavFile("other.wav"));
+
+    // Make re-decode hang
+    ctx.decodeAudioData.mockReturnValue(new Promise(() => {}));
+    const bufPromise = tinyPool.getAudioBuffer(result.handle.id);
+
+    await vi.advanceTimersByTimeAsync(15_000);
+    const buf = await bufPromise;
+    expect(buf).toBeUndefined();
+    vi.useRealTimers();
+  });
+
   it("getPeaks returns cached peaks", async () => {
     const result = await pool.importFile(makeWavFile("peaks.wav"));
     if (!result.ok) throw new Error("unexpected");
