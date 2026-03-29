@@ -18,6 +18,18 @@
 
 .active {
   background: var(--color-pink);
+  animation: padFlash var(--transition-normal) ease-out;
+}
+
+@keyframes padFlash {
+  from {
+    background: var(--color-white);
+    transform: scale(1.05);
+  }
+  to {
+    background: var(--color-pink);
+    transform: scale(1);
+  }
 }
 
 .pad:hover {

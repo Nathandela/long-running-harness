@@ -8,6 +8,7 @@ export function useSessionShortcuts(
   shortcuts: ShortcutMap,
   undoManager: UndoManager,
   saveNow: () => Promise<void>,
+  onActionFeedback?: (message: string) => void,
 ): void {
   useEffect(() => {
     registry.register({
@@ -15,6 +16,7 @@ export function useSessionShortcuts(
       label: "Undo",
       execute: () => {
         undoManager.undo();
+        onActionFeedback?.("Undo");
       },
     });
 
@@ -23,6 +25,7 @@ export function useSessionShortcuts(
       label: "Redo",
       execute: () => {
         undoManager.redo();
+        onActionFeedback?.("Redo");
       },
     });
 
@@ -64,5 +67,5 @@ export function useSessionShortcuts(
       shortcuts.unbind("edit.redo");
       shortcuts.unbind("session.save");
     };
-  }, [registry, shortcuts, undoManager, saveNow]);
+  }, [registry, shortcuts, undoManager, saveNow, onActionFeedback]);
 }

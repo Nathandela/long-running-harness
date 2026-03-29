@@ -29,6 +29,7 @@ function drawKnob(
   ctx: CanvasRenderingContext2D,
   size: number,
   ratio: number,
+  hovered: boolean,
 ): void {
   const cx = size / 2;
   const cy = size / 2;
@@ -36,10 +37,10 @@ function drawKnob(
 
   ctx.clearRect(0, 0, size, size);
 
-  // Outer circle
+  // Outer circle (highlight on hover)
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-  ctx.strokeStyle = tokens.color.gray700;
+  ctx.strokeStyle = hovered ? tokens.color.gray500 : tokens.color.gray700;
   ctx.lineWidth = tokens.border.width;
   ctx.stroke();
 
@@ -79,6 +80,7 @@ export function RotaryKnob({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listenersRef = useRef<AbortController | null>(null);
   const [isFocusVisible, setIsFocusVisible] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const ratio = max === min ? 0 : (value - min) / (max - min);
 
@@ -87,8 +89,8 @@ export function RotaryKnob({
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    drawKnob(ctx, size, ratio);
-  }, [value, min, max, size, ratio]);
+    drawKnob(ctx, size, ratio, isHovered);
+  }, [value, min, max, size, ratio, isHovered]);
 
   // Cleanup drag listeners on unmount
   useEffect(() => {
@@ -185,6 +187,12 @@ export function RotaryKnob({
       aria-valuetext={valueText}
       aria-label={label}
       onKeyDown={handleKeyDown}
+      onPointerEnter={() => {
+        setIsHovered(true);
+      }}
+      onPointerLeave={() => {
+        setIsHovered(false);
+      }}
       onFocus={(e) => {
         if (
           e.target === wrapperRef.current &&

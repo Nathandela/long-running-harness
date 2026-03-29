@@ -50,8 +50,8 @@ type PianoRollEditorProps = {
 
 export function PianoRollEditor({
   clipId,
-  onNotePreview: _onNotePreview,
-  onNotePreviewEnd: _onNotePreviewEnd,
+  onNotePreview,
+  onNotePreviewEnd,
 }: PianoRollEditorProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef(0);
@@ -59,7 +59,14 @@ export function PianoRollEditor({
   const [gridSnap, setGridSnap] = useState<PianoRollGridSnap>("1/8");
   const [view, setView] = useState(DEFAULT_VIEW);
 
-  const interactions = usePianoRollInteractions(clipId, view, tool, gridSnap);
+  const interactions = usePianoRollInteractions(
+    clipId,
+    view,
+    tool,
+    gridSnap,
+    onNotePreview,
+    onNotePreviewEnd,
+  );
 
   // Store selectors
   const clips = useDawStore((s) => s.clips);

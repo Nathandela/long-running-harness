@@ -48,6 +48,12 @@
 .toolButton[aria-pressed="true"] {
   background-color: var(--color-blue);
   color: var(--color-white);
+  border-color: var(--color-blue);
+}
+
+.toolButton[aria-pressed="true"]:hover {
+  background-color: var(--color-blue);
+  opacity: 0.85;
 }
 
 .snapSelect {

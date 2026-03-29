@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toolbar } from "./Toolbar";
 import { ArrangementPanel } from "@ui/arrangement";
 import { InstrumentPanel } from "./panels";
@@ -21,6 +21,7 @@ import { createDefaultSession } from "@state/session/session-schema";
 import { hydrateStore } from "@state/session/use-session-persistence";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { KeyboardShortcutsPanel } from "./keyboard/KeyboardShortcutsPanel";
+import { ActionToast } from "./primitives/ActionToast";
 
 function DawShellInner({
   sessionStorage,
@@ -34,12 +35,25 @@ function DawShellInner({
   const { saveNow, recoveryWarnings } = useSessionPersistence(sessionStorage);
   const [dismissed, setDismissed] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastCountRef = useRef(0);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
   const stableSaveNow = useCallback(() => saveNow(), [saveNow]);
 
+  const showToast = useCallback((msg: string) => {
+    toastCountRef.current += 1;
+    setToastMessage(`${msg}#${String(toastCountRef.current)}`);
+  }, []);
+
   useTransportShortcuts(registry, shortcuts);
-  useSessionShortcuts(registry, shortcuts, undoManager, stableSaveNow);
+  useSessionShortcuts(
+    registry,
+    shortcuts,
+    undoManager,
+    stableSaveNow,
+    showToast,
+  );
 
   useEffect(() => {
     registry.register({
@@ -111,6 +125,7 @@ function DawShellInner({
           setDismissed(true);
         }}
       />
+      <ActionToast message={toastMessage} />
     </div>
   );
 }

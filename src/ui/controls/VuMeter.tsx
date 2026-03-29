@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from "react";
 import { tokens } from "../tokens/tokens";
+import { useReducedMotion } from "../hooks/useReducedMotion";
 
 type VuMeterProps = {
   level: number;
@@ -13,6 +14,7 @@ const DEFAULT_WIDTH = 12;
 const DEFAULT_HEIGHT = 128;
 const PEAK_DECAY_RATE = 0.005;
 const CLIP_INDICATOR_SIZE = 4;
+const CLIP_PULSE_SPEED = 4; // cycles per second
 
 function getLevelColor(normalizedY: number): string {
   if (normalizedY > 0.9) return tokens.color.red;
@@ -38,11 +40,12 @@ export function VuMeter({
   const peakHoldRef = useRef(peak ?? 0);
   const rafRef = useRef(0);
   const animatingRef = useRef(false);
+  const reducedMotion = useReducedMotion();
 
   const level = Math.min(1, Math.max(0, rawLevel));
 
   const draw = useCallback(
-    (ctx: CanvasRenderingContext2D): void => {
+    (ctx: CanvasRenderingContext2D, time = 0): void => {
       const w = width;
       const h = height;
 
@@ -60,7 +63,7 @@ export function VuMeter({
         ctx.fillRect(0, y, w, 1);
       }
 
-      // Peak hold line
+      // Peak hold line with ease-out decay
       const currentPeak = peakHoldRef.current;
       if (currentPeak > 0) {
         const peakY = h - currentPeak * h;
@@ -72,18 +75,19 @@ export function VuMeter({
         ctx.stroke();
       }
 
-      // Clip indicator
+      // Clip indicator with pulse animation
       if (clip === true) {
+        const pulse = reducedMotion
+          ? 1
+          : 0.5 + 0.5 * Math.sin(time * CLIP_PULSE_SPEED * 2 * Math.PI);
+        const size = CLIP_INDICATOR_SIZE + (reducedMotion ? 0 : pulse * 2);
+        ctx.globalAlpha = 0.4 + 0.6 * pulse;
         ctx.fillStyle = tokens.color.red;
-        ctx.fillRect(
-          (w - CLIP_INDICATOR_SIZE) / 2,
-          1,
-          CLIP_INDICATOR_SIZE,
-          CLIP_INDICATOR_SIZE,
-        );
+        ctx.fillRect((w - size) / 2, 1, size, size);
+        ctx.globalAlpha = 1;
       }
     },
-    [level, clip, width, height],
+    [level, clip, width, height, reducedMotion],
   );
 
   useEffect(() => {
@@ -101,20 +105,29 @@ export function VuMeter({
 
     draw(ctx);
 
-    // Animate peak decay
-    if (
-      peak === undefined &&
-      peakHoldRef.current > 0 &&
-      !animatingRef.current
-    ) {
+    // Animate when peak is decaying or clip is pulsing
+    const needsAnimation =
+      (peak === undefined && peakHoldRef.current > 0) ||
+      (clip === true && !reducedMotion);
+
+    if (needsAnimation && !animatingRef.current) {
       animatingRef.current = true;
+      const startTime = performance.now();
       const animate = (): void => {
-        if (peakHoldRef.current > 0) {
-          peakHoldRef.current = Math.max(
-            0,
-            peakHoldRef.current - PEAK_DECAY_RATE,
-          );
-          draw(ctx);
+        const elapsed = (performance.now() - startTime) / 1000;
+
+        // Ease-out peak decay: rate slows as peak approaches 0
+        if (peak === undefined && peakHoldRef.current > 0) {
+          const decayRate = PEAK_DECAY_RATE * (0.3 + 0.7 * peakHoldRef.current);
+          peakHoldRef.current = Math.max(0, peakHoldRef.current - decayRate);
+        }
+
+        draw(ctx, elapsed);
+
+        const stillDecaying = peak === undefined && peakHoldRef.current > 0;
+        const stillClipping = clip === true && !reducedMotion;
+
+        if (stillDecaying || stillClipping) {
           rafRef.current = requestAnimationFrame(animate);
         } else {
           animatingRef.current = false;
@@ -127,7 +140,7 @@ export function VuMeter({
       cancelAnimationFrame(rafRef.current);
       animatingRef.current = false;
     };
-  }, [level, peak, clip, draw]);
+  }, [level, peak, clip, draw, reducedMotion]);
 
   const isClipping = clip === true;
 

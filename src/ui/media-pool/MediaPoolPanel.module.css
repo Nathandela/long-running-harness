@@ -65,6 +65,7 @@
 .list {
   flex: 1;
   overflow-y: auto;
+  animation: fadeIn var(--transition-normal) ease-out;
 }
 
 .empty {
@@ -75,6 +76,7 @@
   color: var(--color-gray-300);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  animation: fadeIn var(--transition-normal) ease-out;
 }
 
 .error {
@@ -95,4 +97,14 @@
   font-size: var(--text-xs);
   color: var(--color-gray-300);
   flex-shrink: 0;
+  animation: fadeIn var(--transition-normal) ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

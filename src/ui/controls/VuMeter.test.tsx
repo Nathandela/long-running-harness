@@ -15,6 +15,7 @@ beforeAll(() => {
     set strokeStyle(_v: string) {},
     set fillStyle(_v: string) {},
     set lineWidth(_v: number) {},
+    set globalAlpha(_v: number) {},
   })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 });
 

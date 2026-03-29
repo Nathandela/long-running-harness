@@ -91,6 +91,8 @@ export function usePianoRollInteractions(
   view: PianoRollViewState,
   tool: PianoRollTool,
   gridSnap: PianoRollGridSnap,
+  onNotePreview?: (note: number, velocity: number) => void,
+  onNotePreviewEnd?: (note: number) => void,
 ): PianoRollInteractions {
   const dragRef = useRef<DragState>({ kind: "idle" });
   const [cursor, setCursor] = useState(
@@ -149,6 +151,7 @@ export function usePianoRollInteractions(
             const cmd = new AddNoteCommand(clipId, note);
             cmd.execute();
             sharedUndoManager.push(cmd);
+            onNotePreview?.(note.pitch, note.velocity);
 
             e.currentTarget.setPointerCapture(e.pointerId);
             dragRef.current = {
@@ -233,7 +236,7 @@ export function usePianoRollInteractions(
         }
       }
     },
-    [clipId, view, tool, gridSnap, getCanvasPos, getNotes],
+    [clipId, view, tool, gridSnap, getCanvasPos, getNotes, onNotePreview],
   );
 
   const onPointerMove = useCallback(
@@ -438,6 +441,7 @@ export function usePianoRollInteractions(
             sharedUndoManager.push(cmd);
           }
         }
+        onNotePreviewEnd?.(drag.pitch);
       }
 
       if (drag.kind !== "idle") {
@@ -452,7 +456,7 @@ export function usePianoRollInteractions(
         setCursor("default");
       }
     },
-    [tool, gridSnap, getNotes],
+    [tool, gridSnap, getNotes, onNotePreviewEnd],
   );
 
   const deleteSelectedNotes = useCallback((): void => {
