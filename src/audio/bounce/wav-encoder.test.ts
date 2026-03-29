@@ -60,8 +60,8 @@ describe("encodeWav", () => {
     const right = new Float32Array([-0.25]);
     const blob = encodeWav([left, right], 44100, 32);
 
-    // 1 sample * 2 channels * 4 bytes = 8 bytes data
-    expect(blob.size).toBe(44 + 8);
+    // 46-byte header (IEEE float fmt has cbSize) + 1 sample * 2 channels * 4 bytes
+    expect(blob.size).toBe(46 + 8);
   });
 
   it("handles mono input (single channel)", () => {
@@ -176,10 +176,22 @@ describe("encodeWavHeader", () => {
     expect(view.getUint16(20, true)).toBe(1); // PCM
   });
 
-  it("uses format code 3 (IEEE float) for 32-bit", () => {
+  it("uses format code 3 (IEEE float) for 32-bit with cbSize", () => {
     const header = encodeWavHeader(2, 44100, 32, 100);
     const view = new DataView(header);
     expect(view.getUint16(20, true)).toBe(3); // IEEE float
+    expect(view.getUint32(16, true)).toBe(18); // fmt sub-chunk = 18 bytes
+    expect(view.getUint16(36, true)).toBe(0); // cbSize = 0
+    // "data" at offset 38 for IEEE float
+    expect(
+      String.fromCharCode(
+        view.getUint8(38),
+        view.getUint8(39),
+        view.getUint8(40),
+        view.getUint8(41),
+      ),
+    ).toBe("data");
+    expect(header.byteLength).toBe(46);
   });
 });
 

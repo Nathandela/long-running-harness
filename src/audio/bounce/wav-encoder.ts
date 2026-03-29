@@ -34,19 +34,23 @@ export function encodeWavHeader(
   const blockAlign = numChannels * bytesPerSample;
   const byteRate = sampleRate * blockAlign;
   const dataSize = totalSamples * blockAlign;
-  const formatCode = bitDepth === 32 ? 3 : 1; // 3 = IEEE float, 1 = PCM
+  const isFloat = bitDepth === 32;
+  const formatCode = isFloat ? 3 : 1; // 3 = IEEE float, 1 = PCM
+  // IEEE float requires 18-byte fmt chunk (with cbSize=0); PCM uses 16
+  const fmtChunkSize = isFloat ? 18 : 16;
+  const headerSize = 20 + fmtChunkSize + 8; // RIFF(12) + fmt(8+fmtChunkSize) + data(8)
 
-  const buffer = new ArrayBuffer(44);
+  const buffer = new ArrayBuffer(headerSize);
   const view = new DataView(buffer);
 
   // RIFF header
   writeString(view, 0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true); // file size - 8
+  view.setUint32(4, headerSize - 8 + dataSize, true); // file size - 8
   writeString(view, 8, "WAVE");
 
   // fmt sub-chunk
   writeString(view, 12, "fmt ");
-  view.setUint32(16, 16, true); // sub-chunk size (16 for PCM)
+  view.setUint32(16, fmtChunkSize, true);
   view.setUint16(20, formatCode, true);
   view.setUint16(22, numChannels, true);
   view.setUint32(24, sampleRate, true);
@@ -54,9 +58,14 @@ export function encodeWavHeader(
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, bitDepth, true);
 
+  const dataOffset = 20 + fmtChunkSize;
+  if (isFloat) {
+    view.setUint16(36, 0, true); // cbSize = 0
+  }
+
   // data sub-chunk
-  writeString(view, 36, "data");
-  view.setUint32(40, dataSize, true);
+  writeString(view, dataOffset, "data");
+  view.setUint32(dataOffset + 4, dataSize, true);
 
   return buffer;
 }
