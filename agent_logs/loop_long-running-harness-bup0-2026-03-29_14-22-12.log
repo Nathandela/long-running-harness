@@ -1,0 +1,242 @@
+Now let me understand the key files I need to work with. Let me start the compound workflow.Excellent. Now I have a thorough understanding of the architecture. Let me read the key files to confirm the details and start planning.Now let me read the remaining key files: the drum types, the 808 synthesis recipes, the transport bar, and the store.Now let me check the MixerPanel and the synth editor for understanding how volume/pan changes are dispatched.Let me check how the step sequencer is wired (or not) and the drum panel UI.Now I have a thorough understanding. Let me check the existing tests and the arrangement renderer to understand cursor drawing.Now I have a complete picture. Let me check what tests exist.Good. Now I have a complete understanding. Let me now plan and execute the work. I'll create beads tasks and implement the fixes.Now let me implement all the fixes. I'll work on them in parallel using subagents for the two most complex ones, and do the simpler ones directly.
+
+Let me start with BUG 1 (cursor) and BUG 3 (mixer forwarding) directly, and delegate BUG 2 (808 synthesis) to a subagent.
+
+**BUG 1 FIX: Cursor doesn't move during playback**
+
+The ArrangementPanel reads `cursorSeconds` from the Zustand store (line 130), but the store is only updated on pause/stop. During playback, the cursor position is in the SharedArrayBuffer. The fix: read cursor from SAB via `useTransportCursor` in the arrangement render loop.Now I need to understand the approach. The arrangement panel uses `cursorSeconds` from Zustand in its render callback. During playback, this value is stale. The fix is to read from SAB during playback in the RAF loop.
+
+The simplest approach: add a `cursorRef` that reads from SAB during playback, and use that in the render callback instead of the store value.Now add the transport and SAB cursor ref after the existing state declarations:Now update the render loop to read from SAB during playback instead of the stale store value:Now let me tackle **BUG 3: Mixer fader/pan don't affect audio**. I need to subscribe to track changes in `TrackAudioBridgeProvider` and forward volume/pan/mute/solo to the mixer engine.Now let me implement **BUG 2: Synthesize 808 drum sounds** and the **808 step sequencer transport wiring**.
+
+First, let me create the 808 drum synthesis module:Now update `track-audio-bridge.ts` to use synthesized samples instead of placeholders:Now remove the `createPlaceholderSamples` function and update `addDrumTrack` to use async synthesis:Now update `addDrumTrack` to be async:Now let me wire the **808 step sequencer to the transport onTick** callback. Looking at `panels.tsx`, the step sequencer is created with a no-op trigger callback (line 44). The sequencer's `scheduleStep` produces triggers but they need to flow to the drum kit. Let me fix the wiring in `panels.tsx`:The issue is clear: the step sequencer's trigger callback is a no-op. The sequencer uses `scheduleStep()` which calls `onTrigger` for each active instrument at a given time. But nobody calls `scheduleStep()` from the transport scheduler. 
+
+The right approach: In `useDrumMachineState`, create the sequencer with a real trigger callback that plays the drum kit, and wire the transport's beat scheduling to call `scheduleStep()`.
+
+The transport's look-ahead scheduler fires `onTick(beatTime, beatNumber)` for metronome beats. But the 808 needs 16th-note steps (4 per beat). The cleanest approach is to use the `onAdvance` window and schedule steps within it, similar to how clips are scheduled.
+
+Actually, looking more carefully at the architecture: the step sequencer needs to be scheduled from the transport. The current RAF-based step indicator (lines 98-124) is only visual. The actual audio scheduling should happen in the transport's advance callback.
+
+The best approach: In `TrackAudioBridgeProvider`, wire drum sequencer scheduling into the advance callback alongside clip scheduling. But the sequencer instances are in `panels.tsx` module-level caches.
+
+A simpler approach that matches the existing architecture: make the `useDrumMachineState` hook set up an effect that schedules drum triggers in the transport's advance window. Let me check if there's a per-track onTick mechanism.
+
+Actually, the cleanest fix is to handle this in the `onAdvance` callback in TrackAudioBridgeProvider, since it already has access to the bridge (and thus drum kits) and the scheduling window. But it needs access to the sequencer instances which are in `panels.tsx`.
+
+Let me think about this differently. The sequencer cache is module-level in `panels.tsx`. The `TrackAudioBridgeProvider` doesn't know about sequencers. Rather than creating a tight coupling, I'll add a second `onAdvance`-style hook or use the existing transport tick mechanism.
+
+The simplest approach: export the sequencer cache from panels.tsx (it's already exported), and in `useDrumMachineState`, use an effect to schedule steps during playback using the transport clock and RAF. But RAF isn't sample-accurate.
+
+Better approach: use `setInterval` to schedule drum steps with look-ahead, similar to the transport scheduler. But that's duplicating the scheduler pattern.
+
+Best approach: Add a drum scheduling callback into the `onAdvance` window in `TrackAudioBridgeProvider`. The provider already iterates over tracks. Let me add an interface for the bridge to accept step sequencers.
+
+Actually, the simplest correct fix: export `sequencerCache` from panels.tsx (already exported), and in `TrackAudioBridgeProvider`'s onAdvance callback, schedule drum steps for drum tracks.I'll add drum step scheduling inside the existing `onAdvance` callback. The approach: within the advance window, compute which 16th-note steps fall in the window, and call `seq.scheduleStep()` for each drum track.
+
+But to avoid coupling `TrackAudioBridgeProvider` to the UI-level sequencer cache, I'll add a drum sequencer registry to the bridge itself. Actually, the simplest approach that's minimally invasive: import the sequencer cache in TrackAudioBridgeProvider and schedule drum steps in the advance callback.
+
+Let me look at what the `sequencerCache` export looks like:The sequencer cache is a module-level Map. But `createStepSequencer` takes an `onTrigger` callback. Currently it's a no-op. I need to wire it so that when `scheduleStep()` is called, the trigger callback fires the drum kit's `trigger()`.
+
+The problem: the sequencer's `onTrigger` callback is set at creation time and can't be changed. And when the sequencer is created (in `getOrCreateSequencer`), the drum kit might not exist yet (it's async).
+
+Best approach: Change the `onTrigger` callback to look up the drum kit from the bridge at call time.Now I need to call `setBridgeRef` from the component and wire the step scheduling into the transport. Let me update `DrumMachineController`:Now I need to wire the bridge ref and the step scheduling. Let me update `InstrumentPanel` to set the bridge ref:Now I need to add the actual drum step scheduling in the transport's advance window. The best place is in `TrackAudioBridgeProvider`'s `onAdvance` callback, where we schedule audio clips. I need to also schedule drum steps there.I need to add the drum step scheduling to the onAdvance callback. The sequencer cache is in `panels.tsx`. Let me import it:Wait, this creates a circular dependency (audio -> ui). Let me reconsider. I should move the sequencer registry to a shared location or use a different pattern.
+
+Better approach: Instead of importing the sequencer cache in the audio layer, I'll schedule drum steps from within the `useDrumMachineState` hook using the transport clock, which is the approach already partially set up (the RAF loop for visual step indication). I just need to add actual audio scheduling there.
+
+Actually, the cleanest approach: export the `sequencerCache` from the drum-machine module instead, and have `panels.tsx` use that. But that's a bigger refactor.
+
+Simplest correct approach: Undo the circular import and instead schedule drum steps in the `useDrumMachineState` hook using an interval-based look-ahead pattern, similar to the transport scheduler.
+
+Let me revert the circular import:Now let me add drum step scheduling in `useDrumMachineState` using the transport clock with a look-ahead interval:I need to add an audio scheduling effect that uses setInterval + look-ahead, similar to the transport scheduler. This effect will run when playing and schedule drum steps within a look-ahead window.Wait, the timing is wrong. `seq.scheduleStep()` calls `onTrigger(trigger)` which calls `kit.trigger(instrumentId, time, velocity, flamMs)`. The `time` parameter for `kit.trigger` is AudioContext time. But I'm passing `nextStepTime - now` which is a relative offset. The kit uses `ctx.createBufferSource().start(time)` which needs AudioContext absolute time.
+
+Let me fix the timing. The trigger callback in `getOrCreateSequencer` passes `trigger.time` to `kit.trigger()`. The step sequencer's `scheduleStep(stepIndex, time)` passes `time` directly to the trigger. So I need to pass AudioContext-absolute time.
+
+I need access to the AudioContext's `currentTime`. Let me rethink.
+
+Actually, looking at the drum kit's `trigger` method (drum-kit.ts line 43-92), it uses `time` as the AudioContext scheduling time for `source.start(time)`, `gain.setValueAtTime(peakGain, time)`, etc. So `time=0` means "now" (actually slightly in the past, but Web Audio handles it). 
+
+For proper scheduling, I need access to the AudioContext. Let me use a different approach: pass the AudioContext time from the transport. The `onAdvance` callback provides `timeOffset = ctx.currentTime - clock.getCursorSeconds()`. So `arrangementTime + timeOffset = audioContextTime`.
+
+Actually, I think the simpler approach for now is to just pass `0` (immediate) for pad triggers and properly compute AudioContext time for sequencer scheduling. Let me use the `useAudioEngine` hook to get the AudioContext.Now add `useAudioEngine` in `useDrumMachineState` and fix the scheduling:Now fix the drum step scheduling effect to use proper AudioContext time:Now let me also handle the **double-click stop button** behavior (first stop = pause, second stop = seek to 0) as mentioned in the epic notes. Looking at the current stop behavior, stop already resets to 0. But the DAW convention is: first stop = stop at current position, double-click = go to start. Currently `stop()` always resets to 0.
+
+Actually, re-reading the epic notes more carefully: "Currently single-click Stop already resets to 0. But if the user wants double-click-stop = reset-to-start as a distinct behavior: first Stop = pause-at-current-position, second Stop (or double-click) = jump to bar 1."
+
+The epic description says this is "ADDITIONAL FEATURE" in the NOTES section. The epic description mentions the standard DAW convention. Let me implement this: Stop while playing = stop at current position (not reset to 0). Stop while already stopped = seek to 0.Actually, this "ADDITIONAL FEATURE" is in the notes section and is supplementary to the main bugs. The main behavior of `stop()` resetting to 0 is fine for now. The DAW convention improvement would change the core transport behavior. Let me keep this as-is since the main bugs are higher priority. The epic description says to fix the 3 critical bugs first.
+
+Now let me also handle the unused variable in the `audioTime` line I removed. Let me also clean up the no-op onTrigger note.
+
+Let me also check if `synth param store changes must be forwarded to live SynthInstrument.setParam()`. Looking at `subscribeSynthParams` in track-audio-bridge.ts (lines 36-65), this is already done. The subscription watches `useSynthStore` for changes and calls `instrument.setParam(key, value)`. So this is already working.
+
+Now let me verify we haven't broken anything with the unused import in track-audio-bridge.ts:The `DrumInstrumentId` import is needed for the type annotation on `sampleCachePromise`. `DRUM_INSTRUMENTS` is no longer used. Let me check:Good, `DRUM_INSTRUMENTS` is no longer imported (I removed it). Now let me run the TypeScript check and tests:TypeScript passes. Let me run the linter:Let me fix the lint errors in drum-synthesis.ts:Now fix the void expression errors in the builders map:Now let me run the full lint and type check:All clean - only pre-existing warnings. Let me run the relevant tests now:The test environment doesn't have `OfflineAudioContext`. I need to handle this in the test environment. The issue is that `synthesize808Samples` is called from `addDrumTrack` which is invoked during tests. I need to make the module-level cache work with the test mock.
+
+Let me look at how the tests mock AudioContext:I see the problem. The tests mock `createSynthInstrument` but not the drum synthesis. The test for "creates drum kit when drum track is added" (line 86) expects synchronous drum kit creation. Since I made it async, I need to either:
+
+1. Mock `synthesize808Samples` in tests, or
+2. Make the module gracefully handle the `OfflineAudioContext` not being available.
+
+The best approach is to mock the synthesis module in the test and also handle the async nature:
+
+I need to also add `synthesize808Samples` to the mocks and reset the module-level cache. Let me also need to handle the fact that `addDrumTrack` is now async.I need to mock `synthesize808Samples` in the test. Also, the module-level `sampleCachePromise` variable persists between tests. Let me add a `_resetSampleCache` export for testing:Now update the test to mock `synthesize808Samples` and handle the async drum kit creation:Now the drum kit creation is async, so I need to update tests that expect synchronous `getDrumKit`:Now update the drum kit test to be async (since drum kit creation is now async):Also update the "dispose cleans up all instruments and kits" test:Now let me also check the drum kit test to see if it needs updating:All 42 tests pass. Now let me run the arrangement tests:The ArrangementPanel tests fail because I added `useTransport()` and `useTransportCursor()` hooks which require a TransportProvider context. I need to update the test to either wrap with the provider or mock the hooks.I need to mock `useTransport` and `useTransportCursor`:Let me try running the test directly:Seems stuck. Let me kill background tasks and try again:It seems to be hanging. Let me check if there's a hanging process:The test is hanging. The issue might be that my render loop change introduces an infinite RAF loop in the test environment. Let me look at the issue - the render effect in ArrangementPanel now always calls `requestAnimationFrame(tick)` even when not playing (the `else` branch calls `render()` and doesn't re-schedule RAF). But the effect re-runs on many dependencies.
+
+Actually, the issue is that the test environment is probably fine for the original tests - they were passing before. The hang might be from the RAF loop that now reads SAB directly. In a test environment, the mocked `useTransportCursor` returns `{current: 0}` which is fine. But the RAF loop re-schedules itself continuously during playback. Since `transportState` is "stopped" in the test setup, it should execute the `else` branch (call `render()` once) and exit.
+
+Wait, I bet the issue is that `requestAnimationFrame` is being called but never fires in the test environment, causing the component to never finish rendering. Let me check if requestAnimationFrame exists in jsdom:
+
+Actually, the `render()` callback I create uses `useCallback` with many dependencies. In my new code, during the "stopped" state, it calls `render()` once and exits (no rescheduling). This should be fine.
+
+The hanging is likely caused by background vitest processes piling up. Let me kill all and try fresh:Still hanging. The issue is likely that the test environment's `requestAnimationFrame` doesn't fire. Let me check if it exists:Let me check the vitest config for requestAnimationFrame:jsdom provides `requestAnimationFrame`. The original test was passing before my changes. Let me compare what changed.
+
+Before my change, the render effect was:
+```tsx
+useEffect(() => {
+  const tick = (): void => {
+    render();
+    if (transportState === "playing") {
+      rafRef.current = requestAnimationFrame(tick);
+    }
+  };
+  rafRef.current = requestAnimationFrame(tick);
+  return (): void => { cancelAnimationFrame(rafRef.current); };
+}, [render, transportState]);
+```
+
+After my change, when not playing (which is the test case), the new code does:
+```tsx
+const tick = (): void => {
+  if (transportState === "playing") {
+    // ... SAB read + renderArrangement ...
+    rafRef.current = requestAnimationFrame(tick);
+  } else {
+    render();
+  }
+};
+rafRef.current = requestAnimationFrame(tick);
+```
+
+This should be equivalent - when stopped, it calls `render()` once and doesn't re-schedule. But the dependencies array changed significantly. Maybe the issue is with the new dependency list causing infinite re-renders.
+
+Actually wait - I think the issue is that the render effect now depends on `sabCursorRef` which is a React ref. Refs don't trigger re-renders but they are new on every render... No, `useTransportCursor` returns a `RefObject` which is stable.
+
+Let me check if the issue is simply that I have the test hanging from before. Let me make sure all processes are dead first, then test with the original test only:Good, bridge tests pass. Now let me try the arrangement test again, but first check if there's a different issue - maybe my render effect creates a dependency cycle due to all those deps:I see a potential issue: the dependency array includes many state values (view, tracks, clips, etc.). When any of these change, the effect re-runs, which calls `requestAnimationFrame(tick)`. In test environment with fake timers or when jsdom's RAF doesn't fire properly, this could hang.
+
+Let me simplify my approach. Instead of duplicating the render call in the effect, I'll use a simpler pattern: just have the RAF loop update a ref that the existing render reads:Now the old `render` callback is unused. Let me remove it:Now let me check if `cursorSeconds` from the store is still needed. It's used by `liveCursorRef.current` as the fallback for when not playing. But `cursorSeconds` is subscribed at line 130. Let me verify the final state:Good, types pass. Now run the arrangement test:Still hanging. The issue might be deeper - maybe it's the `useTransportCursor` mock that's problematic (it sets up a RAF loop that never resolves), or maybe the test was already slow/hanging before my changes.
+
+Let me check if the test was passing before my changes by checking git:Good, the original test passed. The stash reverted my changes. Let me restore them:OK, so I see the stash popped and the test files got the linter changes too. The issue is that the test hangs when my ArrangementPanel changes are in place. The problem is likely that the `useTransportCursor` mock creates a RAF loop or the `useTransport` mock is incomplete.
+
+Let me re-read the current state of the test file:The mocks look OK. But the issue might be that `isAudioClip` import from `@state/track/types` is causing issues since the stash also shows `src/ui/arrangement/ArrangementPanel.tsx` was modified by the linter. Let me check what the linter did:The imports look fine. Let me check the full file for the render effect:The code looks correct. The issue might be jsdom's `requestAnimationFrame` implementation. In jsdom, `requestAnimationFrame` might use `setTimeout` internally, and if vitest's timer handling is involved, it might cause issues.
+
+Actually, looking more closely at the test, the `render()` call triggers the component to mount. The useEffect at line 225 calls `requestAnimationFrame(tick)`. In jsdom, this should fire asynchronously. But since the test doesn't advance timers or await anything, it might be hanging because the component is trying to render and the RAF callback is pending.
+
+Wait, the original code also used `requestAnimationFrame` and that test passed. The difference is the number of dependencies. When there are more deps, React might re-render more frequently, causing an effect loop.
+
+Actually, I think the issue might be something else entirely. Let me check if the `isAudioClip` import causes issues - this import didn't exist in the linter-reverted version. Let me compare:
+
+The stash pop showed that the linter removed some imports from ArrangementPanel.tsx - the linter version doesn't have `isAudioClip` imported. But my version does. Wait - `isAudioClip` is used in the `handleDrop` function... Let me check:OK, `isAudioClip` is used. The linter version removed it because the waveform peaks logic was probably different in the old version.
+
+Let me try a different approach to debug the hang. Let me add `vi.useFakeTimers()` in the test:
+
+Actually, let me just check whether the test passes by adding a `vi.useFakeTimers` with `shouldAdvanceTime`:Still hanging. I think the issue might be that with my stubbed `requestAnimationFrame` using `setTimeout`, the callback fires, which causes another state change -> re-render -> another useEffect -> another RAF... creating an infinite loop.
+
+Let me remove the RAF stub and instead look at the actual issue. The problem might be something else entirely - maybe it's the `useTransportCursor` import chain causing a module loading issue.Let me check what `useTransportCursor` imports:The `shared-buffer-layout.ts` creates `SharedArrayBuffer` which might fail in jsdom if `crossOriginIsolated` is not set. But since the mock returns `null` for `getTransportSAB()`, the `useTransportCursor` hook receives `null` and should bail out early (its effect has `if (transportSAB === null) return;`).
+
+Let me check if the mock is actually being applied. The issue might be that the vi.mock is registered too late. Let me try a completely different approach - add the mock BEFORE the import:Still hanging. The RAF callback fires, calls `renderWithCursor()` which calls `canvas.getContext("2d")` which returns null in jsdom (the "Not implemented" message). That's fine, it returns early. But then the RAF doesn't re-schedule (since `transportState === "stopped"`). So it shouldn't be looping.
+
+Maybe the issue is that the component renders, the effect fires, then the RAF callback causes a state update somehow, which causes a re-render, which causes the effect to re-run...
+
+Actually wait - I'm looking at this wrong. The `renderWithCursor` callback includes `transportState` in its dependencies. When the test renders, React runs the component function, then the effects. The first effect calls `requestAnimationFrame(tick)`. The RAF callback fires, calls `renderWithCursor()`, which returns early because `getContext("2d")` returns null. Then `transportState === "stopped"` so no re-schedule.
+
+But there's also the `clipPeaks` fetch effect:
+```tsx
+useEffect(() => {
+    let cancelled = false;
+    async function fetchPeaks(): Promise<void> { ... }
+    void fetchPeaks();
+    ...
+}, [clips, pool, engine.ctx.sampleRate]);
+```
+
+The `pool.getPeaks` mock returns `undefined`. This effect resolves and calls `setClipPeaks({})`. This causes a re-render. The re-render causes `renderWithCursor` to change (new reference due to different `clipPeaks`). This causes the RAF effect to re-run, which calls `cancelAnimationFrame(old)` and `requestAnimationFrame(newTick)`. The new RAF fires, same thing happens. This might loop if `setClipPeaks` keeps creating new state objects each time.
+
+Actually `setClipPeaks({})` creates a new empty object each time, which would NOT trigger a re-render because React's setState with an object works differently... no, React always re-renders when setState is called with a new object, even if it's "equal" (shallow comparison isn't done for complex objects).
+
+This is the infinite loop. The `fetchPeaks` function calls `setClipPeaks({})` which causes a re-render, which changes `clipPeaks` (new `{}` object), which causes `renderWithCursor` to change, which causes the RAF effect to re-run. But the original code had the same issue with `clipPeaks` in its `render` callback deps and RAF effect deps.
+
+Wait, no. In the ORIGINAL code, `clipPeaks` is also a dependency of the `render` callback, and the RAF effect depends on `render`. So it should have the same issue. But it doesn't because... hmm.
+
+Actually, the original code doesn't have `clipPeaks` at all. Let me look at the linter-reverted version:
+
+Looking at the system reminders, the original ArrangementPanel.tsx (line 140-167 in the reverted version) has:
+```tsx
+const render = useCallback((): void => {
+    ...
+    renderArrangement({
+      ...
+      cursorSeconds,
+      bpm,
+      automationLanes,
+    });
+  }, [view, tracks, clips, selectedClipIds, cursorSeconds, bpm, automationLanes]);
+```
+
+There's no `clipPeaks` in the original! The `clipPeaks` state was added as part of an earlier change (the waveform peaks feature). And the `fetchPeaks` effect creates an infinite loop because it always creates a new object.
+
+Let me check the un-stashed version more carefully:The `clipPeaks` state is from a previous commit. In the test, when `clips` is `{}`, the `fetchPeaks` function iterates no clips, then calls `setClipPeaks({})`. This creates a new object but since it's also `{}`, React's batching should... actually React will still re-render because `{} !== {}` (reference equality).
+
+But in the original code (pre-my-changes), `clipPeaks` is in the `render` callback's dependency array, which also causes re-renders. The original test passed though. Let me check if the original code had `clipPeaks` at all:
+
+Looking at the system reminder again, the original reverted version's `render` callback (lines 140-167) does NOT have `clipPeaks`. The `renderArrangement` call doesn't include `clipPeaks`. So `clipPeaks` was added by the earlier changes in the unstashed working directory.
+
+Let me check git to see what changed:I see - the `clipPeaks` state, `useMediaPool`, `useAudioEngine` etc. were added as part of the previous commit (waveform peaks feature), which was already in the dirty working directory. The test was never updated for these changes. The test was already broken before my changes, just in a different way (the original didn't need `useTransport` context, but it did need `useMediaPool` and `useAudioEngine`).
+
+The test was passing before because those mocks already existed at the top of the file. But the `clipPeaks` infinite loop is a pre-existing issue. Let me verify by looking at the arrangement-renderer to see if `clipPeaks` is expected:OK, `clipPeaks` is an optional field. The test should work fine even without it.
+
+The infinite loop issue: `setClipPeaks({})` is called from the async effect, creating a new `{}` each time. This triggers a re-render but since `clipPeaks` is in the `renderWithCursor` deps, the callback changes, which triggers the RAF effect to re-run. But this should only happen once (the first render calls fetchPeaks which resolves and sets state, causing one more render). After the second render, `clips` hasn't changed, so the fetchPeaks effect doesn't re-run. The renderWithCursor deps change because the new `clipPeaks` is created, but that happens on the second render. The RAF effect re-runs, cancels old RAF, schedules new one. It fires once, doesn't re-schedule (stopped). Then it stabilizes.
+
+In jsdom, the `requestAnimationFrame` is polyfilled with `setTimeout(..., 0)`. So the RAF callbacks fire from the microtask queue. With React 18's concurrent mode, the state updates might batch differently.
+
+Let me try a different approach - remove `clipPeaks` from the `renderWithCursor` deps and instead use a ref:Now the RAF effect only depends on `transportState` and `sabCursorRef` (which is stable), preventing re-renders from causing effect restarts. The render reads latest state from refs.
+
+But we also need to re-render when state changes (not just during playback). Let me add a separate effect for static re-renders:Now the `renderOnce` callback only depends on `sabCursorRef` (stable), so it won't change. The re-render effect calls `renderOnce()` when state changes. The RAF loop only runs during playback. Let me verify types pass and run the test:Still looping. The `clipPeaks` state update is the culprit. The `fetchPeaks` effect runs, resolves (since clips is empty), calls `setClipPeaks({})`. This triggers a re-render. The re-render causes the "Re-render on state changes" effect to fire (because `clipPeaks` changed reference). This calls `renderOnce()` again. The jsdom's "Not implemented" message fires each time.
+
+But the actual problem is that `setClipPeaks({})` creates a new reference each time, causing the component to re-render, but since `clips` is stable (`{}`), the fetchPeaks effect should NOT re-run. The dependency `[clips, pool, engine.ctx.sampleRate]` only changes when `clips` changes. Since `clips` stays `{}` after the store state is set, it shouldn't re-run.
+
+So the loop is: render -> effects run -> fetchPeaks fires (async) -> setClipPeaks({}) -> re-render -> effects run. At this point, clipPeaks changed, but clips/pool/sampleRate didn't, so fetchPeaks effect doesn't re-run. But the "Re-render on state changes" effect re-runs, calling renderOnce() once more (the "Not implemented" message). That's 3 messages total per test.
+
+Actually looking at the output, there are many "Not implemented" messages (20+), suggesting the loop continues. The issue might be that `pool` (from `useMediaPool()` mock) returns a new object each render, causing the fetchPeaks effect to re-run endlessly.
+
+Let me check the `useMediaPool` mock:
+
+```tsx
+vi.mock("@audio/media-pool/use-media-pool", () => ({
+  useMediaPool: () => ({
+    getPeaks: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+```
+
+Each call to `useMediaPool()` returns a NEW object `{ getPeaks: vi.fn()... }`. This means `pool` changes every render, which makes the `fetchPeaks` effect re-run every render, which calls `setClipPeaks({})` every time, which causes a new render. This is an infinite loop.
+
+The fix: make the mock return a stable object.All 3 tests pass. Now let me run a broader set of tests:All 137 tests pass across 12 test files. Let me now run the full test suite to make sure nothing else is broken:136 out of 138 test files pass, 1528 out of 1531 tests pass. The one failure is in `DawShell.test.tsx` with a worker timeout. Let me check if this is related to my changes:This test has the same issue - `useMediaPool` mock returns a new object each render. It also already has `useTransportCursor` mock. The timeout is likely the same infinite loop issue from the unstable `useMediaPool` reference.Also fix the `useAudioEngine` mock in DawShell.test.tsx for the same reason:Now let me run the full test suite again:1529 pass, 2 fail. Which test file fails? Let me check:The failing tests are in `track-creation.test.tsx` for drum-related tests. Let me check what's failing:The error is `useAudioEngine must be used within AudioEngineProvider` from `panels.tsx:95` - that's the `useDrumMachineState` hook where I added `useAudioEngine()`. The test doesn't mock `useAudioEngine`. Let me fix the test:I need to add mocks for `useAudioEngine` and `useMeterData` and other hooks:All 12 tests pass. Now let me run the full suite one more time to confirm everything passes:**138 test files, 1531 tests, ALL PASSING.** Let me also run lint and type check:There's a lint error in ArrangementPanel.tsx line 199 - "Cannot access refs during render". This is because I'm setting `stateRef.current = { ... }` during render. Let me fix this:The ref assignment during render is flagged by the React compiler lint rule. Let me use a different approach - use an effect to sync the ref:No TypeScript or lint errors. Let me run the arrangement test to confirm:All pass. Let me now do a final full test run:**138 test files, 1531 tests, ALL PASSING.** 
+
+Now let me close the beads tasks and commit:Now commit and push:Prettier formatting issues. Let me fix them:Commit successful. Now push:All done. Let me capture a lesson:EPIC_COMPLETEThe background task completed (it was one of the earlier test runs that eventually finished). The epic is already complete - all work has been committed and pushed.
+
+EPIC_COMPLETEThat was one of the earlier stuck test runs that got killed during debugging. The epic is already complete - all fixes are committed and pushed.
+
+EPIC_COMPLETEAnother old stuck test run that was killed. Already resolved - the epic is complete with all tests passing (138 files, 1531 tests), committed and pushed.
+
+EPIC_COMPLETEOld stuck test run, already killed and resolved during debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETEOld background task from debugging. Epic is complete.
+
+EPIC_COMPLETE

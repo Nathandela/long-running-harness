@@ -217,4 +217,4 @@ The initial 18-epic build produced 42K lines of working, tested code -- but most
 | S9 | User opens routing matrix | W-EVT-08 | Send/bus routing visible for all tracks |
 
 ## Cycle
-This is polish cycle 1 of 1.
+This is polish cycle 1 of 2.

@@ -1,1 +1,1 @@
-Could you clarify what you'd like help with?
+Context loaded. What would you like to work on?

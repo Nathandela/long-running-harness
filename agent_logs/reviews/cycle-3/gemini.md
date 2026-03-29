@@ -14,5 +14,4 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-1. [P3] DrumKit parameter desynchronization: This issue STILL remains unresolved. In `src/audio/track-audio-bridge.ts`, `addDrumTrack` continues to initialize `DrumKit` with default parameters (`const kit = createDrumKit(ctx, samples);`). There is still no mechanism implemented to sync the kit's initial state with the values stored in `paramsCache` from `src/ui/panels.tsx` when the audio bridge is re-created. If a track is removed and quickly re-added, or if the bridge remounts, the audio engine resets the drum kit to default parameters while the UI retains its locally cached parameter values, causing desynchronization.
+REVIEW_APPROVED

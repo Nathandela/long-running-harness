@@ -29,8 +29,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-e4bf6ed chore: auto-commit uncommitted changes from long-running-harness-w8bo
-c6bff1c Wire TrackAudioBridgeProvider: synth, drum, and clip scheduling (W5 epic)
+929763f chore: auto-commit uncommitted changes from long-running-harness-sf6v
+3096f84 Visual polish: RotaryKnobs, toggle groups, waveform peaks (W6 epic)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

@@ -1,1 +1,1 @@
-Looks like an accidental message. What can I help you with?
+Could you clarify what you'd like to do?

@@ -6,28 +6,23 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All four findings resolved. Type check passes.
+`ArrangementPanel.tsx:166` populates `clipPeaks` keyed by `clip.id`, which matches the renderer at line 256. The key change in the test (`"src-1"` → `"c1"`) is correct.
+
+All four findings are resolved:
+- **#1 (P2)**: `{valueText ?? String(value)}` — fixed
+- **#2 (P2)**: Arrow-key navigation + single-tabstop radiogroup — fixed
+- **#3 (P3)**: `console.warn` with error info — fixed
+- **#4 (P3)**: Exact 4-bar assertion + clip.id key alignment — fixed
 
 REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All six findings addressed. Verification:
+All three findings are resolved:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | Buffer cache never evicts | Fixed: `syncBuffers` evicts entries for removed clips |
-| 2 | `onAdvanceCallback` not cleared on unmount | Fixed: cleanup returns `transport.setOnAdvanceCallback(null)`, type widened to accept `null` |
-| 3 | Unnecessary `as unknown as AudioNode` cast | Fixed: now just `strip.inputGain` |
-| 4 | Duplicate concurrent fetches | Fixed: `inFlightRef` Set tracks in-flight sourceIds |
-| 5 | Inline callbacks in render body | Fixed: extracted `SynthTrackPanel` with `useMemo`-wrapped callbacks |
-| 6 | Audio tracks have no cleanup entry | Fixed: `addAudioTrack` now registers `mixer.removeStrip` in `trackCleanups` |
-
-Bonus: the `alive` Set was replaced with a `trackGeneration` counter map, which correctly handles add-remove-add races for the same trackId.
-
-One minor note: for audio tracks, `removeStrip` is called twice in `handleTrackRemoved` (once from the cleanup, once directly at line 156), but `removeStrip` guards with `if (!strip) return` so the second call is a harmless no-op. Not worth blocking on.
-
-Tests pass, types check clean.
+1. **P2 (RotaryKnob display)**: Fixed — now shows `{valueText ?? String(value)}`, restoring units.
+2. **P3 (ToggleGroup button type)**: Fixed — `type="button"` added.
+3. **P3 (Silent catch)**: Fixed — now logs `console.warn("Failed to prefetch buffer:", clip.sourceId, err)`.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -51,18 +46,17 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_CHANGES_REQUESTED
-1. [P3] DrumKit parameter desynchronization: This issue remains unresolved. In `src/audio/track-audio-bridge.ts`, `addDrumTrack` still initializes `DrumKit` with default parameters (`const kit = createDrumKit(ctx, samples);`). There is no mechanism to sync the kit's initial state with the values stored in `paramsCache` from `src/ui/panels.tsx` if the audio bridge is re-created, resulting in the audio engine resetting to defaults while the UI retains its cached parameter values.
+REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Failed buffer prefetches can permanently wedge a source ID in the clip-scheduler cache path** ([TrackAudioBridgeProvider.tsx:58](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:58), [TrackAudioBridgeProvider.tsx:59](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:59), [TrackAudioBridgeProvider.tsx:60](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:60))  
-  The new `inFlightRef` guard is only cleared in `.then()`. If `pool.getAudioBuffer()` rejects, that `sourceId` stays in `inFlightRef` forever, so later sync passes will never retry the load and clips for that source can remain unschedulable until the provider remounts. This also risks an unhandled rejection. Clear the flag in a `finally`, handle the rejection explicitly, and add a regression test that fails once and then retries successfully on a later store update.
+- **[P1] In-flight buffer loads can still repopulate the cache after the last referencing clip was removed** ([TrackAudioBridgeProvider.tsx:50](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:50), [TrackAudioBridgeProvider.tsx:60](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:60), [TrackAudioBridgeProvider.tsx:62](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:62), [TrackAudioBridgeProvider.tsx:74](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:74))  
+  The rejection path is handled now, but the success path still caches the resolved buffer without re-checking that the `sourceId` is still active. If the last clip using that source is removed while `getAudioBuffer()` is in flight, the resolve handler puts the buffer back into `bufferCacheRef` after the eviction pass has already run, so the stale entry can sit there until some later clip-state change happens to evict it. The leak fix is still partial. Re-check liveness before caching the resolved buffer, and add a regression test for “clip removed before prefetch resolves.”
 
-- **[P1] `pnpm test` is still red on the current branch** ([lfo.test.ts:21](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/lfo.test.ts:21), [lfo.test.ts:36](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/lfo.test.ts:36), [polyblep.test.ts:39](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:39), [polyblep.test.ts:56](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:56), [polyblep.test.ts:87](/Users/Nathan/Documents/Code/long-running-harness/src/audio/synth/dsp/polyblep.test.ts:87))  
-  The current `pnpm test` run exits non-zero with five DSP timeout failures, so the branch still does not pass the project quality gate.</codex-review>
+- **[P1] The new waveform-peaks dependency broke isolated `DawShell` rendering, and `pnpm test` is red** ([ArrangementPanel.tsx:134](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/ArrangementPanel.tsx:134), [ArrangementPanel.tsx:135](/Users/Nathan/Documents/Code/long-running-harness/src/ui/arrangement/ArrangementPanel.tsx:135), [DawShell.test.tsx:81](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.test.tsx:81))  
+  `ArrangementPanel` now unconditionally calls `useMediaPool()` and `useAudioEngine()`. In the current branch, `DawShell.test.tsx` still renders `ArrangementPanel` without an audio-engine mock/provider, so `pnpm test` now fails with `useAudioEngine must be used within AudioEngineProvider`. Either mock `@audio/use-audio-engine` in that test path or loosen the panel’s coupling so peak fetching is optional when the provider is absent.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

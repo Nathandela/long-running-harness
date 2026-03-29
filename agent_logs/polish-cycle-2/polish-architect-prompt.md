@@ -64,15 +64,15 @@ POLISH_EPIC: <epic-id>
 ## Polish Report
 # Polish Report -- Cycle 2
 
-Generated: 2026-03-29T02:15:25Z
+Generated: 2026-03-29T12:42:19Z
 
 ## claude-sonnet
 
-Looks like an accidental message. What can I help you with?
+Could you clarify what you'd like to do?
 
 ## claude-opus
 
-What can I help you with?
+Ready. What do you need?
 
 ## gemini
 
@@ -83,7 +83,7 @@ MCP issues detected. Run /mcp list for status.
 
 
 ## Meta-Epic
-Parent: long-running-harness-kno
+Parent: long-running-harness-mzn1
 
 ## Spec File
-Read this file for product vision: docs/specs/brutalwav-daw.md
+Read this file for product vision: docs/specs/brutalwav-wiring-fix.md

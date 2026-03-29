@@ -1,1 +1,1 @@
-What can I help you with?
+Ready. What do you need?
