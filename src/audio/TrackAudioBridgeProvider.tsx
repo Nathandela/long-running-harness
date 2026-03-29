@@ -165,6 +165,17 @@ export function TrackAudioBridgeProvider({
     });
   }, [value.clipScheduler, value.bridge]);
 
+  // Forward master volume from store to MixerEngine
+  useEffect(() => {
+    // Apply initial value
+    mixer.setMasterLevel(useDawStore.getState().masterVolume);
+    return useDawStore.subscribe((state, prev) => {
+      if (state.masterVolume !== prev.masterVolume) {
+        mixer.setMasterLevel(state.masterVolume);
+      }
+    });
+  }, [mixer]);
+
   // Forward track volume/pan/mute/solo changes to MixerEngine
   useEffect(() => {
     let prevTracks = useDawStore.getState().tracks;

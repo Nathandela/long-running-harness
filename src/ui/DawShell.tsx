@@ -45,6 +45,14 @@ function DawShellInner({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [bottomPanel, setBottomPanel] = useState<BottomPanelMode>("default");
   const [editingClipId, setEditingClipId] = useState<string | null>(null);
+  const [showMediaPoolOverride, setShowMediaPoolOverride] = useState(false);
+
+  // Determine if the selected track is instrument/drum (full-width instrument panel)
+  const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
+  const tracks = useDawStore((s) => s.tracks);
+  const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
+  const isInstrumentOrDrum =
+    selectedTrack?.type === "instrument" || selectedTrack?.type === "drum";
 
   const openPianoRoll = useCallback((clipId: string) => {
     setEditingClipId(clipId);
@@ -144,7 +152,39 @@ function DawShellInner({
                   top: 4,
                   right: 8,
                   zIndex: 10,
-                  background: "none",
+                  background: "var(--color-gray-700)",
+                  border: "1px solid var(--color-gray-500)",
+                  color: "var(--color-gray-100)",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "var(--text-sm)",
+                  padding: "4px 12px",
+                  borderRadius: "3px",
+                }}
+              >
+                Close
+              </button>
+              <PianoRollEditor clipId={editingClipId} />
+            </div>
+          ) : isInstrumentOrDrum ? (
+            <div style={{ position: "relative", overflow: "hidden" }}>
+              {showMediaPoolOverride ? (
+                <MediaPoolPanel pool={pool} />
+              ) : (
+                <InstrumentPanel />
+              )}
+              <button
+                type="button"
+                data-testid="toggle-media-pool"
+                onClick={() => {
+                  setShowMediaPoolOverride((prev) => !prev);
+                }}
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 8,
+                  zIndex: 10,
+                  background: "var(--color-gray-800)",
                   border: "var(--border)",
                   color: "var(--color-gray-300)",
                   cursor: "pointer",
@@ -153,9 +193,8 @@ function DawShellInner({
                   padding: "2px 8px",
                 }}
               >
-                Close
+                {showMediaPoolOverride ? "Instrument" : "Media Pool"}
               </button>
-              <PianoRollEditor clipId={editingClipId} />
             </div>
           ) : (
             <div style={{ display: "flex", overflow: "hidden" }}>
