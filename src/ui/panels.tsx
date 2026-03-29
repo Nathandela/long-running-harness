@@ -274,9 +274,14 @@ function SynthTrackPanel({
 }
 
 export function InstrumentPanel(): React.JSX.Element {
-  const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
-  const tracks = useDawStore((s) => s.tracks);
-  const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
+  // Use selectedTrackIds[0] to match DawShell's selected-track logic exactly.
+  // tracks.find(t => selectedTrackIds.includes(t.id)) would use track-array
+  // order instead of selection order, diverging under multi-select.
+  const selectedTrack = useDawStore((s) => {
+    const id = s.selectedTrackIds[0];
+    if (id === undefined) return undefined;
+    return s.tracks.find((t) => t.id === id);
+  });
   const bridge = useTrackAudioBridge();
 
   if (selectedTrack?.type === "instrument") {

@@ -232,6 +232,30 @@ describe("DawShell bottom panel conditional layout", () => {
     expect(screen.queryByTestId("media-pool-panel")).not.toBeInTheDocument();
   });
 
+  it("multi-select uses selection order, not track array order", () => {
+    // Regression: DawShell and InstrumentPanel must agree on which track
+    // is "selected" when selection order differs from tracks array order.
+    // tracks order: [audio, instrument, drum]
+    // selection order: [drum, instrument] -- drum is selectedTrackIds[0]
+    useDawStore.setState({
+      tracks: [
+        makeTrack({ id: "t-audio", type: "audio" }),
+        makeTrack({ id: "t-inst", type: "instrument" }),
+        makeTrack({ id: "t-drum", type: "drum" }),
+      ],
+      selectedTrackIds: ["t-drum", "t-inst"],
+    });
+
+    const storage = createInMemorySessionStorage();
+    render(<DawShell sessionStorage={storage} />);
+
+    // DawShell sees selectedTrackIds[0] = "t-drum" (instrument/drum type)
+    // so it renders the full-width instrument panel (no side-by-side).
+    // InstrumentPanel must also resolve to "t-drum" (not "t-inst").
+    expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("media-pool-panel")).not.toBeInTheDocument();
+  });
+
   it("resets stale media-pool override when switching tracks", async () => {
     useDawStore.setState({
       tracks: [
