@@ -119,8 +119,8 @@ describe("Transport <-> Scheduler integration", () => {
     advanceTime(ctx, 1.1);
     vi.advanceTimersByTime(25);
 
-    // After loop wrap, cursor should be back near loop start
-    expect(clock.getCursorSeconds()).toBeLessThan(0.5);
+    // After loop wrap, cursor should be back near loop start (~0.1s into 1.0s loop)
+    expect(clock.getCursorSeconds()).toBeCloseTo(0.1, 1);
     expect(clock.didLoopWrap()).toBe(true);
 
     scheduler.stop();
@@ -131,7 +131,7 @@ describe("Transport <-> Scheduler integration", () => {
     const scheduler = createLookAheadScheduler(
       ctx,
       clock,
-      { intervalMs: 25, lookAheadMs: 500 },
+      { intervalMs: 25, lookAheadMs: 2000 },
       (beatTime) => {
         ticks.push(beatTime);
       },
@@ -143,6 +143,14 @@ describe("Transport <-> Scheduler integration", () => {
 
     const spb = clock.getTempoMap().secondsPerBeat();
     expect(spb).toBeCloseTo(1.0, 3);
+
+    // Verify scheduler actually produces beats spaced ~1s apart at 60 BPM
+    advanceTime(ctx, 2);
+    vi.advanceTimersByTime(25);
+
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    const gap = (ticks[1] as number) - (ticks[0] as number);
+    expect(gap).toBeCloseTo(1.0, 2); // Beats 1s apart at 60 BPM
 
     scheduler.stop();
   });

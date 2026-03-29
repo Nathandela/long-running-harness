@@ -44,6 +44,7 @@ function createMockParam(initial = 0): MockAudioParam {
     param.value = v;
   });
   param.exponentialRampToValueAtTime.mockImplementation((v: number) => {
+    if (v <= 0) throw new DOMException("value must be positive", "RangeError");
     param.value = v;
   });
   return param;
@@ -54,6 +55,22 @@ type MockGainNode = {
   connect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
   channelCount: number;
+};
+
+type MockPannerNode = {
+  pan: MockAudioParam;
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+};
+
+type MockCompressorNode = {
+  threshold: MockAudioParam;
+  ratio: MockAudioParam;
+  knee: MockAudioParam;
+  attack: MockAudioParam;
+  release: MockAudioParam;
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
 };
 
 type MockAnalyserNode = {
@@ -75,7 +92,7 @@ export function createMockAudioContext(initialTime = 0): AudioContext {
     channelCount: 2,
   });
 
-  const mockPanner = (): object => ({
+  const mockPanner = (): MockPannerNode => ({
     pan: createMockParam(0),
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
@@ -90,7 +107,7 @@ export function createMockAudioContext(initialTime = 0): AudioContext {
     getFloatTimeDomainData: vi.fn(),
   });
 
-  const mockCompressor = (): object => ({
+  const mockCompressor = (): MockCompressorNode => ({
     threshold: createMockParam(-24),
     ratio: createMockParam(12),
     knee: createMockParam(30),
@@ -150,7 +167,11 @@ export function createMockAudioContext(initialTime = 0): AudioContext {
           if (data === undefined) throw new Error(`No channel ${String(c)}`);
           data.set(source);
         },
-        copyFromChannel: vi.fn(),
+        copyFromChannel(dest: Float32Array, c: number): void {
+          const data = channelData[c];
+          if (data === undefined) throw new Error(`No channel ${String(c)}`);
+          dest.set(data.subarray(0, dest.length));
+        },
       } as unknown as AudioBuffer;
     },
     audioWorklet: {

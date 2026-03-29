@@ -15,7 +15,11 @@ import {
   computeSessionBounds,
   buildEventTimeline,
 } from "@audio/bounce/bounce-engine";
-import type { BounceOptions, BounceProgress } from "@audio/bounce/types";
+import type {
+  BounceOptions,
+  BounceProgress,
+  BounceResult,
+} from "@audio/bounce/types";
 import type { AudioClipModel, MidiClipModel } from "@state/track/types";
 import {
   makeTrack,
@@ -99,6 +103,41 @@ describe("Session bounds computation", () => {
     const bounds = computeSessionBounds([t1, t2], clips);
     expect(bounds.start).toBe(0);
     expect(bounds.end).toBe(2); // Only t1's clip
+  });
+
+  it("solo mode includes soloIsolate tracks", () => {
+    const t1 = makeTrack({ id: "t1", clipIds: ["c1"], solo: true });
+    const t2 = makeTrack({ id: "t2", clipIds: ["c2"] });
+    const t3 = makeTrack({
+      id: "t3",
+      clipIds: ["c3"],
+      soloIsolate: true,
+    });
+    const clips = {
+      c1: makeAudioClip({
+        id: "c1",
+        trackId: "t1",
+        startTime: 0,
+        duration: 2,
+      }),
+      c2: makeAudioClip({
+        id: "c2",
+        trackId: "t2",
+        startTime: 5,
+        duration: 5,
+      }),
+      c3: makeAudioClip({
+        id: "c3",
+        trackId: "t3",
+        startTime: 1,
+        duration: 4,
+      }),
+    };
+
+    const bounds = computeSessionBounds([t1, t2, t3], clips);
+    // t1 (soloed) and t3 (soloIsolate) are audible; t2 is excluded
+    expect(bounds.start).toBe(0);
+    expect(bounds.end).toBe(5); // t3 ends at 1+4=5
   });
 
   it("returns zero bounds when no audible clips", () => {
@@ -217,10 +256,10 @@ describe("BounceEngine integration", () => {
   }
 
   async function drainGenerator(
-    gen: AsyncGenerator<BounceProgress, unknown>,
-  ): Promise<{ phases: BounceProgress[]; result: unknown }> {
+    gen: AsyncGenerator<BounceProgress, BounceResult>,
+  ): Promise<{ phases: BounceProgress[]; result: BounceResult }> {
     const phases: BounceProgress[] = [];
-    let iterResult: IteratorResult<BounceProgress, unknown>;
+    let iterResult: IteratorResult<BounceProgress, BounceResult>;
     do {
       iterResult = await gen.next();
       if (iterResult.done !== true) {
@@ -244,9 +283,8 @@ describe("BounceEngine integration", () => {
     expect(phaseNames).toContain("encoding");
     expect(phaseNames).toContain("complete");
 
-    const bounceResult = result as { blob: Blob; duration: number };
-    expect(bounceResult.blob).toBeDefined();
-    expect(bounceResult.duration).toBe(2);
+    expect(result.blob).toBeDefined();
+    expect(result.duration).toBe(2);
   });
 
   it("returns empty result for zero-duration session", async () => {
@@ -257,8 +295,7 @@ describe("BounceEngine integration", () => {
     });
 
     const { result } = await drainGenerator(engine.bounce(options));
-    const bounceResult = result as { duration: number };
-    expect(bounceResult.duration).toBe(0);
+    expect(result.duration).toBe(0);
   });
 
   it("rejects invalid sample rate", async () => {
@@ -293,8 +330,7 @@ describe("BounceEngine integration", () => {
     engine.cancel();
 
     const { result } = await drainGenerator(gen);
-    const bounceResult = result as { duration: number };
-    expect(bounceResult.duration).toBe(0); // Cancelled = empty result
+    expect(result.duration).toBe(0); // Cancelled = empty result
   });
 
   it("region bounce respects start/end range", async () => {
@@ -314,8 +350,7 @@ describe("BounceEngine integration", () => {
     });
 
     const { result } = await drainGenerator(engine.bounce(options));
-    const bounceResult = result as { duration: number };
-    expect(bounceResult.duration).toBe(3); // 5 - 2
+    expect(result.duration).toBe(3); // 5 - 2
   });
 });
 
@@ -437,18 +472,13 @@ describe("End-to-end workflow: import -> arrange -> mix -> export", () => {
       instruments: new Map(),
     });
 
-    let iterResult: IteratorResult<BounceProgress, unknown>;
+    let iterResult: IteratorResult<BounceProgress, BounceResult>;
     do {
       iterResult = await gen.next();
     } while (iterResult.done !== true);
 
-    const bounceResult = iterResult.value as {
-      blob: Blob;
-      duration: number;
-      sampleRate: number;
-    };
-    expect(bounceResult.duration).toBe(8);
-    expect(bounceResult.sampleRate).toBe(44100);
-    expect(bounceResult.blob).toBeDefined();
+    expect(iterResult.value.duration).toBe(8);
+    expect(iterResult.value.sampleRate).toBe(44100);
+    expect(iterResult.value.blob).toBeDefined();
   });
 });
