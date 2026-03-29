@@ -1,0 +1,27 @@
+Now let me explore the codebase to understand the current structure before planning.Good, I have a comprehensive understanding of the codebase. Let me now read the key inline-style files and create the implementation plan.Now let me read a few more files to complete the picture.I now have a full picture. Let me claim the epic and start implementing. I'll break this into sub-tasks and work through them systematically.Let me create sub-tasks for this epic and work through them.Now let me start implementing. I'll tackle the design tokens first since other tasks depend on them, then work through the rest.
+
+## Task 1: Design Token GapsNow update the ContextMenu to use the z-index token instead of hardcoded 1000:Now fix the hardcoded spacing in PianoRollEditor.module.css:Token task done. Now let me close it and move to hover/active/focus states.## Task 2: Hover/Active/Focus StatesNow let me add the missing states to each control. I'll read and edit them in parallel batches.Now let me add the missing interactive states to all these controls:## Task 3: Inline Styles to CSS ModulesFirst, let me check if there's already a MediaPoolPanel.module.css:I need to create both CSS module files and update the TSX files.Now update MediaPoolPanel.tsx to use the CSS module:Now update the JSX to use CSS module classes:I need to add the `isImporting` state and the `Spinner` component. Let me first create the Spinner, then update MediaPoolPanel to track import state properly.Now let me update MediaPoolPanel.tsx to properly use the Spinner and track importing state:I need to fix the MediaPoolPanel — replace `importingRef` with a proper state for the UI, and add the Spinner import:Now replace `importingRef` with a state variable so the UI can react:Now update the button disabled state to use the reactive `isImporting` state:Now convert panels.tsx to use CSS modules:Let me also check that the Spinner export is available from the primitives index:No barrel file — imports are direct. Good, the direct import will work.## Task 4: Loading States
+
+The Spinner component is already created. The MediaPoolPanel now shows loading state during import. Let me check if there's a bounce/export function that needs a loading state too.There's a bounce engine but no UI for it yet. The loading state task is done (Spinner created and MediaPoolPanel uses it during import). The bounce UI doesn't exist yet so there's nothing to add a spinner to there.## Task 5: Context Menu Animation + Color Contrast FixThe animation respects `prefers-reduced-motion` via the global CSS which sets all `animation-duration: 0ms !important`.
+
+Now fix the color contrast. The epic says `--color-gray-500` (#666) on black is ~3:1. We need to bump label uses to `--color-gray-300` (#999) which gives ~5.3:1 on black (passes AA). Let me update the affected files:Now fix MixerPanel.module.css:Now fix RoutingMatrix.module.css — there are multiple gray-500 usages:The gray-500 usages in RoutingMatrix.module.css:
+- Line 11: `.empty` color (placeholder text)
+- Line 34: `.bus-target` color (label text)
+- Line 64: `.add-send` color (button text)
+- Line 85: `.pre` color (label text)Now add the `transportBtn:active` state that's missing:Now let me verify everything compiles and tests pass.Lint error on the template literal with CSS module classes. Let me fix this:CSS modules can return `string | undefined`. Let me fix it:Lint passes (only pre-existing warnings). Now run tests:All 126 test files pass, all 1403 tests pass. Let me also run the format check:All checks pass. Let me commit and close the epic.Commit successful. Now close the epic and push.All done. Here's what was implemented:
+
+**Design token system** -- Added semantic colors (`--color-success/warning/error`), z-index scale (7 levels from `--z-base` to `--z-context-menu`), shadow tokens (`--shadow-sm/md/lg`), and state colors (`--color-hover/disabled`).
+
+**Interactive states** -- Added `:hover`, `:active`, and `:focus-visible` to Toggle, DrumPad, Fader track, Select, StepButton, PianoRollEditor toolbar buttons, and TransportBar buttons.
+
+**CSS modules migration** -- Converted MediaPoolPanel.tsx and panels.tsx from inline `CSSProperties` to proper `.module.css` files.
+
+**Loading UI** -- Created `Spinner` primitive component and integrated it into MediaPoolPanel during audio import.
+
+**Context menu animation** -- Added fade-in/scale animation (respects `prefers-reduced-motion` via global CSS).
+
+**Color contrast** -- Bumped all `--color-gray-500` label text to `--color-gray-300` for WCAG AA compliance (4.5:1+ on dark backgrounds).
+
+All 1403 tests pass, lint clean, format clean.
+
+EPIC_COMPLETE
