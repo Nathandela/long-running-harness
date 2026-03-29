@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTransport } from "@audio/use-transport";
 import { useDawStore } from "@state/index";
 import type { TrackType } from "@state/track/types";
@@ -41,10 +47,8 @@ export function TransportBar(): React.JSX.Element {
   const [bounceOpen, setBounceOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
-  const [menuPos, setMenuPos] = useState({
-    top: 0,
-    left: 0,
-  });
+  const menuElRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   const handleLoopToggle = useCallback((): void => {
     setLoop(!loopEnabled);
@@ -95,29 +99,54 @@ export function TransportBar(): React.JSX.Element {
     [addTrack, setSelectedTrackIds],
   );
 
-  // Close menu on outside click or Escape key
+  // Close menu on outside click, Escape, resize, or scroll
   useEffect(() => {
     if (!addMenuOpen) return;
+    const close = (): void => {
+      setAddMenuOpen(false);
+    };
     const handleClick = (e: MouseEvent): void => {
       if (
         addMenuRef.current &&
         !addMenuRef.current.contains(e.target as Node)
       ) {
-        setAddMenuOpen(false);
+        close();
       }
     };
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") {
-        setAddMenuOpen(false);
-      }
+      if (e.key === "Escape") close();
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
     return () => {
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
     };
   }, [addMenuOpen]);
+
+  // Clamp menu position to viewport after it renders
+  useLayoutEffect(() => {
+    if (!addMenuOpen || !menuElRef.current) return;
+    const rect = menuElRef.current.getBoundingClientRect();
+    const clampedLeft = Math.min(
+      menuPos.left,
+      window.innerWidth - rect.width - 4,
+    );
+    const clampedTop = Math.min(
+      menuPos.top,
+      window.innerHeight - rect.height - 4,
+    );
+    if (clampedLeft !== menuPos.left || clampedTop !== menuPos.top) {
+      setMenuPos({
+        top: Math.max(0, clampedTop),
+        left: Math.max(0, clampedLeft),
+      });
+    }
+  }, [addMenuOpen, menuPos.left, menuPos.top]);
 
   const isPlaying = transportState === "playing";
   const clock = transport.getClock();
@@ -136,7 +165,8 @@ export function TransportBar(): React.JSX.Element {
           aria-haspopup="menu"
           aria-expanded={addMenuOpen}
           onClick={() => {
-            if (!addMenuOpen && addBtnRef.current) {
+            if (!addMenuOpen) {
+              if (!addBtnRef.current) return;
               const r = addBtnRef.current.getBoundingClientRect();
               setMenuPos({ top: r.bottom + 4, left: r.left });
             }
@@ -147,6 +177,7 @@ export function TransportBar(): React.JSX.Element {
         </button>
         {addMenuOpen && (
           <div
+            ref={menuElRef}
             className={styles["addTrackMenu"]}
             role="menu"
             style={{ top: menuPos.top, left: menuPos.left }}
