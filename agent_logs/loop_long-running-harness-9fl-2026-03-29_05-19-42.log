@@ -1,0 +1,23 @@
+Now let me explore the codebase to understand the current state of the files mentioned in the epic.Good, I have a comprehensive understanding of the codebase. Let me now read the key files I need to modify and start planning.Now let me read the App.tsx and CSS files to understand the full picture.Now let me check existing tests and the arrangement renderer for armed state handling.Good. I now understand the track has an `armed` field. Let me check the arrangement renderer to see how tracks are drawn and check the Toolbar component.Now let me check existing tests so I understand what test patterns are used.Now I have a thorough understanding of the codebase. Let me claim the epic and start implementing. I'll use the compound workflow: plan, then work through each acceptance criterion.Now let me create sub-tasks for this epic and work through them systematically.Now let me implement all changes. I'll start with the tests first (TDD), then implement.
+
+Let me write all the tests first, then implement all the changes.Good, tests pass. Now let me implement all the changes. I'll work through each task systematically, writing tests and implementing in parallel where possible.
+
+## Task 1: Mixer empty stateNow add the test for the mixer empty state:## Task 2: Piano roll empty state## Task 3: Media pool error auto-dismissNow add the ref and dismiss button:Now clear the timer when errors are set and add the dismiss callback:Now update the error display to include a dismiss button:Add dismiss button CSS:## Task 4: BPM input range hint## Task 5: Armed track indicator in arrangement rendererNow add the armed indicator to `drawTrackHeaders`:## Task 6: Keyboard shortcuts hint in transport bar## Task 7: ClickToStart loading stateNow let me run all the tests to verify everything compiles and passes:TypeScript passes. Now let's run the relevant tests:All tests pass. Now let me add a test for the arrangement renderer's armed indicator:Now add the armed track test:Now run all tests together:All 27 tests pass. Let me also run the broader test suite to make sure nothing is broken:The PianoRollEditor tests are failing because they pass `clipId={null}` and now get the empty state instead of the full editor. I need to update those tests. Let me see the test file:I see -- many tests pass `clipId={null}` but expect to see the toolbar and canvas. Now that `clipId={null}` shows the empty state, those tests need to use a valid clipId. Let me update the tests:Now run all UI tests again:All 363 tests pass (46 test files). Let me also run the full lint check:The lint error is on line 39 for the type argument to `useRef`. Let me fix it:All lint passes. Let me also run the full check command:Formatting issues. Let me fix them:Now run the full check again:All 1415 tests pass across 126 test files. Full `pnpm check` (tsc + eslint + prettier + vitest) passes cleanly.
+
+Now let me close all the subtasks and commit:Now close the epic:Now commit and push:Commit succeeded. Pre-commit hooks (lint + format check) passed. Now push:All done. Let me capture a lesson from this work:EPIC_COMPLETE
+
+## Summary
+
+Implemented all acceptance criteria for the "Empty states, error handling UX, and edge case coverage" epic:
+
+| Criterion | Implementation |
+|-----------|---------------|
+| Mixer empty state | `MixerPanel.tsx` - "No tracks yet. Click + to add one." when `tracks.length === 0` |
+| Piano roll empty state | `PianoRollEditor.tsx` - "Select a MIDI clip to edit" when `clipId === null` |
+| Media pool error auto-dismiss | `MediaPoolPanel.tsx` - errors auto-dismiss after 5s with manual Dismiss button |
+| BPM input range hint | `BpmInput.tsx` - title tooltip "20-999 BPM" and placeholder |
+| Armed track indicator | `arrangement-renderer.ts` - hot pink color strip + "R" label for armed tracks (R-STA-02) |
+| Keyboard shortcuts hint | `TransportBar.tsx` - subtle "?" hint with "Keyboard Shortcuts (Shift+?)" tooltip |
+| Loading state | `ClickToStart.tsx` - Spinner + "Starting audio engine..." after click |
+
+All 1415 tests pass. Pre-commit hooks (eslint, tsc, prettier) pass. Pushed to remote.
