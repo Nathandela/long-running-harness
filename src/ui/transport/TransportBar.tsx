@@ -40,6 +40,11 @@ export function TransportBar(): React.JSX.Element {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [bounceOpen, setBounceOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState({
+    top: 0,
+    left: 0,
+  });
 
   const handleLoopToggle = useCallback((): void => {
     setLoop(!loopEnabled);
@@ -124,19 +129,28 @@ export function TransportBar(): React.JSX.Element {
 
       <div className={styles["addTrackWrapper"]} ref={addMenuRef}>
         <button
+          ref={addBtnRef}
           type="button"
           className={styles["transportBtn"]}
           aria-label="Add Track"
           aria-haspopup="menu"
           aria-expanded={addMenuOpen}
           onClick={() => {
+            if (!addMenuOpen && addBtnRef.current) {
+              const r = addBtnRef.current.getBoundingClientRect();
+              setMenuPos({ top: r.bottom + 4, left: r.left });
+            }
             setAddMenuOpen((prev) => !prev);
           }}
         >
           +
         </button>
         {addMenuOpen && (
-          <div className={styles["addTrackMenu"]} role="menu">
+          <div
+            className={styles["addTrackMenu"]}
+            role="menu"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
             {TRACK_PRESETS.map((preset) => (
               <button
                 key={preset.type}
