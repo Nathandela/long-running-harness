@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import type { AudioClipModel } from "@state/track/types";
+import { AddClipCommand } from "@state/track/track-commands";
+import { sharedUndoManager } from "@state/undo";
 import {
   renderArrangement,
   type ArrangementViewState,
@@ -42,12 +44,22 @@ export function ArrangementPanel({
 
   const handleDragOver = useCallback(
     (e: React.DragEvent<HTMLCanvasElement>): void => {
-      if (e.dataTransfer.types.includes("application/x-media-pool-source")) {
+      if (!e.dataTransfer.types.includes("application/x-media-pool-source"))
+        return;
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const trackIndex = Math.floor(
+        (y - RULER_HEIGHT + view.scrollY) / view.trackHeight,
+      );
+      const state = useDawStore.getState();
+      const track = trackIndex >= 0 ? state.tracks[trackIndex] : undefined;
+      if (track !== undefined && track.type === "audio") {
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
       }
     },
-    [],
+    [view],
   );
 
   const handleDrop = useCallback(
@@ -56,12 +68,19 @@ export function ArrangementPanel({
       if (!raw) return;
       e.preventDefault();
 
-      let data: { sourceId: string; name: string; durationSeconds: number };
+      let parsed: unknown;
       try {
-        data = JSON.parse(raw) as typeof data;
+        parsed = JSON.parse(raw);
       } catch {
         return;
       }
+      const data = parsed as Record<string, unknown>;
+      if (
+        typeof data.sourceId !== "string" ||
+        typeof data.name !== "string" ||
+        typeof data.durationSeconds !== "number"
+      )
+        return;
 
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -71,6 +90,7 @@ export function ArrangementPanel({
       const trackIndex = Math.floor(
         (y - RULER_HEIGHT + view.scrollY) / view.trackHeight,
       );
+      if (trackIndex < 0) return;
       const track = state.tracks[trackIndex];
       if (track === undefined || track.type !== "audio") return;
 
@@ -94,7 +114,9 @@ export function ArrangementPanel({
         name: data.name,
       };
 
-      state.addClip(clip);
+      const cmd = new AddClipCommand(clip);
+      cmd.execute();
+      sharedUndoManager.push(cmd);
     },
     [view, gridSnap, bpmForDrop],
   );

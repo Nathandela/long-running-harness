@@ -1,8 +1,9 @@
 /**
  * Tests for W3: DawShell bottom panel switching between default and piano-roll views.
  */
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DawShell } from "./DawShell";
 import { createInMemorySessionStorage } from "@state/session/session-storage";
 import { useDawStore } from "@state/store";
@@ -68,7 +69,25 @@ vi.mock("@audio/media-pool/use-media-pool", () => ({
   }),
 }));
 
+// Mock ArrangementPanel (canvas-based, doesn't render in jsdom)
+// and capture the onOpenPianoRoll callback for testing
+let capturedOpenPianoRoll: ((clipId: string) => void) | undefined;
+vi.mock("@ui/arrangement", () => ({
+  ArrangementPanel: ({
+    onOpenPianoRoll,
+  }: {
+    onOpenPianoRoll?: (clipId: string) => void;
+  }): React.JSX.Element => {
+    capturedOpenPianoRoll = onOpenPianoRoll;
+    return <div data-testid="arrangement-panel" />;
+  },
+}));
+
 describe("DawShell piano roll panel switching", () => {
+  beforeEach(() => {
+    capturedOpenPianoRoll = undefined;
+  });
+
   it("shows default layout (instrument + media pool) initially", () => {
     const storage = createInMemorySessionStorage();
     render(<DawShell sessionStorage={storage} />);
@@ -78,7 +97,7 @@ describe("DawShell piano roll panel switching", () => {
     expect(screen.queryByTestId("piano-roll-editor")).not.toBeInTheDocument();
   });
 
-  it("shows piano roll when MIDI clip is double-clicked and close returns to default", () => {
+  it("opens piano roll and close button returns to default", async () => {
     // Set up an instrument track with a MIDI clip
     useDawStore.setState({
       tracks: [
@@ -115,11 +134,25 @@ describe("DawShell piano roll panel switching", () => {
     // Initially shows default layout
     expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("piano-roll-editor")).not.toBeInTheDocument();
-
-    // Simulate the arrangement calling onOpenPianoRoll via double-click on the canvas
-    // We can't easily simulate canvas double-click, so we test the close button works
-    // by checking that the close button only appears when piano roll is open.
-    // The integration between arrangement and piano roll is tested in w3-features.test.ts
     expect(screen.queryByTestId("close-piano-roll")).not.toBeInTheDocument();
+
+    // Trigger piano roll open via captured callback
+    if (capturedOpenPianoRoll === undefined) {
+      throw new Error("onOpenPianoRoll callback was not captured");
+    }
+    act(() => {
+      capturedOpenPianoRoll("m1");
+    });
+
+    // Piano roll should be visible, default panels hidden
+    expect(screen.getByTestId("piano-roll-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("close-piano-roll")).toBeInTheDocument();
+    expect(screen.queryByTestId("instrument-panel")).not.toBeInTheDocument();
+
+    // Click close button to return to default
+    await userEvent.click(screen.getByTestId("close-piano-roll"));
+
+    expect(screen.queryByTestId("piano-roll-editor")).not.toBeInTheDocument();
+    expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
   });
 });

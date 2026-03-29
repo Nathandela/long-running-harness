@@ -9,7 +9,7 @@ import type { ClipModel, MidiClipModel } from "@state/track/types";
 import { isAudioClip, isMidiClip } from "@state/track/types";
 import type { UndoCommand } from "@state/undo";
 import { sharedUndoManager } from "@state/undo";
-import { SplitClipCommand } from "@state/track/track-commands";
+import { AddClipCommand, SplitClipCommand } from "@state/track/track-commands";
 import type { ArrangementViewState } from "./arrangement-renderer";
 import { hitTest, xToSeconds, snapToGrid, type GridSnap } from "./hit-test";
 import { RULER_HEIGHT } from "./constants";
@@ -389,19 +389,7 @@ export function useArrangementInteractions(
             noteEvents: [],
             name: "MIDI Clip",
           };
-          const clipId = clip.id;
-          const cmd: UndoCommand = {
-            type: "create-midi-clip",
-            execute() {
-              useDawStore.getState().addMidiClip(clip);
-            },
-            undo() {
-              useDawStore.getState().removeMidiClip(clipId);
-            },
-            serialize() {
-              return { clip };
-            },
-          };
+          const cmd = new AddClipCommand(clip);
           cmd.execute();
           sharedUndoManager.push(cmd);
         }

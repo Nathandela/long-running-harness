@@ -15,6 +15,7 @@ import { TransportProvider } from "@audio/transport-provider";
 import { EffectsBridgeProvider } from "@audio/effects/EffectsBridgeProvider";
 import { RoutingBridgeProvider } from "@audio/mixer/RoutingBridgeProvider";
 import { useMediaPool } from "@audio/media-pool/use-media-pool";
+import { useDawStore } from "@state/store";
 import { sharedUndoManager } from "@state/undo/shared-undo-manager";
 import { useSessionPersistence } from "@state/session/use-session-persistence";
 import type { SessionStorage } from "@state/session/session-storage";
@@ -53,6 +54,14 @@ function DawShellInner({
     setEditingClipId(null);
     setBottomPanel("default");
   }, []);
+
+  // If the editing clip was deleted (e.g. via undo), fall back to default panel
+  const clipStillExists = useDawStore(
+    (s) => editingClipId !== null && s.clips[editingClipId] !== undefined,
+  );
+  const effectivePanel: BottomPanelMode =
+    bottomPanel === "piano-roll" && !clipStillExists ? "default" : bottomPanel;
+
   const toastCountRef = useRef(0);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
@@ -121,7 +130,7 @@ function DawShellInner({
         >
           <ArrangementPanel onOpenPianoRoll={openPianoRoll} />
           <MixerPanel />
-          {bottomPanel === "piano-roll" ? (
+          {effectivePanel === "piano-roll" ? (
             <div
               style={{ position: "relative", overflow: "hidden", height: 240 }}
             >
