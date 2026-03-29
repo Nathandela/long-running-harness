@@ -1,0 +1,64 @@
+Let me explore the codebase to understand the structure and the files I need to modify.Good, I have a comprehensive understanding of the codebase. Let me now claim the epic and start the plan phase.Now let me read the key files I need to modify to build a concrete plan.Now I have a complete understanding of the codebase. Let me create sub-tasks and start implementing.Now let me add dependencies and start implementing. I'll work on the simpler tasks first in parallel.Let me start implementing. I'll begin with the simpler aria-label fixes and canvas accessibility, then move to the more complex features.
+
+**Task 1: Aria-labels for ModulationMatrix buttons**Now add aria-labels to effect selector buttons in EffectsRack:**Task 2: Canvas aria-describedby****Task 3: Session delete confirmation dialog****Task 4: Undo-toast for media/effect removal**For the undo-toast pattern, I need to enhance ActionToast to support an undo action, or create a new UndoToast component. Let me check the existing ActionToast more carefully and think about the approach.
+
+The simplest approach: create an `UndoToast` component that shows a message with an "Undo" button and auto-dismisses after 5s. The actual removal is deferred - we immediately hide the item from the UI, and only execute the real removal after the 5s window expires (or if the user doesn't click undo).
+
+For the EffectsRack, the undo pattern needs to work differently since it's a store-based removal. Let me think about this...
+
+Actually, the simplest approach that works well:
+1. On "remove", immediately remove from the store/pool
+2. Show an undo toast with a snapshot of the removed item
+3. If "Undo" is clicked within 5s, re-add the item
+
+Let me first create the UndoToast primitive.Now integrate undo-toast into EffectsRack. The approach: on remove, store the removed effect's data, show toast. If undo clicked, re-add it.Now I'll update EffectsRack to support undo-toast for effect removal:Now update the EffectPanel onRemove call to use handleRemove:Now add the UndoToast at the end of the EffectsRack return:Now integrate undo-toast into MediaPoolPanel. This is trickier since pool operations are async. Let me think about the approach...
+
+For MediaPoolPanel, the `handleRemove` calls `pool.removeSource(id)`. The undo pattern here: we need to store enough information to re-add the source. But the pool API works with File objects for import... Let me check what `removeSource` and related APIs look like.For MediaPoolPanel, I'll use a deferred-removal approach - mark the item as pending removal, hide it from the list, and only actually delete after the 5s window:Now replace the handleRemove with a deferred version:Now filter the pending removal item from the displayed list and add the UndoToast. Let me update the sources display:Actually, let me simplify the MediaPoolPanel approach by using state instead of ref for the pending removal ID, so React re-renders properly:Now let me verify the unused ref import is cleaned up:Good. Let me verify the `useRef` is still used (for other refs in the file):Good, useRef is still used. Now close this task.**Task 5: ModulationMatrix keyboard-accessible route creation**This is the most complex task. I need to add a keyboard-based connect flow to ModulationMatrix. The approach:
+1. Make Port buttons actual focusable buttons (not divs)
+2. Add keyboard states: idle, "connecting from [source]"
+3. Enter on source port starts connection mode
+4. Tab to destination port, Enter to confirm
+5. Add aria-live region for status announcementsNow I'll rewrite the ModulationMatrix to add keyboard accessibility. The key changes:
+1. Port becomes a `<button>` instead of `<div>`
+2. Add `connectingSource` state for keyboard flow
+3. Enter on source starts connecting, Enter on destination completes
+4. Escape cancels connection
+5. Add aria-live region for announcements**Task 6: Drum machine step grid roving tabindex**Let me check the StepButton component to understand how it works:Good. The StepButton is already a `<button>` with `aria-pressed` and `aria-label`. I need to add roving tabindex so that arrow keys navigate within the step grid. The approach:
+- Add `tabIndex` prop to StepButton
+- In the InstrumentRow, track the focused step index
+- Arrow keys move focus left/right within the row
+- Only the focused step has tabIndex=0, rest have tabIndex=-1
+
+I'll update StepButton to accept a tabIndex and onKeyDown, then update InstrumentRow to manage roving tabindex:Now update the InstrumentRow in DrumMachinePanel to manage roving tabindex:Now update the InstrumentRow to use roving tabindex:Wait, I need to fix the StepButton to not auto-focus on initial mount. Let me update it to only focus when the user actively navigates:Now I need to update the InstrumentRow to manage focus via refs instead. Let me use a different approach - store refs to step buttons and focus directly:Now update InstrumentRow to use refs for focus management:Now let me do a type-check to make sure everything compiles before writing tests:Clean type-check. Now let me run ESLint:Let me fix these lint errors:Wait, I need to rethink. The problem is `setPhase("hidden")` inside the effect when `pending` is null. But I also need to show the toast when `pending` becomes non-null. Let me restructure:Let me rewrite UndoToast more cleanly without the lint issues:Now fix the SessionBrowser lint issue - move the `setConfirmDeleteId(null)` out of the effect:Now fix the ModulationMatrix lint issue with `nullable boolean`:Line 98: `highlight` is `boolean | undefined`. The lint rule `strict-boolean-expressions` wants explicit handling. Let me fix:Let me fix both lint issues with different approaches:
+
+For UndoToast, use CSS animation only (no fading state):Update the CSS to handle fade-out via animation:Now fix SessionBrowser - simpler approach: clear confirmDeleteId when onClose is called:Now update the Modal to use handleClose:Clean lint. Let me also run the type-checker:Clean type-check. Let me now run existing tests to make sure nothing is broken:3 tests failed - likely the SessionBrowser tests since I changed the delete behavior. Let me check what tests failed:As expected - the SessionBrowser delete tests need updating for the confirmation flow, and the MediaPoolPanel test needs updating for the undo-toast pattern. Let me read the existing tests:Now I need to update these tests to account for the new confirmation and undo-toast patterns.
+
+For SessionBrowser: after clicking delete, there's now a confirmation dialog. Need to click "confirm-delete" to actually delete.
+
+For MediaPoolPanel: after clicking remove, it now shows an undo toast and defers removal. The remove error test needs to wait for the undo window to expire (or we fake timers).Now fix the MediaPoolPanel test. The remove now shows an undo toast and defers the actual removal. The "shows error when removeSource fails" test needs updating:SessionBrowser tests pass. The MediaPoolPanel fake timers test is timing out - the fake timers and userEvent interaction is tricky. Let me simplify that test:All passing. Now let me commit the implementation and write the remaining tests.Lint errors in the test file. Let me fix them:The issues are:
+1. Line 83: `pool.removeSource` needs to be cast or wrapped (`not.toHaveBeenCalled()` on unbound method)
+2. Line 96: async arrow with no await
+3. Line 100: same unbound method issueLet me check how the original test (before my changes) accessed the mock:
+
+The original test used `(pool.removeSource as ReturnType<typeof vi.fn>)`. But the lint rule `@typescript-eslint/unbound-method` fires when accessing a method property from an object. The solution is to use a mock directly:All passing. Now let me write the comprehensive accessibility tests. Let me claim the test task and start writing:Good, there's already a test file. Let me add the accessibility-specific tests to the existing file:Now write tests for the other components. Let me check for existing test files for ArrangementPanel and DrumMachinePanel:Let me add accessibility tests to the existing test files and create the UndoToast test.Good, I can see the existing tests. Let me add accessibility tests to the existing files. I'll add tests for:
+1. ArrangementPanel aria-describedby
+2. PianoRollEditor aria-describedby  
+3. DrumMachinePanel roving tabindex
+4. StepButton arrow navigation
+5. UndoToast (new file)Now add roving tabindex tests to DrumMachinePanel:Now add arrow key tests to StepButton:Now create the UndoToast test:Now let me run all the tests:All 84 tests pass. Now let me run the full test suite to make sure nothing else is broken:All 1450 tests pass (up from 1420, we added 30 new tests). Let me commit and close the test task:Prettier formatting issues. Let me fix them:Now let me re-stage and commit:Commit successful. Let me close the test task and the epic:Now let me verify all acceptance criteria are met:
+
+1. **Focus returns to trigger element after all modal/panel closures** - The Modal component already handles focus restoration. No changes needed since it stores `previousFocusRef` before opening and restores on close.
+
+2. **ModulationMatrix has keyboard-accessible route creation** - Done. Enter on source port starts connection, Tab to destination, Enter to confirm. Escape cancels. Aria-live region announces state changes.
+
+3. **Canvas elements have aria-describedby with keyboard control hints** - Done. ArrangementPanel and PianoRollEditor canvases now have hidden `<span>` elements describing available keyboard controls.
+
+4. **All icon/abbreviated buttons have descriptive aria-labels** - Done. ModulationMatrix bipolar toggle, delete buttons, and source/destination ports. EffectsRack effect selector buttons.
+
+5. **Session delete has confirmation dialog** - Done. Delete button now shows confirmation prompt with "Delete" and "Cancel" buttons.
+
+6. **Media/effect removal has undo-toast recovery window** - Done. New UndoToast component with 5s undo window integrated into both EffectsRack and MediaPoolPanel.
+
+7. **All new interactions have test coverage** - Done. 30 new tests added.
+
+Let me close the epic and push:EPIC_COMPLETE
