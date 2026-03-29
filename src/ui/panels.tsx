@@ -23,6 +23,21 @@ const paramsCache = new Map<
   Record<DrumInstrumentId, DrumInstrumentParams>
 >();
 
+// Clean up caches when tracks are deleted
+let prevTrackIds = new Set(useDawStore.getState().tracks.map((t) => t.id));
+useDawStore.subscribe((state) => {
+  const trackIds = new Set(state.tracks.map((t) => t.id));
+  if (trackIds.size < prevTrackIds.size) {
+    for (const id of prevTrackIds) {
+      if (!trackIds.has(id)) {
+        sequencerCache.delete(id);
+        paramsCache.delete(id);
+      }
+    }
+  }
+  prevTrackIds = trackIds;
+});
+
 function getOrCreateSequencer(trackId: string): StepSequencer {
   let seq = sequencerCache.get(trackId);
   if (!seq) {

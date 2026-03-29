@@ -106,8 +106,14 @@ export function createEffectsBridge(
   // Initial sync
   sync();
 
-  // Subscribe to store changes
-  const unsub = useEffectsStore.subscribe(sync);
+  // Subscribe to store changes, only sync when trackEffects changes
+  let prevTrackEffects = useEffectsStore.getState().trackEffects;
+  const unsub = useEffectsStore.subscribe((state) => {
+    if (state.trackEffects !== prevTrackEffects) {
+      prevTrackEffects = state.trackEffects;
+      sync();
+    }
+  });
 
   return {
     getInstance(effectId) {

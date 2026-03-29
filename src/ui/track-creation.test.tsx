@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useDawStore } from "@state/store";
 import type { TrackModel } from "@state/track/types";
 
@@ -206,12 +206,16 @@ describe("InstrumentPanel", () => {
     expect(volSlider.value).toBe("0.42");
 
     // Switch to audio track (unmounts drum controller)
-    useDawStore.setState({ selectedTrackIds: ["a3"] });
+    act(() => {
+      useDawStore.setState({ selectedTrackIds: ["a3"] });
+    });
     rerender(<InstrumentPanel />);
     expect(screen.getByText("AUDIO TRACK")).toBeInTheDocument();
 
     // Switch back to drum track (remounts drum controller)
-    useDawStore.setState({ selectedTrackIds: ["d3"] });
+    act(() => {
+      useDawStore.setState({ selectedTrackIds: ["d3"] });
+    });
     rerender(<InstrumentPanel />);
     expect(screen.getByTestId("drum-machine-panel")).toBeInTheDocument();
 

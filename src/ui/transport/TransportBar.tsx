@@ -62,8 +62,11 @@ export function TransportBar(): React.JSX.Element {
         .getState()
         .tracks.filter((t) => t.type === type);
       const maxNum = existing.reduce((max, t) => {
-        const match = t.name.match(new RegExp(`^${namePrefix} (\\d+)$`));
-        return match ? Math.max(max, Number(match[1])) : max;
+        if (t.name.startsWith(namePrefix + " ")) {
+          const num = parseInt(t.name.slice(namePrefix.length + 1), 10);
+          if (!Number.isNaN(num)) return Math.max(max, num);
+        }
+        return max;
       }, 0);
       const id = crypto.randomUUID();
       addTrack({

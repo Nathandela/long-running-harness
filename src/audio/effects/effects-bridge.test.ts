@@ -4,7 +4,7 @@
  * real WebAudio node wiring in the mixer engine.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useEffectsStore } from "@state/effects";
 import { createEffectsBridge, type EffectsBridge } from "./effects-bridge";
 import type { EffectRegistry, EffectFactory, EffectInstance } from "./types";
@@ -13,7 +13,7 @@ import type { MixerEngine } from "@audio/mixer";
 function mockGainNode(): object {
   return {
     gain: { value: 1, setValueAtTime: vi.fn() },
-    connect: vi.fn().mockReturnThis(),
+    connect: vi.fn().mockImplementation((dest: object) => dest),
     disconnect: vi.fn(),
   };
 }
@@ -125,6 +125,10 @@ describe("EffectsBridge", () => {
     bridge = createEffectsBridge(ctx, registry, mixer);
   });
 
+  afterEach(() => {
+    bridge.dispose();
+  });
+
   it("creates instance and wires insert when effect added to store", () => {
     useEffectsStore.getState().addEffect("t1", {
       id: "delay-1",
@@ -199,6 +203,33 @@ describe("EffectsBridge", () => {
 
     // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(instance.setParam).toHaveBeenCalledWith("time", 1.0);
+  });
+
+  it("syncs pre-existing effects on creation", () => {
+    bridge.dispose();
+
+    // Populate store BEFORE creating bridge
+    useEffectsStore.getState().addEffect("t1", {
+      id: "delay-pre",
+      typeId: "delay",
+      bypassed: false,
+      params: { time: 0.75 },
+    });
+
+    registry = createMockRegistry();
+    mixer = createMockMixer();
+    bridge = createEffectsBridge(ctx, registry, mixer);
+
+    const instance = bridge.getInstance("delay-pre");
+    expect(instance).toBeDefined();
+    expect(instance?.typeId).toBe("delay");
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    expect(mixer.addInsert).toHaveBeenCalledWith(
+      "t1",
+      "delay-pre",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("dispose cleans up all instances", () => {

@@ -116,9 +116,10 @@ export function MixerPanel(): React.JSX.Element {
           onVolumeChange={setMasterVolume}
         />
       </div>
-      {selectedFxTrackId !== null && (
-        <EffectsRack trackId={selectedFxTrackId} />
-      )}
+      {selectedFxTrackId !== null &&
+        tracks.some((t) => t.id === selectedFxTrackId) && (
+          <EffectsRack trackId={selectedFxTrackId} />
+        )}
       {showRouting && <RoutingMatrix />}
     </section>
   );
