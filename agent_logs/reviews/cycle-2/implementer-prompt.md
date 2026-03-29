@@ -6,50 +6,32 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All five original findings have been addressed. One new issue introduced by the fix commit itself:
+All five original findings are addressed:
 
-REVIEW_CHANGES_REQUESTED
+- **P1 (scheduler dead code)**: Wired via `onAdvance` callback in `look-ahead-scheduler.ts`, created and owned in `use-transport.ts` with `cancelAll` on pause/stop.
+- **P1 (duplicate targets)**: `targetsEqual` covers all three discriminants, `addLane` guards with it.
+- **P2 (stale params)**: `scheduledParams` rebuilt per window; `cancelAll` has try/catch.
+- **P2 (cancelAndHoldAtTime)**: Optional method on `ResolvedParam.param` with fallback to `cancelScheduledValues`.
+- **P2/P3 (clamping, zero-length window, test exports)**: All cleanly resolved.
 
----
+The new `findPointsInRange` binary search is correct (exclusive start, exclusive end), and `timeOffset` is computed correctly for arrangement→AudioContext conversion.
 
-**1. [P2] `RemoveTrackCommand.undo()` restores arp with defaults, not saved state**
-
-`track-commands.ts:67` — `execute()` saves `savedTrack` and `savedClips` before deletion, but not the arp params. On `undo()`, it calls `initArp(this.savedTrack.id)` which creates fresh default params. Any arp configuration the user had set before deleting the track is permanently lost on undo.
-
-The fix should snapshot arp params in `execute()` alongside the track/clips, then `setParams` on undo instead of `initArp`:
-
-```ts
-// In RemoveTrackCommand class:
-private savedArpParams: ArpParams | undefined;
-
-execute(): void {
-  // ...existing...
-  this.savedArpParams = useArpeggiatorStore.getState().getParams(this.trackId);
-  useArpeggiatorStore.getState().removeArp(this.trackId);
-  state.removeTrack(this.trackId);
-}
-
-undo(): void {
-  // ...existing...
-  useArpeggiatorStore.getState().initArp(this.savedTrack.id);
-  if (this.savedArpParams) {
-    useArpeggiatorStore.getState().setParams(this.savedTrack.id, this.savedArpParams);
-  }
-  // ...clips...
-}
-```
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 59 tests pass (up from 54). The fixes address real gaps:
+All 67 tests pass (up from 52), no type errors. Let me verify the fixes against my original findings:
 
-1. **Enabled guard** (`arpeggiator.ts:180`): `scheduleStep` now early-returns when `!params.enabled`. Correct.
-2. **MIDI clamping** (`arpeggiator.ts:129-130`): `noteOn` clamps note and velocity to 0-127 with rounding. Correct.
-3. **Swing uses internal stepCounter** (`arpeggiator.ts:190`): Swing parity now uses `stepCounter % 2` instead of the external `stepIndex`, which is renamed to `_stepIndex`. Correct — ensures consistent swing regardless of caller's step numbering.
-4. **Latch dynamic toggle** (`arpeggiator.ts:199,205-207`): `setParams` detects when latch is toggled on and snapshots currently held notes. Correct — handles the mid-chord latch enable case.
-5. **Schema sync check** (`arpeggiator-schema.ts:39-40`): Changed from `{} as ArpParams` to `null as unknown as ArpParams` to avoid runtime object creation issues. Correct.
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1 - No duplicate lane target guard | Fixed: `targetsEqual()` added, `addLane` rejects duplicates |
+| 2 | P2 - No clamping in movePoint/addPoint | Fixed: `clampPoint()` in `insertPoint`, inline clamping in `movePoint` |
+| 3 | P2 - Module-level mutable laneCounter | Flagged for awareness only, no fix expected |
+| 4 | P2 - `cancelScheduledValues` truncation glitch | Fixed: `cancelAndHoldAtTime` with fallback |
+| 5 | P3 - scheduledParams grows unbounded | Fixed: rebuilt per-window, replaced at end |
+| 6 | P3 - insertPoint O(n) scan | Low priority, not addressed |
 
-All fixes are minimal, well-tested, and correctly implemented.
+Additional improvements beyond the findings: `findPointsInRange()` with binary search for breakpoint-accurate scheduling, zero-length window guard, try/catch in `cancelAll` for disconnected params, comprehensive tests for all new behaviors.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -77,10 +59,10 @@ REVIEW_APPROVED
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Removing and undoing a track still loses that track’s arpeggiator settings** ([track-commands.ts:57](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:57), [track-commands.ts:67](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.ts:67), [arpeggiator-store.ts:38](/Users/Nathan/Documents/Code/long-running-harness/src/state/arpeggiator/arpeggiator-store.ts:38), [track-commands.test.ts:180](/Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-commands.test.ts:180))
-Detail: `RemoveTrackCommand.execute()` now deletes the track’s arp state, but it never snapshots the previous params. `undo()` recreates the arp with `initArp()`, and `initArp()` always restores `DEFAULT_ARP_PARAMS`. So a track with custom arp settings comes back with defaults after undo.
-Risk: Track deletion is no longer fully undo-safe. Users can lose programmed arp pattern/gate/latch settings when they undo a remove-track action, and the next autosave will persist the reset state.
-Suggestion: Save the removed track’s `ArpTrackState` alongside `savedTrack`/`savedClips`, restore that exact state on undo instead of calling `initArp()`, and add a regression test that removes a track with non-default arp params and verifies undo restores them exactly.</codex-review>
+- **[P1] Automation playback is still not wired to any real `AudioParam`s** ([use-transport.ts:53](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:53), [use-transport.ts:87](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:87), [use-transport.ts:198](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:198), [automation-scheduler.ts:75](/Users/Nathan/Documents/Code/long-running-harness/src/audio/automation/automation-scheduler.ts:75))
+Detail: `useTransportInit()` now creates an `AutomationScheduler`, but it does so through `paramResolverRef.current`, whose default implementation is `() => undefined`. The new `setParamResolver()` API exists, but there is still no non-test call site registering a resolver from the live mixer/effects/synth layer. That means `scheduleWindow()` still skips every lane at `resolveParam(lane)`.
+Risk: The transport now iterates automation lanes on every look-ahead tick, but no actual parameter automation is applied. From the user’s perspective automation playback still does nothing.
+Suggestion: Register a real resolver from the provider/module that owns the live `AudioParam`s, then add an integration test that plays transport with an armed automation lane and verifies the target param receives scheduled calls through the transport path.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

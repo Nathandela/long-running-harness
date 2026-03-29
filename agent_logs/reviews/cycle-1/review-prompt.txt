@@ -32,8 +32,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-fb7ef89 chore: auto-commit uncommitted changes from long-running-harness-70a
-76b5504 E15: Add arpeggiator engine with pattern generation and session persistence
+1eec757 chore: auto-commit uncommitted changes from long-running-harness-agn
+6c542c6 E16: Add automation system with curve interpolation and sample-accurate scheduling
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

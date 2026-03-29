@@ -20,10 +20,10 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
 ✓ long-running-harness-23s ● P1 bug Fix review findings: routing cycle detection, cleanup, store guards
-✓ long-running-harness-3ag ● P1 task E11-T3: Piano roll interactions, hit testing, and quantization
 ✓ long-running-harness-gsm ● P1 task E11-T4: MIDI input validation and Web MIDI API integration
 ✓ long-running-harness-gv4 ● P1 task Review: E11 Piano Roll & MIDI Editor
 ✓ long-running-harness-utg ● P1 task E11-T5: PianoRollEditor panel component and keyboard shortcuts
+✓ long-running-harness-xp5 ● P1 bug Fix automation review findings (P1+P2)
 ✓ long-running-harness-yiu ● P1 task Compound: E11 Piano Roll & MIDI Editor
 
 --------------------------------------------------------------------------------
@@ -32,10 +32,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-5767695 Fix RemoveTrackCommand.undo() losing custom arp params
-0f98e5d Fix arpeggiator review findings: persistence, lifecycle, enabled guard
-fb7ef89 chore: auto-commit uncommitted changes from long-running-harness-70a
-76b5504 E15: Add arpeggiator engine with pattern generation and session persistence
+4822fb6 Wire automation ParamResolver to live mixer AudioParams
+1935061 Fix automation review findings: breakpoint scheduling, duplicate guard, transport wiring
+1eec757 chore: auto-commit uncommitted changes from long-running-harness-agn
+6c542c6 E16: Add automation system with curve interpolation and sample-accurate scheduling
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

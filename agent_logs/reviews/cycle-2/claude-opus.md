@@ -1,11 +1,14 @@
-All 59 tests pass (up from 54). The fixes address real gaps:
+All 67 tests pass (up from 52), no type errors. Let me verify the fixes against my original findings:
 
-1. **Enabled guard** (`arpeggiator.ts:180`): `scheduleStep` now early-returns when `!params.enabled`. Correct.
-2. **MIDI clamping** (`arpeggiator.ts:129-130`): `noteOn` clamps note and velocity to 0-127 with rounding. Correct.
-3. **Swing uses internal stepCounter** (`arpeggiator.ts:190`): Swing parity now uses `stepCounter % 2` instead of the external `stepIndex`, which is renamed to `_stepIndex`. Correct — ensures consistent swing regardless of caller's step numbering.
-4. **Latch dynamic toggle** (`arpeggiator.ts:199,205-207`): `setParams` detects when latch is toggled on and snapshots currently held notes. Correct — handles the mid-chord latch enable case.
-5. **Schema sync check** (`arpeggiator-schema.ts:39-40`): Changed from `{} as ArpParams` to `null as unknown as ArpParams` to avoid runtime object creation issues. Correct.
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | P1 - No duplicate lane target guard | Fixed: `targetsEqual()` added, `addLane` rejects duplicates |
+| 2 | P2 - No clamping in movePoint/addPoint | Fixed: `clampPoint()` in `insertPoint`, inline clamping in `movePoint` |
+| 3 | P2 - Module-level mutable laneCounter | Flagged for awareness only, no fix expected |
+| 4 | P2 - `cancelScheduledValues` truncation glitch | Fixed: `cancelAndHoldAtTime` with fallback |
+| 5 | P3 - scheduledParams grows unbounded | Fixed: rebuilt per-window, replaced at end |
+| 6 | P3 - insertPoint O(n) scan | Low priority, not addressed |
 
-All fixes are minimal, well-tested, and correctly implemented.
+Additional improvements beyond the findings: `findPointsInRange()` with binary search for breakpoint-accurate scheduling, zero-length window guard, try/catch in `cancelAll` for disconnected params, comprehensive tests for all new behaviors.
 
 REVIEW_APPROVED

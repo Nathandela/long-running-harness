@@ -1,13 +1,13 @@
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
 
-Findings (all low-severity, none blocking):
+1. **P1 - No duplicate lane target guard**: `addLane` in `automation-store.ts:53` allows adding multiple lanes for the same track+target pair (e.g., two volume lanes for track-1). This will cause the scheduler to double-schedule AudioParam values, producing incorrect output. Add a guard that rejects or replaces a lane if one already exists for the same target on that track.
 
-1. **P3 - `insertionCounter` grows unboundedly** (`arpeggiator.ts:45,139`): The counter increments on every `noteOn` but never resets (not even in `reset()` or `allNotesOff()`). For "as-played" pattern this is fine since only relative ordering matters, and in practice it would take billions of noteOn calls to cause issues. Not actionable now, but worth noting.
+2. **P2 - `movePoint` and `addPoint` don't clamp value to 0..1 or time to >= 0**: The Zod schema validates on persistence, but the store methods (`automation-store.ts:97`, `automation-store.ts:129`) accept any `number` for time and value at runtime. A caller passing `newValue: -0.5` or `newTime: -1` would create invalid state that persists until the next save/load cycle catches it. Clamp `value` to `[0, 1]` and `time` to `>= 0` in the pure functions (`insertPoint`, `movePoint` in `automation-curve.ts`).
 
-2. **P3 - `rateDivisionToBeats` allocates a new map on every call** (`arpeggiator-types.ts:41-51`): The `Record` is rebuilt each invocation. Functionally correct; if called in a hot scheduling loop it could be lifted to a module-level constant, but this is a micro-optimization unlikely to matter.
+3. **P2 - Module-level mutable `laneCounter` is not safe across concurrent test suites or SSR**: `automation-types.ts:59` uses a module-level `let laneCounter`. This is the same pattern as the existing `routeCounter` so it's consistent, but any future parallel test runner or SSR context will collide. Flagging for awareness; no immediate fix needed if this is an accepted pattern.
 
-3. **P3 - `buildSequence()` rebuilds on every `scheduleStep`** (`arpeggiator.ts:57,169`): The sorted/expanded sequence is recomputed each step even when the note pool hasn't changed. No correctness issue; just a potential optimization point if scheduling becomes a bottleneck.
+4. **P2 - `cancelScheduledValues(windowStart)` may truncate in-progress ramps**: In `automation-scheduler.ts:78`, cancelling from `windowStart` before setting the new start value can cause a brief jump to the last committed value on the AudioParam before the new `setValueAtTime` takes effect. The Web Audio spec applies `cancelScheduledValues` immediately. Consider using `cancelAndHoldAtTime(windowStart)` instead (available in all modern browsers) to avoid audible glitches at window boundaries.
 
-4. **P3 - Schema enum literals duplicated** (`arpeggiator-schema.ts:10,21`): Pattern/direction/rate-division string literals are repeated in the Zod schema rather than derived from the `as const` arrays. The compile-time sync check at lines 38-42 catches drift, so this is safe — just slightly fragile.
+5. **P3 - `scheduledParams` Set grows unbounded**: In `automation-scheduler.ts:57`, `scheduledParams` accumulates every resolved param across all `scheduleWindow` calls and only clears on `cancelAll`. If lanes are reconfigured over a long session, stale param references will accumulate. Minor memory leak; consider clearing per-window or using a WeakSet.
 
-All findings are P3 (informational). Code is clean, well-tested (54 tests), correctly typed, and properly integrated into session persistence. Engine logic for patterns, octave expansion, latch, gate, and swing is sound.
+6. **P3 - `insertPoint` is O(n) linear scan**: `automation-curve.ts:94` uses `findIndex` for insertion. `evaluateCurve` uses binary search for lookup. For consistency and performance with many points, `insertPoint` could also use binary search. Low priority since point arrays are typically small.

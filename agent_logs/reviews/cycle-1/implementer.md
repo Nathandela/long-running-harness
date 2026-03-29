@@ -1,20 +1,16 @@
-All fixes committed. Here's a summary of what was addressed:
-
-**P0 (Critical):**
-- **Session persistence integration** (Gemini): Wired `useArpeggiatorStore` into `storeToSession()`, `hydrateStore()`, and auto-save subscriptions
-
-**P1 (High):**
-- **`enabled` flag guard** (Sonnet): `scheduleStep` now returns early when `!params.enabled`
-- **Track lifecycle integration** (Gemini): `AddTrackCommand.execute()` calls `initArp()`, `RemoveTrackCommand.execute()` calls `removeArp()`, with proper undo support
-
-**P2 (Medium):**
-- **Compile-time sync check** (Sonnet): Changed `{} as X` to `null as unknown as X` so structural mismatches actually fail
-- **stepIndex/stepCounter drift** (Sonnet): Swing now uses internal `stepCounter` for parity instead of external `stepIndex` (parameter renamed to `_stepIndex`)
-- **MIDI range validation** (Sonnet): `noteOn` clamps note and velocity to 0-127
-- **Latch dynamic toggle** (Gemini): `setParams` snapshots held notes when latch transitions false→true
-
-**P2 declined** (Sonnet latchSnapshot on noteOff): The existing behavior is correct - latch should capture the full chord played, not just the last remaining keys. Standard arpeggiator latch semantics.
-
-12 new tests added, all 1211 tests passing.
-
 FIXES_APPLIED
+
+**Summary of all fixes applied:**
+
+| Severity | Finding | Fix |
+|----------|---------|-----|
+| **P1** | Scheduler never called (Sonnet) | Added `onAdvance` callback to look-ahead scheduler; wired automation scheduler in `use-transport.ts` with ref-based `ParamResolver` |
+| **P1** | No duplicate lane guard (Opus) | `addLane` now rejects if a lane with same `ParameterTarget` already exists for the track |
+| **P1** | Fixed-step sampling misses transients (Gemini) | Replaced `SCHEDULE_STEPS=4` with `findPointsInRange()` — schedules at exact breakpoint times within each window |
+| **P2** | `cancelAndHoldAtTime` (Opus) | Uses `cancelAndHoldAtTime` when available, falls back to `cancelScheduledValues` |
+| **P2** | `scheduledParams` leak (Sonnet/Opus/Gemini) | Rebuilt per-window; `cancelAll` uses try/catch for disposed params |
+| **P2** | No value/time clamping (Opus) | `insertPoint` and `movePoint` now clamp time >= 0, value to [0,1] |
+| **P3** | Zero-length window (Sonnet) | Early return when `windowEnd <= windowStart` |
+| **P3** | Test helpers in public API (Sonnet) | Removed `_resetLaneCounter`/`_seedLaneCounter` from `index.ts` exports |
+
+All **1279 tests passing**, clean typecheck, clean lint.

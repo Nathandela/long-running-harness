@@ -8,69 +8,47 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
----
+**1. [P1] Scheduler never called — automation playback is dead code**
 
-**1. [P1] `enabled` flag not enforced in `scheduleStep`**
+`createAutomationScheduler` / `scheduleWindow` has zero callers outside its own test file. The entire audio-side of E16 (the feature's purpose) is unreachable at runtime. No transport or look-ahead scheduler integration exists.
 
-`arpeggiator.ts:168` — `scheduleStep` never checks `params.enabled`. If a caller drives the arpeggiator while it's disabled, note events will still fire. The `enabled` field is dead state inside the engine. Either guard at the top of `scheduleStep`:
-```ts
-if (!params.enabled) return;
-```
-or document clearly that callers are solely responsible for gating — but then remove `enabled` from `ArpParams` since it belongs in caller logic.
+**2. [P2] `addLane` permits duplicate `ParameterTarget` per track**
 
----
+There is no guard preventing two "mixer.volume" lanes on the same track. If both are armed, the scheduler will call `setValueAtTime` / `linearRampToValueAtTime` on the same `AudioParam` twice per window in a single pass. Web Audio API order-of-effect within the same rendering quantum is not guaranteed, so the resulting value is undefined. Should check for an existing lane with the same `target` before creating a new one.
 
-**2. [P2] Compile-time sync check is a no-op**
+Location: `src/state/automation/automation-store.ts:53` (`addLane`).
 
-`arpeggiator-schema.ts:38-41`:
-```ts
-const _syncCheck: _SchemaType = {} as ArpParams;
-const _reverseCheck: ArpParams = {} as _SchemaType;
-```
-`as` casts bypass structural checks. If a field is added to `ArpParams` but omitted from the schema, this will still compile. The check provides false confidence. Use direct assignment without cast:
-```ts
-const _syncCheck: _SchemaType = null as unknown as ArpParams;
-const _reverseCheck: ArpParams = null as unknown as _SchemaType;
-```
-These fail at compile time when types diverge.
+**3. [P2] `cancelAll` holds stale AudioParam references, risking throws on disposed nodes**
 
----
+`scheduledParams` grows monotonically — it is never pruned when a lane is removed or when its audio node is disconnected/disposed. `cancelAll()` then calls `cancelScheduledValues(0)` on every param ever encountered, including possibly-GC'd or already-disconnected AudioParams, which can throw in some browser AudioContext implementations.
 
-**3. [P2] `latchSnapshot` not updated on `noteOff` — stale notes enter latch pool**
+Location: `src/audio/automation/automation-scheduler.ts:96–100`.
 
-`arpeggiator.ts:147-158` — The snapshot is only taken on `noteOn`. Scenario: press 60, 64, 72 (snapshot = [60,64,72]), release 72 (no snapshot update), release 64 (no snapshot update), release 60 → `latchedNotes = [60,64,72]` but 72 and 64 were released before the latch triggered. A note that was explicitly released still ends up latched. Update the snapshot on `noteOff` as well:
-```ts
-heldNotes.splice(idx, 1);
-if (params.latch) latchSnapshot = heldNotes.map((h) => ({ ...h }));
-```
+**4. [P3] Zero-length scheduling window produces redundant ramp calls**
 
----
+When `windowEnd === windowStart` (can occur at transport start/seek), `stepSize = 0` and the loop schedules 4 identical `linearRampToValueAtTime` calls at the exact same time as the `setValueAtTime`. Harmless but wastes scheduling budget and indicates missing guard.
 
-**4. [P3] `stepIndex` (swing) and `stepCounter` (pattern) can drift out of sync**
+Location: `src/audio/automation/automation-scheduler.ts:86–93`.
 
-`arpeggiator.ts:168-179` — Swing uses the external `stepIndex` for even/odd detection, while pattern position uses the internal `stepCounter`. If the external scheduler resets its counter (e.g., transport restart) without calling `arp.reset()`, swing phase and pattern position become desynchronized. Consider using `stepCounter` for swing parity instead of `stepIndex`, or drop the `stepIndex` parameter entirely.
+**5. [P3] `_resetLaneCounter` / `_seedLaneCounter` exported via public index**
 
----
-
-**5. [P3] `noteOn` accepts out-of-range MIDI values silently**
-
-`arpeggiator.ts:139` — No validation on `note` (0–127) or `velocity` (0–127). Out-of-range notes propagate to the output `ArpNoteEvent` where downstream audio code may fail silently or clip. The octave-expansion code already filters notes `> 127` (correctly), but values like `note = -1` from root held notes still emit negative MIDI numbers from `scheduleStep` if octave direction is `"down"`.
+Both test-only functions are re-exported from `src/audio/automation/index.ts`, making them part of the module's public API. Production code can call `_resetLaneCounter()` and trigger ID collisions on subsequent lane creation. Move them to a separate `automation-types.internal.ts` or at least drop them from `index.ts`.
 </claude-sonnet-review>
 
 <claude-opus-review>
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
 
-Findings (all low-severity, none blocking):
+1. **P1 - No duplicate lane target guard**: `addLane` in `automation-store.ts:53` allows adding multiple lanes for the same track+target pair (e.g., two volume lanes for track-1). This will cause the scheduler to double-schedule AudioParam values, producing incorrect output. Add a guard that rejects or replaces a lane if one already exists for the same target on that track.
 
-1. **P3 - `insertionCounter` grows unboundedly** (`arpeggiator.ts:45,139`): The counter increments on every `noteOn` but never resets (not even in `reset()` or `allNotesOff()`). For "as-played" pattern this is fine since only relative ordering matters, and in practice it would take billions of noteOn calls to cause issues. Not actionable now, but worth noting.
+2. **P2 - `movePoint` and `addPoint` don't clamp value to 0..1 or time to >= 0**: The Zod schema validates on persistence, but the store methods (`automation-store.ts:97`, `automation-store.ts:129`) accept any `number` for time and value at runtime. A caller passing `newValue: -0.5` or `newTime: -1` would create invalid state that persists until the next save/load cycle catches it. Clamp `value` to `[0, 1]` and `time` to `>= 0` in the pure functions (`insertPoint`, `movePoint` in `automation-curve.ts`).
 
-2. **P3 - `rateDivisionToBeats` allocates a new map on every call** (`arpeggiator-types.ts:41-51`): The `Record` is rebuilt each invocation. Functionally correct; if called in a hot scheduling loop it could be lifted to a module-level constant, but this is a micro-optimization unlikely to matter.
+3. **P2 - Module-level mutable `laneCounter` is not safe across concurrent test suites or SSR**: `automation-types.ts:59` uses a module-level `let laneCounter`. This is the same pattern as the existing `routeCounter` so it's consistent, but any future parallel test runner or SSR context will collide. Flagging for awareness; no immediate fix needed if this is an accepted pattern.
 
-3. **P3 - `buildSequence()` rebuilds on every `scheduleStep`** (`arpeggiator.ts:57,169`): The sorted/expanded sequence is recomputed each step even when the note pool hasn't changed. No correctness issue; just a potential optimization point if scheduling becomes a bottleneck.
+4. **P2 - `cancelScheduledValues(windowStart)` may truncate in-progress ramps**: In `automation-scheduler.ts:78`, cancelling from `windowStart` before setting the new start value can cause a brief jump to the last committed value on the AudioParam before the new `setValueAtTime` takes effect. The Web Audio spec applies `cancelScheduledValues` immediately. Consider using `cancelAndHoldAtTime(windowStart)` instead (available in all modern browsers) to avoid audible glitches at window boundaries.
 
-4. **P3 - Schema enum literals duplicated** (`arpeggiator-schema.ts:10,21`): Pattern/direction/rate-division string literals are repeated in the Zod schema rather than derived from the `as const` arrays. The compile-time sync check at lines 38-42 catches drift, so this is safe — just slightly fragile.
+5. **P3 - `scheduledParams` Set grows unbounded**: In `automation-scheduler.ts:57`, `scheduledParams` accumulates every resolved param across all `scheduleWindow` calls and only clears on `cancelAll`. If lanes are reconfigured over a long session, stale param references will accumulate. Minor memory leak; consider clearing per-window or using a WeakSet.
 
-All findings are P3 (informational). Code is clean, well-tested (54 tests), correctly typed, and properly integrated into session persistence. Engine logic for patterns, octave expansion, latch, gate, and swing is sound.
+6. **P3 - `insertPoint` is O(n) linear scan**: `automation-curve.ts:94` uses `findIndex` for insertion. `evaluateCurve` uses binary search for lookup. For consistency and performance with many points, `insertPoint` could also use binary search. Low priority since point arrays are typically small.
 </claude-opus-review>
 
 <gemini-review>
@@ -90,11 +68,12 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
+Error executing tool read_file: Path not in workspace: Attempted path "/tmp/src-diff.txt" resolves outside the allowed workspace directories: /Users/Nathan/Documents/Code/long-running-harness or the project temp directory: /Users/Nathan/.gemini/tmp/long-running-harness
 REVIEW_CHANGES_REQUESTED
 
-1. **[P0] Missing Session Persistence Integration:** The commit claims to add "session persistence" and includes the `arpeggiator` field in `sessionSchema`, but the actual integration is completely missing. `useArpeggiatorStore` is not used in `src/state/session/use-session-persistence.ts`: the arpeggiator state is not serialized in `storeToSession()`, it is not restored in `hydrateStore()`, and the `autoSave` effect does not subscribe to `useArpeggiatorStore` changes.
-2. **[P1] Missing Track Lifecycle Integration:** The methods `useArpeggiatorStore.initArp` and `removeArp` are never called outside of tests. These must be wired into track creation (`addTrack`) and deletion (`removeTrack`) within `useDawStore` or the relevant track commands. Without this, newly created tracks will have an uninitialized arpeggiator state, and deleted tracks will cause memory/state leaks.
-3. **[P2] Latch Snapshot Bug on Dynamic Toggle:** In `src/audio/arpeggiator/arpeggiator.ts`, `latchSnapshot` is only updated inside `noteOn()` when `params.latch` is true. If a user holds a chord and *then* turns on Latch dynamically via `setParams`, the `latchSnapshot` remains empty. When those keys are subsequently released, the arpeggiator latches an empty pool and stops playing instead of latching the held notes. `setParams()` should update `latchSnapshot` with the current `heldNotes` if `latch` transitions from false to true.
+1. **P1 - Scheduler misses fast automation (Fixed-step sampling):** In `automation-scheduler.ts`, `scheduleWindow` samples the evaluated curve using a hardcoded `SCHEDULE_STEPS = 4`. By blindly sampling the curve at fixed intervals, the scheduler effectively downsamples the automation control rate. Sharp transients or rapid automation spikes (like a rhythmic volume gate) falling between these step intervals will be completely skipped or improperly slurred. To achieve the intended sample-accurate playback, the scheduler must iterate over the actual `lane.points` that fall within the `[arrStart, arrEnd]` window and place Web Audio API events at those exact breakpoint times (in addition to handling window boundaries for continuity).
+
+2. **P2 - Memory leak in `scheduledParams`:** In `automation-scheduler.ts`, the `scheduledParams` Set retains strong references to every automated `AudioParam`. If a user deletes an effect or a track while the transport is running, its corresponding `AudioParam` remains in this Set. This prevents the underlying AudioNodes from being garbage collected until `cancelAll()` is called (typically when the transport stops). Consider adding an unregister mechanism (e.g., `unscheduleParam`) or pruning unreferenced parameters during the scheduling tick.
 </gemini-review>
 
 

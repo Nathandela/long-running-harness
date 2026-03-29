@@ -1,32 +1,11 @@
-All five original findings have been addressed. One new issue introduced by the fix commit itself:
+All five original findings are addressed:
 
-REVIEW_CHANGES_REQUESTED
+- **P1 (scheduler dead code)**: Wired via `onAdvance` callback in `look-ahead-scheduler.ts`, created and owned in `use-transport.ts` with `cancelAll` on pause/stop.
+- **P1 (duplicate targets)**: `targetsEqual` covers all three discriminants, `addLane` guards with it.
+- **P2 (stale params)**: `scheduledParams` rebuilt per window; `cancelAll` has try/catch.
+- **P2 (cancelAndHoldAtTime)**: Optional method on `ResolvedParam.param` with fallback to `cancelScheduledValues`.
+- **P2/P3 (clamping, zero-length window, test exports)**: All cleanly resolved.
 
----
+The new `findPointsInRange` binary search is correct (exclusive start, exclusive end), and `timeOffset` is computed correctly for arrangement→AudioContext conversion.
 
-**1. [P2] `RemoveTrackCommand.undo()` restores arp with defaults, not saved state**
-
-`track-commands.ts:67` — `execute()` saves `savedTrack` and `savedClips` before deletion, but not the arp params. On `undo()`, it calls `initArp(this.savedTrack.id)` which creates fresh default params. Any arp configuration the user had set before deleting the track is permanently lost on undo.
-
-The fix should snapshot arp params in `execute()` alongside the track/clips, then `setParams` on undo instead of `initArp`:
-
-```ts
-// In RemoveTrackCommand class:
-private savedArpParams: ArpParams | undefined;
-
-execute(): void {
-  // ...existing...
-  this.savedArpParams = useArpeggiatorStore.getState().getParams(this.trackId);
-  useArpeggiatorStore.getState().removeArp(this.trackId);
-  state.removeTrack(this.trackId);
-}
-
-undo(): void {
-  // ...existing...
-  useArpeggiatorStore.getState().initArp(this.savedTrack.id);
-  if (this.savedArpParams) {
-    useArpeggiatorStore.getState().setParams(this.savedTrack.id, this.savedArpParams);
-  }
-  // ...clips...
-}
-```
+REVIEW_APPROVED

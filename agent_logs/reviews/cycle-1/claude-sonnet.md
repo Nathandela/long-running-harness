@@ -1,49 +1,27 @@
 REVIEW_CHANGES_REQUESTED
 
----
+**1. [P1] Scheduler never called — automation playback is dead code**
 
-**1. [P1] `enabled` flag not enforced in `scheduleStep`**
+`createAutomationScheduler` / `scheduleWindow` has zero callers outside its own test file. The entire audio-side of E16 (the feature's purpose) is unreachable at runtime. No transport or look-ahead scheduler integration exists.
 
-`arpeggiator.ts:168` — `scheduleStep` never checks `params.enabled`. If a caller drives the arpeggiator while it's disabled, note events will still fire. The `enabled` field is dead state inside the engine. Either guard at the top of `scheduleStep`:
-```ts
-if (!params.enabled) return;
-```
-or document clearly that callers are solely responsible for gating — but then remove `enabled` from `ArpParams` since it belongs in caller logic.
+**2. [P2] `addLane` permits duplicate `ParameterTarget` per track**
 
----
+There is no guard preventing two "mixer.volume" lanes on the same track. If both are armed, the scheduler will call `setValueAtTime` / `linearRampToValueAtTime` on the same `AudioParam` twice per window in a single pass. Web Audio API order-of-effect within the same rendering quantum is not guaranteed, so the resulting value is undefined. Should check for an existing lane with the same `target` before creating a new one.
 
-**2. [P2] Compile-time sync check is a no-op**
+Location: `src/state/automation/automation-store.ts:53` (`addLane`).
 
-`arpeggiator-schema.ts:38-41`:
-```ts
-const _syncCheck: _SchemaType = {} as ArpParams;
-const _reverseCheck: ArpParams = {} as _SchemaType;
-```
-`as` casts bypass structural checks. If a field is added to `ArpParams` but omitted from the schema, this will still compile. The check provides false confidence. Use direct assignment without cast:
-```ts
-const _syncCheck: _SchemaType = null as unknown as ArpParams;
-const _reverseCheck: ArpParams = null as unknown as _SchemaType;
-```
-These fail at compile time when types diverge.
+**3. [P2] `cancelAll` holds stale AudioParam references, risking throws on disposed nodes**
 
----
+`scheduledParams` grows monotonically — it is never pruned when a lane is removed or when its audio node is disconnected/disposed. `cancelAll()` then calls `cancelScheduledValues(0)` on every param ever encountered, including possibly-GC'd or already-disconnected AudioParams, which can throw in some browser AudioContext implementations.
 
-**3. [P2] `latchSnapshot` not updated on `noteOff` — stale notes enter latch pool**
+Location: `src/audio/automation/automation-scheduler.ts:96–100`.
 
-`arpeggiator.ts:147-158` — The snapshot is only taken on `noteOn`. Scenario: press 60, 64, 72 (snapshot = [60,64,72]), release 72 (no snapshot update), release 64 (no snapshot update), release 60 → `latchedNotes = [60,64,72]` but 72 and 64 were released before the latch triggered. A note that was explicitly released still ends up latched. Update the snapshot on `noteOff` as well:
-```ts
-heldNotes.splice(idx, 1);
-if (params.latch) latchSnapshot = heldNotes.map((h) => ({ ...h }));
-```
+**4. [P3] Zero-length scheduling window produces redundant ramp calls**
 
----
+When `windowEnd === windowStart` (can occur at transport start/seek), `stepSize = 0` and the loop schedules 4 identical `linearRampToValueAtTime` calls at the exact same time as the `setValueAtTime`. Harmless but wastes scheduling budget and indicates missing guard.
 
-**4. [P3] `stepIndex` (swing) and `stepCounter` (pattern) can drift out of sync**
+Location: `src/audio/automation/automation-scheduler.ts:86–93`.
 
-`arpeggiator.ts:168-179` — Swing uses the external `stepIndex` for even/odd detection, while pattern position uses the internal `stepCounter`. If the external scheduler resets its counter (e.g., transport restart) without calling `arp.reset()`, swing phase and pattern position become desynchronized. Consider using `stepCounter` for swing parity instead of `stepIndex`, or drop the `stepIndex` parameter entirely.
+**5. [P3] `_resetLaneCounter` / `_seedLaneCounter` exported via public index**
 
----
-
-**5. [P3] `noteOn` accepts out-of-range MIDI values silently**
-
-`arpeggiator.ts:139` — No validation on `note` (0–127) or `velocity` (0–127). Out-of-range notes propagate to the output `ArpNoteEvent` where downstream audio code may fail silently or clip. The octave-expansion code already filters notes `> 127` (correctly), but values like `note = -1` from root held notes still emit negative MIDI numbers from `scheduleStep` if octave direction is `"down"`.
+Both test-only functions are re-exported from `src/audio/automation/index.ts`, making them part of the module's public API. Production code can call `_resetLaneCounter()` and trigger ID collisions on subsequent lane creation. Move them to a separate `automation-types.internal.ts` or at least drop them from `index.ts`.

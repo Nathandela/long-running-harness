@@ -1,8 +1,16 @@
-All 1212 tests pass across 110 test files.
+All 1285 tests pass across 115 files.
 
 FIXES_APPLIED
 
-**Summary**: Single fix addressing the P1/P2 finding identified by both Codex and Sonnet:
+**Summary of what was fixed:**
 
-- **`RemoveTrackCommand`** now snapshots `ArpParams` in `execute()` before calling `removeArp()`, and restores them via `setParams()` in `undo()` after `initArp()`. Previously, undo always reset to `DEFAULT_ARP_PARAMS`, losing any custom arp configuration.
-- Added regression test confirming non-default arp params (pattern, rate, octave range, gate, swing, latch) survive a remove-then-undo cycle.
+| Review | Finding | Fix |
+|--------|---------|-----|
+| Codex P1 | Automation playback not wired to real AudioParams - `paramResolverRef` defaults to `() => undefined` with no call site | Created `createParamResolver()` that maps mixer volume → `faderGain.gain` and pan → `panner.pan`. Wired it from `EffectsBridgeProvider` (which owns the mixer) into the transport via `setParamResolver()`. |
+
+**Files changed:**
+- `src/audio/automation/create-param-resolver.ts` - New resolver mapping lane targets to live AudioParams
+- `src/audio/automation/create-param-resolver.test.ts` - 6 tests covering volume, pan, missing track, unsupported targets
+- `src/audio/effects/EffectsBridgeProvider.tsx` - Calls `setParamResolver()` on mount to wire the resolver
+
+**Note:** Effect and synth param targets return `undefined` for now since `EffectInstance` doesn't expose raw AudioParams (it uses `setParam()` internally). This would require exposing AudioParams from the effect/synth layer for sample-accurate automation scheduling.
