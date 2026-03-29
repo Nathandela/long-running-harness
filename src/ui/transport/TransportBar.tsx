@@ -1,9 +1,31 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTransport } from "@audio/use-transport";
 import { useDawStore } from "@state/index";
+import type { TrackType } from "@state/track/types";
 import { BpmInput } from "./BpmInput";
 import { CursorDisplay } from "./CursorDisplay";
 import styles from "./TransportBar.module.css";
+
+const TRACK_PRESETS: {
+  label: string;
+  type: TrackType;
+  color: string;
+  namePrefix: string;
+}[] = [
+  {
+    label: "Audio Track",
+    type: "audio",
+    color: "#4A90D9",
+    namePrefix: "Audio",
+  },
+  {
+    label: "Instrument Track",
+    type: "instrument",
+    color: "#D94A90",
+    namePrefix: "Synth",
+  },
+  { label: "Drum Track", type: "drum", color: "#FF6B35", namePrefix: "808" },
+];
 
 export function TransportBar(): React.JSX.Element {
   const transport = useTransport();
@@ -11,7 +33,11 @@ export function TransportBar(): React.JSX.Element {
   const bpm = useDawStore((s) => s.bpm);
   const loopEnabled = useDawStore((s) => s.loopEnabled);
   const setLoop = useDawStore((s) => s.setLoop);
+  const addTrack = useDawStore((s) => s.addTrack);
+  const setSelectedTrackIds = useDawStore((s) => s.setSelectedTrackIds);
   const [metronomeOn, setMetronomeOn] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLoopToggle = useCallback((): void => {
     setLoop(!loopEnabled);
@@ -30,6 +56,48 @@ export function TransportBar(): React.JSX.Element {
     [transport],
   );
 
+  const handleAddTrack = useCallback(
+    (type: TrackType, color: string, namePrefix: string): void => {
+      const trackCount = useDawStore
+        .getState()
+        .tracks.filter((t) => t.type === type).length;
+      const id = crypto.randomUUID();
+      addTrack({
+        id,
+        name: `${namePrefix} ${String(trackCount + 1)}`,
+        type,
+        color,
+        muted: false,
+        solo: false,
+        armed: false,
+        soloIsolate: false,
+        volume: 1,
+        pan: 0,
+        clipIds: [],
+      });
+      setSelectedTrackIds([id]);
+      setAddMenuOpen(false);
+    },
+    [addTrack, setSelectedTrackIds],
+  );
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const handleClick = (e: MouseEvent): void => {
+      if (
+        addMenuRef.current &&
+        !addMenuRef.current.contains(e.target as Node)
+      ) {
+        setAddMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [addMenuOpen]);
+
   const isPlaying = transportState === "playing";
   const clock = transport.getClock();
   const tempoMap = clock?.getTempoMap() ?? null;
@@ -37,6 +105,41 @@ export function TransportBar(): React.JSX.Element {
   return (
     <header data-testid="toolbar" className={styles["transportBar"]}>
       <span className={styles["brand"]}>BRUTALWAV</span>
+
+      <div className={styles["addTrackWrapper"]} ref={addMenuRef}>
+        <button
+          type="button"
+          className={styles["transportBtn"]}
+          aria-label="Add Track"
+          onClick={() => {
+            setAddMenuOpen((prev) => !prev);
+          }}
+        >
+          +
+        </button>
+        {addMenuOpen && (
+          <div className={styles["addTrackMenu"]} role="menu">
+            {TRACK_PRESETS.map((preset) => (
+              <button
+                key={preset.type}
+                type="button"
+                role="menuitem"
+                className={styles["addTrackMenuItem"]}
+                onClick={() => {
+                  handleAddTrack(preset.type, preset.color, preset.namePrefix);
+                }}
+              >
+                <span
+                  className={styles["trackColorDot"]}
+                  style={{ backgroundColor: preset.color }}
+                />
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className={styles["spacer"]} />
 
       <div className={styles["controls"]}>

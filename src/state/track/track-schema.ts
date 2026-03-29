@@ -42,7 +42,7 @@ export type ClipSchema = z.infer<typeof clipSchema>;
 export const trackSchema = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.enum(["audio", "instrument"]),
+  type: z.enum(["audio", "instrument", "drum"]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   muted: z.boolean(),
   solo: z.boolean(),

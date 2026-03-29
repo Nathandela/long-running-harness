@@ -4,7 +4,7 @@
  * or containers for MIDI note events.
  */
 
-export type TrackType = "audio" | "instrument";
+export type TrackType = "audio" | "instrument" | "drum";
 
 export type MIDINoteEvent = {
   readonly id: string;
