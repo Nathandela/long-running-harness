@@ -100,4 +100,27 @@ describe("Fader", () => {
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("tabindex", "0");
   });
+
+  it("responds to pointerdown on thumb", () => {
+    const onChange = vi.fn();
+    render(<Fader {...defaultProps} onChange={onChange} />);
+    const slider = screen.getByRole("slider");
+    const thumb = slider.querySelector("[class*='thumb']");
+    expect(thumb).not.toBeNull();
+    if (thumb === null) return;
+    fireEvent.pointerDown(thumb, { clientY: 50 });
+    // Just verify it doesn't throw - pointer events are handled
+  });
+
+  it("renders aria-valuetext when provided", () => {
+    render(<Fader {...defaultProps} valueText="50%" />);
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveAttribute("aria-valuetext", "50%");
+  });
+
+  it("does not render aria-valuetext when not provided", () => {
+    render(<Fader {...defaultProps} />);
+    const slider = screen.getByRole("slider");
+    expect(slider).not.toHaveAttribute("aria-valuetext");
+  });
 });

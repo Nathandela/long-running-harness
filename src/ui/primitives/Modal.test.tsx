@@ -55,4 +55,36 @@ describe("Modal", () => {
     const dialog = screen.getByTestId("modal-dialog");
     expect(dialog).not.toHaveAttribute("open");
   });
+
+  it("sets initial focus on the dialog when opened", () => {
+    render(
+      <Modal open={true} onClose={vi.fn()} title="Test">
+        <button>Action</button>
+      </Modal>,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveFocus();
+  });
+
+  it("returns focus to previously focused element on close", () => {
+    const triggerBtn = document.createElement("button");
+    triggerBtn.textContent = "Open";
+    document.body.appendChild(triggerBtn);
+    triggerBtn.focus();
+
+    const { rerender } = render(
+      <Modal open={true} onClose={vi.fn()} title="Test">
+        Content
+      </Modal>,
+    );
+
+    rerender(
+      <Modal open={false} onClose={vi.fn()} title="Test">
+        Content
+      </Modal>,
+    );
+
+    expect(triggerBtn).toHaveFocus();
+    document.body.removeChild(triggerBtn);
+  });
 });

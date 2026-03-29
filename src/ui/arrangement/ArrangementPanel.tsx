@@ -139,6 +139,8 @@ export function ArrangementPanel(): React.JSX.Element {
     <section data-testid="arrangement-panel" className={styles["container"]}>
       <canvas
         ref={canvasRef}
+        role="application"
+        aria-label="Arrangement timeline"
         className={styles["canvas"]}
         style={{ cursor: interactions.cursor }}
         onWheel={handleWheel}

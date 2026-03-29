@@ -48,7 +48,7 @@ export function TransportBar(): React.JSX.Element {
         <button
           type="button"
           className={styles["transportBtn"]}
-          data-active={isPlaying}
+          aria-pressed={isPlaying}
           aria-label="Play"
           onClick={() => {
             transport.play();

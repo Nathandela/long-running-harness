@@ -57,9 +57,9 @@ describe("PianoRollEditor", () => {
   it("pencil tool button is active by default", () => {
     render(<PianoRollEditor clipId={null} />);
     const pencilBtn = screen.getByTestId("tool-pencil");
-    expect(pencilBtn.getAttribute("data-active")).toBe("true");
+    expect(pencilBtn).toHaveAttribute("aria-pressed", "true");
     const selectBtn = screen.getByTestId("tool-select");
-    expect(selectBtn.getAttribute("data-active")).toBe("false");
+    expect(selectBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   it("clicking tool button changes active tool", async () => {
@@ -69,9 +69,9 @@ describe("PianoRollEditor", () => {
     const selectBtn = screen.getByTestId("tool-select");
     await user.click(selectBtn);
 
-    expect(selectBtn.getAttribute("data-active")).toBe("true");
+    expect(selectBtn).toHaveAttribute("aria-pressed", "true");
     const pencilBtn = screen.getByTestId("tool-pencil");
-    expect(pencilBtn.getAttribute("data-active")).toBe("false");
+    expect(pencilBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   it("renders with a valid clipId", () => {
@@ -89,16 +89,19 @@ describe("PianoRollEditor", () => {
 
     // First switch away from pencil
     await user.click(screen.getByTestId("tool-select"));
-    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-select")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
 
     // Press P to switch back to pencil
     await user.keyboard("{p}");
-    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
-    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-select")).toHaveAttribute(
+      "aria-pressed",
       "false",
     );
   });
@@ -107,15 +110,18 @@ describe("PianoRollEditor", () => {
     const user = userEvent.setup();
     render(<PianoRollEditor clipId={null} />);
 
-    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
 
     await user.keyboard("{s}");
-    expect(screen.getByTestId("tool-select").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-select")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
-    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
+      "aria-pressed",
       "false",
     );
   });
@@ -124,17 +130,37 @@ describe("PianoRollEditor", () => {
     const user = userEvent.setup();
     render(<PianoRollEditor clipId={null} />);
 
-    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
 
     await user.keyboard("{e}");
-    expect(screen.getByTestId("tool-erase").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-erase")).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
-    expect(screen.getByTestId("tool-pencil").getAttribute("data-active")).toBe(
+    expect(screen.getByTestId("tool-pencil")).toHaveAttribute(
+      "aria-pressed",
       "false",
     );
+  });
+
+  it("canvas has role=application and aria-label", () => {
+    render(<PianoRollEditor clipId={null} />);
+    const canvas = screen.getByRole("application");
+    expect(canvas).toBeInTheDocument();
+    expect(canvas).toHaveAttribute("aria-label", "Piano roll editor");
+  });
+
+  it("tool buttons have aria-pressed attribute", () => {
+    render(<PianoRollEditor clipId={null} />);
+    const pencilBtn = screen.getByTestId("tool-pencil");
+    expect(pencilBtn).toHaveAttribute("aria-pressed", "true");
+    const selectBtn = screen.getByTestId("tool-select");
+    expect(selectBtn).toHaveAttribute("aria-pressed", "false");
+    const eraseBtn = screen.getByTestId("tool-erase");
+    expect(eraseBtn).toHaveAttribute("aria-pressed", "false");
   });
 
   // P0-3: Delete key binding exists (AC-4)

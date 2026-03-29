@@ -9,6 +9,7 @@ type FaderProps = {
   onChange: (value: number) => void;
   label: string;
   height?: number;
+  valueText?: string;
 };
 
 function clamp(val: number, min: number, max: number): number {
@@ -23,6 +24,7 @@ export function Fader({
   onChange,
   label,
   height = 128,
+  valueText,
 }: FaderProps): React.JSX.Element {
   const trackRef = useRef<HTMLDivElement>(null);
   const listenersRef = useRef<AbortController | null>(null);
@@ -82,23 +84,27 @@ export function Fader({
     [value, min, max, step],
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent): void => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent): void => {
       e.preventDefault();
+      const target = e.target as HTMLElement;
+      if (typeof target.setPointerCapture === "function") {
+        target.setPointerCapture(e.pointerId);
+      }
 
       listenersRef.current?.abort();
       const controller = new AbortController();
       listenersRef.current = controller;
 
       document.addEventListener(
-        "mousemove",
-        (ev: MouseEvent) => {
+        "pointermove",
+        (ev: PointerEvent) => {
           onChange(valueFromY(ev.clientY));
         },
         { signal: controller.signal },
       );
       document.addEventListener(
-        "mouseup",
+        "pointerup",
         () => {
           controller.abort();
         },
@@ -116,6 +122,7 @@ export function Fader({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}
+      aria-valuetext={valueText}
       aria-orientation="vertical"
       aria-label={label}
       onKeyDown={handleKeyDown}
@@ -132,7 +139,7 @@ export function Fader({
         <div
           className={styles["thumb"]}
           style={{ bottom: `${String(fraction * 100)}%` }}
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
         />
       </div>
       <span className={styles["label"]}>{label}</span>

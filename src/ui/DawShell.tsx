@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Toolbar } from "./Toolbar";
 import { ArrangementPanel } from "@ui/arrangement";
 import { InstrumentPanel } from "./panels";
@@ -20,6 +20,7 @@ import type { SessionStorage } from "@state/session/session-storage";
 import { createDefaultSession } from "@state/session/session-schema";
 import { hydrateStore } from "@state/session/use-session-persistence";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { KeyboardShortcutsPanel } from "./keyboard/KeyboardShortcutsPanel";
 
 function DawShellInner({
   sessionStorage,
@@ -32,12 +33,33 @@ function DawShellInner({
   const undoManager = sharedUndoManager;
   const { saveNow, recoveryWarnings } = useSessionPersistence(sessionStorage);
   const [dismissed, setDismissed] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
   const stableSaveNow = useCallback(() => saveNow(), [saveNow]);
 
   useTransportShortcuts(registry, shortcuts);
   useSessionShortcuts(registry, shortcuts, undoManager, stableSaveNow);
+
+  useEffect(() => {
+    registry.register({
+      id: "app.shortcuts-legend",
+      label: "Toggle Keyboard Shortcuts",
+      execute: () => {
+        setShortcutsOpen((prev) => !prev);
+      },
+    });
+    shortcuts.bind({
+      key: "?",
+      shift: true,
+      commandId: "app.shortcuts-legend",
+    });
+    return () => {
+      registry.unregister("app.shortcuts-legend");
+      shortcuts.unbind("app.shortcuts-legend");
+    };
+  }, [registry, shortcuts]);
+
   useKeyboardShortcuts(registry, shortcuts);
 
   return (
@@ -72,6 +94,12 @@ function DawShellInner({
           </div>
         </div>
       </ErrorBoundary>
+      <KeyboardShortcutsPanel
+        open={shortcutsOpen}
+        onClose={() => {
+          setShortcutsOpen(false);
+        }}
+      />
       <RecoveryDialog
         open={showRecovery}
         warnings={recoveryWarnings}

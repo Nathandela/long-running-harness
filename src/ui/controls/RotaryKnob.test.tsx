@@ -153,4 +153,28 @@ describe("RotaryKnob", () => {
     fireEvent.keyDown(slider, { key: "ArrowUp" });
     expect(onChange).toHaveBeenCalledWith(51);
   });
+
+  it("responds to pointerdown on canvas", () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <RotaryKnob {...defaultProps} onChange={onChange} />,
+    );
+    const canvas = container.querySelector("canvas");
+    expect(canvas).not.toBeNull();
+    if (canvas === null) return;
+    fireEvent.pointerDown(canvas, { clientY: 50 });
+    // Just verify it doesn't throw - pointer events are handled
+  });
+
+  it("renders aria-valuetext when provided", () => {
+    render(<RotaryKnob {...defaultProps} valueText="50%" />);
+    const slider = screen.getByRole("slider");
+    expect(slider).toHaveAttribute("aria-valuetext", "50%");
+  });
+
+  it("does not render aria-valuetext when not provided", () => {
+    render(<RotaryKnob {...defaultProps} />);
+    const slider = screen.getByRole("slider");
+    expect(slider).not.toHaveAttribute("aria-valuetext");
+  });
 });

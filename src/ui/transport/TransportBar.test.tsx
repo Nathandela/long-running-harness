@@ -99,4 +99,10 @@ describe("TransportBar", () => {
     fireEvent.click(screen.getByRole("switch", { name: /metronome/i }));
     expect(mockSetMetronomeEnabled).toHaveBeenCalledWith(true);
   });
+
+  it("play button uses aria-pressed instead of data-active", () => {
+    render(<TransportBar />);
+    const playBtn = screen.getByRole("button", { name: /play/i });
+    expect(playBtn).toHaveAttribute("aria-pressed", "false");
+  });
 });

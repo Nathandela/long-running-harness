@@ -252,7 +252,7 @@ export function PianoRollEditor({
         <button
           data-testid="tool-pencil"
           className={styles["toolButton"]}
-          data-active={String(tool === "pencil")}
+          aria-pressed={tool === "pencil"}
           onClick={() => {
             setTool("pencil");
           }}
@@ -262,7 +262,7 @@ export function PianoRollEditor({
         <button
           data-testid="tool-select"
           className={styles["toolButton"]}
-          data-active={String(tool === "select")}
+          aria-pressed={tool === "select"}
           onClick={() => {
             setTool("select");
           }}
@@ -272,7 +272,7 @@ export function PianoRollEditor({
         <button
           data-testid="tool-erase"
           className={styles["toolButton"]}
-          data-active={String(tool === "erase")}
+          aria-pressed={tool === "erase"}
           onClick={() => {
             setTool("erase");
           }}
@@ -297,6 +297,8 @@ export function PianoRollEditor({
       <div className={styles["canvasWrapper"]}>
         <canvas
           ref={canvasRef}
+          role="application"
+          aria-label="Piano roll editor"
           className={styles["canvas"]}
           style={{ cursor: interactions.cursor }}
           onPointerDown={interactions.onPointerDown}

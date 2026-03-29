@@ -31,7 +31,7 @@
   cursor: pointer;
 }
 
-.toolButton[data-active="true"] {
+.toolButton[aria-pressed="true"] {
   background-color: var(--color-blue);
   color: var(--color-white);
 }

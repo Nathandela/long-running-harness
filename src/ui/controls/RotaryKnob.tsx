@@ -9,6 +9,7 @@ type RotaryKnobProps = {
   onChange: (value: number) => void;
   label: string;
   size?: number;
+  valueText?: string;
 };
 
 const START_ANGLE = 0.75 * Math.PI;
@@ -72,6 +73,7 @@ export function RotaryKnob({
   onChange,
   label,
   size = 48,
+  valueText,
 }: RotaryKnobProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const listenersRef = useRef<AbortController | null>(null);
@@ -134,9 +136,13 @@ export function RotaryKnob({
     [value, step, min, max, commit],
   );
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent): void => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent): void => {
       e.preventDefault();
+      const target = e.target as HTMLElement;
+      if (typeof target.setPointerCapture === "function") {
+        target.setPointerCapture(e.pointerId);
+      }
       const startY = e.clientY;
       const startValue = value;
       const range = max - min;
@@ -146,8 +152,8 @@ export function RotaryKnob({
       listenersRef.current = controller;
 
       document.addEventListener(
-        "mousemove",
-        (moveEvent: MouseEvent) => {
+        "pointermove",
+        (moveEvent: PointerEvent) => {
           const delta = startY - moveEvent.clientY;
           const fraction = delta / DRAG_SENSITIVITY;
           commit(startValue + fraction * range);
@@ -156,7 +162,7 @@ export function RotaryKnob({
       );
 
       document.addEventListener(
-        "mouseup",
+        "pointerup",
         () => {
           controller.abort();
         },
@@ -173,6 +179,7 @@ export function RotaryKnob({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={value}
+      aria-valuetext={valueText}
       aria-label={label}
       onKeyDown={handleKeyDown}
       style={{
@@ -196,7 +203,7 @@ export function RotaryKnob({
         ref={canvasRef}
         width={size}
         height={size}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
         style={{ cursor: "grab" }}
       />
       <span
