@@ -17,22 +17,20 @@ import {
 import styles from "./panels.module.css";
 
 // Module-level caches: preserve state across unmount/remount cycles
-const sequencerCache = new Map<string, StepSequencer>();
-const paramsCache = new Map<
+export const sequencerCache = new Map<string, StepSequencer>();
+export const paramsCache = new Map<
   string,
   Record<DrumInstrumentId, DrumInstrumentParams>
 >();
 
-// Clean up caches when tracks are deleted
+// Clean up caches when tracks are removed or replaced
 let prevTrackIds = new Set(useDawStore.getState().tracks.map((t) => t.id));
 useDawStore.subscribe((state) => {
   const trackIds = new Set(state.tracks.map((t) => t.id));
-  if (trackIds.size < prevTrackIds.size) {
-    for (const id of prevTrackIds) {
-      if (!trackIds.has(id)) {
-        sequencerCache.delete(id);
-        paramsCache.delete(id);
-      }
+  for (const id of prevTrackIds) {
+    if (!trackIds.has(id)) {
+      sequencerCache.delete(id);
+      paramsCache.delete(id);
     }
   }
   prevTrackIds = trackIds;
