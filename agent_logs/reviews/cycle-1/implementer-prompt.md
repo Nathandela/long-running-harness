@@ -8,30 +8,47 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
-**1. P3 — Orphaned `.mixer` CSS class**
-`MixerPanel.module.css:1-8` — the old `.mixer` class is dead code after the refactor to `.mixer-wrapper`. No file references `styles["mixer"]` anymore. It also carries the old `max-height: 280px` constraint which conflicts with the new 400px. Should be removed to avoid confusion.
+**1. [P1] Media-pool drop has no undo support**
 
-**2. P3 — Bridge subscription leaks in tests**
-`effects-bridge.test.ts` has no `afterEach(() => bridge.dispose())`. Each test creates a new bridge (+ store subscription) without tearing down the previous one. By the 5th test, 4 stale bridges are firing `sync()` on store mutations. Practically harmless since each test uses fresh mocks, but violates isolation and will confuse future test failures.
+`ArrangementPanel.tsx` `handleDrop` calls `state.addClip(clip)` directly with no `UndoCommand` pushed to `sharedUndoManager`. The commit description states "All features include undo support" — this is false for the drag feature. Double-click MIDI clip creation does push an undo command; drop does not.
 
-**3. P3 — Initial sync path untested**
-All tests call `useEffectsStore.setState({ trackEffects: {} })` before `createEffectsBridge(...)`. The constructor's `sync()` therefore always runs on an empty store. The code path where the bridge is created with pre-existing effects (the production boot path, via `EffectsBridgeProvider.useState`) is never exercised. Add one test that populates the store before creating the bridge.
+Fix: wrap `addClip` in an `UndoCommand` the same way the MIDI clip creation is handled in `use-arrangement-interactions.ts:394–415`.
+
+---
+
+**2. [P2] `handleDragOver` shows copy cursor over non-audio tracks but `handleDrop` silently discards**
+
+`handleDragOver` (`ArrangementPanel.tsx:50–58`) accepts any drag with the correct MIME type and sets `dropEffect = "copy"`, regardless of which track the cursor is over. `handleDrop` then silently returns when `track.type !== "audio"`. The user sees a valid copy cursor, drops, and nothing happens — no feedback.
+
+Fix: in `handleDragOver`, check the target track type and only call `e.preventDefault()` / set `dropEffect` when the resolved track is an audio track. Alternatively show an error toast on rejected drops.
+
+---
+
+**3. [P2] Misleading test — name claims piano roll opens but body tests nothing of the sort**
+
+`DawShell-piano-roll.test.tsx:71`: test named `"shows piano roll when MIDI clip is double-clicked and close returns to default"` sets up a MIDI clip, renders `DawShell`, then only asserts the *initial* state (no piano roll visible, no close button). The comment inside acknowledges `"we test the close button works by checking that the close button only appears when piano roll is open"` — but the close button is never clicked because the piano roll is never opened. The test name is false advertising; CI will pass regardless of whether the feature works.
+
+Fix: either remove the test or replace it with an integration test that uses `useDawStore.setState` to set `bottomPanel = "piano-roll"` / `editingClipId` or expose state-setting via props/context.
+
+---
+
+**4. [P3] `addMidiClip`/`removeMidiClip` are functionally identical to `addClip`/`removeClip`**
+
+`store.ts:368–391` duplicates the exact logic of `addClip`/`removeClip`. The drop handler uses `addClip`; the inline undo command uses `addMidiClip`. Two code paths do the same thing via different methods, creating future confusion. No bug today, but one of the two should be removed (the generic `addClip` already accepts `MidiClipModel` through the `ClipModel` union).
 </claude-sonnet-review>
 
 <claude-opus-review>
-Clean type-check. Now my full review:
-
 REVIEW_CHANGES_REQUESTED
 
-1. **P2 - ReDoS risk in track name regex** (`src/ui/transport/TransportBar.tsx:65`): `namePrefix` is interpolated directly into `new RegExp(...)` without escaping. The current preset values ("Audio", "Synth", "808") are safe, but "808" contains no special chars only by luck. If a preset name ever contains regex metacharacters (e.g. `C++`, `(Aux)`), this will break or cause unexpected behavior. Escape `namePrefix` before interpolation, or use a simpler `startsWith` + `parseInt` approach.
+1. **P2 - Drop handler missing undo support** (`ArrangementPanel.tsx:53-97`): `handleDrop` calls `state.addClip(clip)` directly without creating an `UndoCommand` and pushing it to `sharedUndoManager`. The MIDI clip creation on double-click correctly uses undo. Users who drop an audio file onto the arrangement cannot Ctrl+Z to remove it. Wrap in an undo command like the MIDI clip creation does.
 
-2. **P2 - Module-level Map caches never shrink** (`src/ui/panels.tsx:20-24`): `sequencerCache` and `paramsCache` are module-level `Map`s keyed by trackId. When a track is deleted, its entries are never removed. Over a long session with many track create/delete cycles, these accumulate orphaned `StepSequencer` instances and param objects. Add cleanup when tracks are removed (e.g., subscribe to store changes, or clear entries in a `useEffect` cleanup).
+2. **P2 - Drop handler has no field validation on parsed JSON** (`ArrangementPanel.tsx:59-64`): The `JSON.parse` result is cast with `as typeof data` but no runtime check verifies the fields exist or have correct types. If the drag data is malformed (e.g. `durationSeconds` is a string or missing), the clip gets created with `NaN` or `undefined` duration. Add a guard like `if (typeof data.sourceId !== 'string' || typeof data.durationSeconds !== 'number') return;`.
 
-3. **P3 - `act()` warnings in test** (`src/ui/track-creation.test.tsx`): The "preserves drum params" test triggers React `act()` warnings on stderr from `useDawStore.setState` inside `rerender`. Wrap the state updates in `act(() => { ... })` to silence the warnings and ensure React processes state correctly during assertions.
+3. **P2 - Drop handler allows negative trackIndex** (`ArrangementPanel.tsx:71-74`): When `y - RULER_HEIGHT + view.scrollY` is negative (dragging above the first track), `Math.floor` produces a negative index. `state.tracks[-1]` evaluates to `undefined` in JS (safe, bails out), but the intent would be clearer with an explicit `if (trackIndex < 0) return;` guard, matching defensive patterns elsewhere.
 
-4. **P3 - EffectsBridge sync runs on every store change** (`src/audio/effects/effects-bridge.ts:110`): `useEffectsStore.subscribe(sync)` fires `sync()` on every state mutation (any slice), not just `trackEffects` changes. If other effects-store slices are added later, every unrelated write will trigger a full reconciliation loop. Consider using `subscribe` with a selector or `subscribeWithSelector` middleware.
+4. **P3 - `editingClipId` can go stale if clip is deleted** (`DawShell.tsx:42`): If a user opens the piano roll for a clip, then undoes the clip creation, `editingClipId` still holds the deleted clip's ID. `PianoRollEditor` handles null clipId but not a stale/nonexistent one -- it would render an empty grid for a clip that no longer exists. Either subscribe to store changes to detect clip deletion, or have `PianoRollEditor` treat a missing clip the same as `null`.
 
-5. **P3 - Sidechain filter is O(n) per track row** (`src/ui/mixer/RoutingMatrix.tsx:117-119`): `sidechains.filter(...)` runs for every track on every render. With many tracks and sidechains this is quadratic. Fine for now, but if the matrix grows, pre-index sidechains by sourceId/targetId in a `useMemo`.
+5. **P3 - DawShell piano-roll test doesn't actually test the open-then-close flow** (`DawShell-piano-roll.test.tsx:86-123`): The test named "shows piano roll when MIDI clip is double-clicked and close returns to default" never actually opens the piano roll. The comment says "We can't easily simulate canvas double-click" and only asserts the close button is absent. This test name is misleading -- rename it to match what it actually verifies, or use `act` to call `openPianoRoll` via store state/callback.
 </claude-opus-review>
 
 <gemini-review>
@@ -51,12 +68,11 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
+Error executing tool grep_search: Path does not exist: /Users/Nathan/Documents/Code/long-running-harness/src/state/track/track-store.ts
 REVIEW_CHANGES_REQUESTED
-
-1. **[P2 - Test Leak]** In `src/audio/effects/effects-bridge.test.ts`, an `EffectsBridge` is instantiated in `beforeEach()`, which adds a subscription to `useEffectsStore`. However, `bridge.dispose()` is never called in an `afterEach()`. This leaks Zustand store subscriptions across tests, potentially causing memory leaks and unintended side effects during subsequent test runs.
-2. **[P2 - Edge Case]** In `src/ui/mixer/MixerPanel.tsx`, `EffectsRack` is rendered whenever `selectedFxTrackId !== null`. If the corresponding track is deleted from the DAW store while its FX rack is open, the rack remains mounted for a non-existent track. Add a check to ensure the track still exists before rendering it (e.g., `selectedFxTrackId !== null && tracks.some(t => t.id === selectedFxTrackId)`).
-3. **[P3 - Unused CSS]** In `src/ui/mixer/MixerPanel.module.css`, the `.mixer` class was orphaned when it was replaced by `.mixer-wrapper`. It should be removed as it is no longer used.
-4. **[P3 - Test Mock Correctness]** In `src/audio/effects/effects-bridge.test.ts`, `mockGainNode()` mocks the `connect` method with `vi.fn().mockReturnThis()`. Under the standard Web Audio API, `connect(destinationNode)` returns the *destination* node, not the source node (`this`). While this doesn't break the current tests, it is an incorrect representation of the API that could break future tests if connection chaining is introduced.
+1. **P1 (Bug):** Missing undo/redo support for media drag-and-drop. In `src/ui/arrangement/ArrangementPanel.tsx`, the `handleDrop` function directly calls `state.addClip(clip)` to create an audio clip, bypassing the `sharedUndoManager`. This should dispatch an `AddClipCommand` so users can undo dropping a clip.
+2. **P3 (Test Quality):** The unit test `"shows piano roll when MIDI clip is double-clicked and close returns to default"` in `src/ui/DawShell-piano-roll.test.tsx` never actually simulates opening the piano roll or clicking the close button. It checks the initial default state and exits without testing the behavior described in its title.
+3. **P3 (Code Quality):** In `src/ui/arrangement/use-arrangement-interactions.ts`, an inline `UndoCommand` object is constructed manually when creating a MIDI clip. The codebase already has an `AddClipCommand` class (exported from `track-commands.ts`) which calls `state.addClip` under the hood. Since `state.addClip` handles both audio and MIDI clips identically, reusing `AddClipCommand` is more consistent.
 </gemini-review>
 
 

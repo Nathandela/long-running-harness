@@ -1,18 +1,15 @@
-Committed. All 1488 tests pass, type check clean, lint clean.
+Commit successful. All pre-commit hooks passed (lint, typecheck, format).
 
 FIXES_APPLIED
 
-Here's what was addressed:
+**Summary of fixes:**
 
-**P2 fixes:**
-- **ReDoS risk** (`TransportBar.tsx:64-67`): Replaced `new RegExp()` interpolation with `startsWith` + `parseInt` -- safe regardless of preset name characters
-- **Module-level Map leak** (`panels.tsx:26-36`): Added `useDawStore.subscribe` to clean up `sequencerCache`/`paramsCache` entries when tracks are deleted
-- **Test subscription leak** (`effects-bridge.test.ts`): Added `afterEach(() => bridge.dispose())` to tear down store subscriptions between tests
-- **EffectsRack for deleted track** (`MixerPanel.tsx:119-121`): Added `tracks.some()` guard so the rack won't render for a non-existent track
-
-**P3 fixes:**
-- **Orphaned `.mixer` CSS class** (`MixerPanel.module.css`): Removed 8 lines of dead code
-- **Initial sync path untested** (`effects-bridge.test.ts`): Added test that populates store before creating bridge
-- **`act()` warnings** (`track-creation.test.tsx`): Wrapped `setState` calls in `act()`
-- **EffectsBridge over-firing** (`effects-bridge.ts:109-115`): Sync now skips unless `trackEffects` reference changed
-- **Mock correctness** (`effects-bridge.test.ts:16`): `connect` now returns destination node per Web Audio spec
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Media drop missing undo | P1 | Wrapped `handleDrop` in `AddClipCommand` + `sharedUndoManager.push()` |
+| DragOver shows copy cursor on non-audio tracks | P2 | `handleDragOver` now resolves target track and only accepts audio tracks |
+| Drop handler no JSON field validation | P2 | Runtime type checks on `sourceId`, `name`, `durationSeconds` |
+| Drop handler allows negative trackIndex | P2 | Early return when `trackIndex < 0` |
+| Stale `editingClipId` after clip deletion | P2 | Derived `effectivePanel` falls back to "default" when clip no longer exists |
+| Misleading piano-roll test | P2/P3 | Rewrote to mock ArrangementPanel, capture callback, test open/close flow |
+| MIDI clip undo duplicates AddClipCommand | P3 | Replaced inline undo with `new AddClipCommand(clip)` |

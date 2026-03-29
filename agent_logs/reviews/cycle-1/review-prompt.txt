@@ -7,24 +7,20 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-60p ● P0 task E7-T1: Mixer audio graph engine
 ✓ long-running-harness-6vx ● P0 task E6-T1: Track & Clip data models
 ✓ long-running-harness-7pq7 ● P0 epic W1: Track Creation & Panel Wiring
+├── ✓ long-running-harness-ayef ● P0 epic W3: Piano Roll, Media Drag & Clip Workflow
 └── ✓ long-running-harness-bs9b ● P0 epic W2: Effects, Routing & Mixer Integration
-✓ long-running-harness-9sl ● P0 epic E1: Project Shell & Audio Infrastructure
-├── ✓ long-running-harness-8ew ● P0 epic E3: Transport & Scheduling Engine
-│   ├── ✓ long-running-harness-8v1 ● P0 epic E6: Track System & Arrangement View
-│   │   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
-│   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
-├── ✓ long-running-harness-8v1 ● P0 epic E6: Track System & Arrangement View
-│   └── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
-└── ✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
+✓ long-running-harness-8yqu ● P0 task W3-T2: Double-click MIDI clip opens piano roll
 ✓ long-running-harness-b4o ● P0 task E7-T2: Solo-in-place state machine
+✓ long-running-harness-bqt ● P0 epic E7: Mixer Core
 ✓ long-running-harness-cz0 ● P0 task E7-T6: Mixer panel UI
 ✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
+✓ long-running-harness-iy45 ● P0 task W3-T3: Media pool drag-to-arrangement
 ✓ long-running-harness-iz6 ● P0 task Add React ErrorBoundary at App and DawShell levels
+✓ long-running-harness-jooj ● P0 task W3-T1: Bottom panel state switching (piano roll toggle)
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-qeex ● P0 task Add FX button to ChannelStrip + wire EffectsRack in MixerPanel
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-yxvh ● P1 task Verify EffectsBridge connects store to audio engine
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,8 +28,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-246bf29 chore: auto-commit uncommitted changes from long-running-harness-bs9b
-2b013fb Wire effects rack and routing matrix into mixer (W2 epic)
+54ef3b2 chore: auto-commit uncommitted changes from long-running-harness-ayef
+5caeaa0 Wire piano roll, media drag, and MIDI clip workflow (W3 epic)
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

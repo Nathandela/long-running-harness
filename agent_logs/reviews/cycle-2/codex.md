@@ -1,6 +1,1 @@
-REVIEW_CHANGES_REQUESTED
-
-- **[P2] Drum cache cleanup still misses same-size track replacement paths** ([panels.tsx:27](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:27), [panels.tsx:30](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:30), [use-session-persistence.ts:142](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:142), [use-session-persistence.ts:147](/Users/Nathan/Documents/Code/long-running-harness/src/state/session/use-session-persistence.ts:147))
-  - **Detail**: The new subscription only purges `sequencerCache` and `paramsCache` when the number of tracks decreases. `hydrateStore()` replaces `tracks` wholesale, so swapping one track set for another of the same size leaves the old cache entries behind.
-  - **Risk**: The cache-leak fix is still partial. Stale drum-machine state can accumulate across session loads or other whole-array track replacements.
-  - **Suggestion**: Diff `prevTrackIds` against `trackIds` on every update, not only when `size` shrinks, and add a regression test that hydrates from one drum-track set to a different same-length set.
+REVIEW_APPROVED

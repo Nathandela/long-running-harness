@@ -1,10 +1,29 @@
 REVIEW_CHANGES_REQUESTED
 
-**1. P3 — Orphaned `.mixer` CSS class**
-`MixerPanel.module.css:1-8` — the old `.mixer` class is dead code after the refactor to `.mixer-wrapper`. No file references `styles["mixer"]` anymore. It also carries the old `max-height: 280px` constraint which conflicts with the new 400px. Should be removed to avoid confusion.
+**1. [P1] Media-pool drop has no undo support**
 
-**2. P3 — Bridge subscription leaks in tests**
-`effects-bridge.test.ts` has no `afterEach(() => bridge.dispose())`. Each test creates a new bridge (+ store subscription) without tearing down the previous one. By the 5th test, 4 stale bridges are firing `sync()` on store mutations. Practically harmless since each test uses fresh mocks, but violates isolation and will confuse future test failures.
+`ArrangementPanel.tsx` `handleDrop` calls `state.addClip(clip)` directly with no `UndoCommand` pushed to `sharedUndoManager`. The commit description states "All features include undo support" — this is false for the drag feature. Double-click MIDI clip creation does push an undo command; drop does not.
 
-**3. P3 — Initial sync path untested**
-All tests call `useEffectsStore.setState({ trackEffects: {} })` before `createEffectsBridge(...)`. The constructor's `sync()` therefore always runs on an empty store. The code path where the bridge is created with pre-existing effects (the production boot path, via `EffectsBridgeProvider.useState`) is never exercised. Add one test that populates the store before creating the bridge.
+Fix: wrap `addClip` in an `UndoCommand` the same way the MIDI clip creation is handled in `use-arrangement-interactions.ts:394–415`.
+
+---
+
+**2. [P2] `handleDragOver` shows copy cursor over non-audio tracks but `handleDrop` silently discards**
+
+`handleDragOver` (`ArrangementPanel.tsx:50–58`) accepts any drag with the correct MIME type and sets `dropEffect = "copy"`, regardless of which track the cursor is over. `handleDrop` then silently returns when `track.type !== "audio"`. The user sees a valid copy cursor, drops, and nothing happens — no feedback.
+
+Fix: in `handleDragOver`, check the target track type and only call `e.preventDefault()` / set `dropEffect` when the resolved track is an audio track. Alternatively show an error toast on rejected drops.
+
+---
+
+**3. [P2] Misleading test — name claims piano roll opens but body tests nothing of the sort**
+
+`DawShell-piano-roll.test.tsx:71`: test named `"shows piano roll when MIDI clip is double-clicked and close returns to default"` sets up a MIDI clip, renders `DawShell`, then only asserts the *initial* state (no piano roll visible, no close button). The comment inside acknowledges `"we test the close button works by checking that the close button only appears when piano roll is open"` — but the close button is never clicked because the piano roll is never opened. The test name is false advertising; CI will pass regardless of whether the feature works.
+
+Fix: either remove the test or replace it with an integration test that uses `useDawStore.setState` to set `bottomPanel = "piano-roll"` / `editingClipId` or expose state-setting via props/context.
+
+---
+
+**4. [P3] `addMidiClip`/`removeMidiClip` are functionally identical to `addClip`/`removeClip`**
+
+`store.ts:368–391` duplicates the exact logic of `addClip`/`removeClip`. The drop handler uses `addClip`; the inline undo command uses `addMidiClip`. Two code paths do the same thing via different methods, creating future confusion. No bug today, but one of the two should be removed (the generic `addClip` already accepts `MidiClipModel` through the `ClipModel` union).
