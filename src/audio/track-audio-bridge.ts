@@ -62,15 +62,20 @@ function subscribeSynthParams(
   });
 }
 
-// Shared 808 sample cache: synthesize once per AudioContext, reuse across tracks
+// Shared 808 sample cache: synthesize once, reuse across tracks.
+// AudioBuffers are context-independent (44100 Hz OfflineAudioContext).
 let sampleCachePromise: Promise<Map<DrumInstrumentId, AudioBuffer>> | null =
   null;
 
-function getOrSynthesize808Samples(
-  ctx: AudioContext,
-): Promise<Map<DrumInstrumentId, AudioBuffer>> {
+function getOrSynthesize808Samples(): Promise<
+  Map<DrumInstrumentId, AudioBuffer>
+> {
   if (sampleCachePromise === null) {
-    sampleCachePromise = synthesize808Samples(ctx);
+    sampleCachePromise = synthesize808Samples();
+    // Reset cache on failure so next call retries
+    sampleCachePromise.catch(() => {
+      sampleCachePromise = null;
+    });
   }
   return sampleCachePromise;
 }
@@ -124,7 +129,7 @@ export function createTrackAudioBridge(
     trackGeneration.set(trackId, gen);
     mixer.getOrCreateStrip(trackId);
 
-    void getOrSynthesize808Samples(ctx).then((samples) => {
+    void getOrSynthesize808Samples().then((samples) => {
       if (trackGeneration.get(trackId) !== gen || disposed) return;
 
       const kit = createDrumKit(ctx, samples);
@@ -141,9 +146,7 @@ export function createTrackAudioBridge(
 
   function addAudioTrack(trackId: string): void {
     mixer.getOrCreateStrip(trackId);
-    trackCleanups.set(trackId, () => {
-      mixer.removeStrip(trackId);
-    });
+    // No per-track cleanup needed; handleTrackRemoved calls removeStrip for all types
   }
 
   function handleTrackAdded(track: TrackModel): void {

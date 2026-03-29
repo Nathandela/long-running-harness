@@ -4,82 +4,23 @@ import { SynthEditor } from "@ui/synth";
 import { DrumMachinePanel } from "@ui/drum-machine";
 import { useTrackAudioBridge } from "@audio/TrackAudioBridgeProvider";
 import type { TrackAudioBridge } from "@audio/track-audio-bridge";
-import { useAudioEngine } from "@audio/use-audio-engine";
-import {
-  createStepSequencer,
-  type StepSequencer,
-} from "@audio/drum-machine/step-sequencer";
 import { useTransport } from "@audio/use-transport";
-import {
-  DRUM_INSTRUMENTS,
-  DEFAULT_INSTRUMENT_PARAMS,
-  type DrumInstrumentId,
-  type DrumInstrumentParams,
-  type DrumPattern,
+import type {
+  DrumInstrumentId,
+  DrumInstrumentParams,
+  DrumPattern,
 } from "@audio/drum-machine/drum-types";
+import {
+  sequencerCache,
+  paramsCache,
+  setBridgeRef,
+  getOrCreateSequencer,
+  getOrCreateParams,
+} from "@audio/drum-machine/sequencer-cache";
 import styles from "./panels.module.css";
 
-// Module-level caches: preserve state across unmount/remount cycles
-export const sequencerCache = new Map<string, StepSequencer>();
-export const paramsCache = new Map<
-  string,
-  Record<DrumInstrumentId, DrumInstrumentParams>
->();
-
-// Clean up caches when tracks are removed or replaced
-let prevTrackIds = new Set(useDawStore.getState().tracks.map((t) => t.id));
-useDawStore.subscribe((state) => {
-  const trackIds = new Set(state.tracks.map((t) => t.id));
-  for (const id of prevTrackIds) {
-    if (!trackIds.has(id)) {
-      sequencerCache.delete(id);
-      paramsCache.delete(id);
-    }
-  }
-  prevTrackIds = trackIds;
-});
-
-function getOrCreateSequencer(trackId: string): StepSequencer {
-  let seq = sequencerCache.get(trackId);
-  if (!seq) {
-    seq = createStepSequencer((trigger) => {
-      // Look up drum kit via the bridge at trigger time (kit may load async)
-      const bridge = bridgeRef;
-      if (!bridge) return;
-      const kit = bridge.getDrumKit(trackId);
-      kit?.trigger(
-        trigger.instrumentId,
-        trigger.time,
-        trigger.velocity,
-        trigger.flamMs,
-      );
-    });
-    sequencerCache.set(trackId, seq);
-  }
-  return seq;
-}
-
-// Module-level bridge reference for trigger callbacks
-let bridgeRef: TrackAudioBridge | null = null;
-
-/** Set the bridge reference for drum trigger callbacks. Called by DrumMachineController. */
-export function setBridgeRef(bridge: TrackAudioBridge | null): void {
-  bridgeRef = bridge;
-}
-
-function getOrCreateParams(
-  trackId: string,
-): Record<DrumInstrumentId, DrumInstrumentParams> {
-  let cached = paramsCache.get(trackId);
-  if (!cached) {
-    cached = {} as Record<DrumInstrumentId, DrumInstrumentParams>;
-    for (const inst of DRUM_INSTRUMENTS) {
-      cached[inst.id] = { ...DEFAULT_INSTRUMENT_PARAMS[inst.id] };
-    }
-    paramsCache.set(trackId, cached);
-  }
-  return cached;
-}
+// Re-export for test compatibility
+export { sequencerCache, paramsCache, setBridgeRef };
 
 function useDrumMachineState(trackId: string): {
   pattern: DrumPattern;
@@ -97,7 +38,6 @@ function useDrumMachineState(trackId: string): {
   onClearPattern: () => void;
 } {
   const transport = useTransport();
-  const engine = useAudioEngine();
   const transportState = useDawStore((s) => s.transportState);
   const bpm = useDawStore((s) => s.bpm);
 
@@ -142,52 +82,8 @@ function useDrumMachineState(trackId: string): {
     };
   }, [transportState, transport, bpm, pattern.steps.length]);
 
-  // Audio scheduling: schedule drum steps within look-ahead window
-  useEffect(() => {
-    if (transportState !== "playing") return;
-    const clock = transport.getClock();
-    if (!clock) return;
-    const ctx = engine.ctx;
-
-    const stepsPerBeat = 4;
-    const stepDuration = 60 / (bpm * stepsPerBeat);
-    const lookAheadSec = 0.1;
-    const intervalMs = 25;
-
-    // Sync to current position
-    const cursor = clock.getCursorSeconds();
-    const totalSteps = cursor / stepDuration;
-    const wholeStep = Math.floor(totalSteps + 1e-9);
-    const remainder = totalSteps - wholeStep;
-    let nextStepIndex: number;
-    let nextStepArrangementTime: number;
-    if (remainder < 1e-6) {
-      nextStepIndex = wholeStep % pattern.steps.length;
-      nextStepArrangementTime = wholeStep * stepDuration;
-    } else {
-      nextStepIndex = (wholeStep + 1) % pattern.steps.length;
-      nextStepArrangementTime = (wholeStep + 1) * stepDuration;
-    }
-
-    const timerId = setInterval(() => {
-      if (clock.state !== "playing") return;
-      const cursorNow = clock.getCursorSeconds();
-      const windowEnd = cursorNow + lookAheadSec;
-      // timeOffset converts arrangement time to AudioContext time
-      const timeOffset = ctx.currentTime - cursorNow;
-
-      while (nextStepArrangementTime < windowEnd) {
-        const audioTime = nextStepArrangementTime + timeOffset;
-        seq.scheduleStep(nextStepIndex, Math.max(0, audioTime));
-        nextStepIndex = (nextStepIndex + 1) % pattern.steps.length;
-        nextStepArrangementTime += stepDuration;
-      }
-    }, intervalMs);
-
-    return () => {
-      clearInterval(timerId);
-    };
-  }, [transportState, transport, engine, bpm, seq, pattern.steps.length]);
+  // Audio scheduling is handled persistently by DrumSchedulerService
+  // in TrackAudioBridgeProvider (not here, so it survives track deselection).
 
   // Derive currentStep: 0 when stopped, liveStep when playing/paused
   const currentStep = transportState === "stopped" ? 0 : liveStep;

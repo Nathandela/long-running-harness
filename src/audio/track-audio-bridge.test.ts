@@ -25,21 +25,31 @@ vi.mock("./synth/modulation-bridge", () => ({
 }));
 
 // Mock drum synthesis — OfflineAudioContext is not available in jsdom
+const mockBuffer = {
+  length: 4410,
+  sampleRate: 44100,
+  numberOfChannels: 1,
+  duration: 0.1,
+  getChannelData: () => new Float32Array(4410),
+  copyFromChannel: vi.fn(),
+  copyToChannel: vi.fn(),
+} as unknown as AudioBuffer;
+
 vi.mock("./drum-machine/drum-synthesis", () => ({
-  synthesize808Samples: vi.fn((ctx: AudioContext) =>
+  synthesize808Samples: vi.fn(() =>
     Promise.resolve(
       new Map([
-        ["bd", ctx.createBuffer(1, 4410, 44100)],
-        ["sd", ctx.createBuffer(1, 4410, 44100)],
-        ["ch", ctx.createBuffer(1, 4410, 44100)],
-        ["oh", ctx.createBuffer(1, 4410, 44100)],
-        ["cp", ctx.createBuffer(1, 4410, 44100)],
-        ["lt", ctx.createBuffer(1, 4410, 44100)],
-        ["mt", ctx.createBuffer(1, 4410, 44100)],
-        ["ht", ctx.createBuffer(1, 4410, 44100)],
-        ["rs", ctx.createBuffer(1, 4410, 44100)],
-        ["cb", ctx.createBuffer(1, 4410, 44100)],
-        ["cy", ctx.createBuffer(1, 4410, 44100)],
+        ["bd", mockBuffer],
+        ["sd", mockBuffer],
+        ["ch", mockBuffer],
+        ["oh", mockBuffer],
+        ["cp", mockBuffer],
+        ["lt", mockBuffer],
+        ["mt", mockBuffer],
+        ["ht", mockBuffer],
+        ["rs", mockBuffer],
+        ["cb", mockBuffer],
+        ["cy", mockBuffer],
       ]),
     ),
   ),

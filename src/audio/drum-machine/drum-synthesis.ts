@@ -9,21 +9,15 @@ import type { DrumInstrumentId } from "./drum-types";
 const SAMPLE_RATE = 44100;
 const BUFFER_DURATION = 0.8; // seconds - enough for longest decay
 
-/** Render an OfflineAudioContext to an AudioBuffer, then copy to target context. */
+/** Render an OfflineAudioContext to an AudioBuffer. Context-independent (44100 Hz). */
 async function renderOffline(
-  targetCtx: AudioContext,
   duration: number,
   build: (ctx: OfflineAudioContext) => void,
 ): Promise<AudioBuffer> {
   const length = Math.ceil(duration * SAMPLE_RATE);
   const offline = new OfflineAudioContext(1, length, SAMPLE_RATE);
   build(offline);
-  const rendered = await offline.startRendering();
-  // Copy to target context's sample rate
-  if (targetCtx.sampleRate === SAMPLE_RATE) return rendered;
-  const out = targetCtx.createBuffer(1, length, SAMPLE_RATE);
-  out.copyToChannel(rendered.getChannelData(0), 0);
-  return out;
+  return offline.startRendering();
 }
 
 /** Bass Drum: sine oscillator with exponential pitch sweep + click transient */
@@ -303,16 +297,16 @@ const builders: Record<DrumInstrumentId, (ctx: OfflineAudioContext) => void> = {
 /**
  * Synthesize all 808 drum samples. Returns a Map of AudioBuffers keyed by instrument ID.
  */
-export async function synthesize808Samples(
-  ctx: AudioContext,
-): Promise<Map<DrumInstrumentId, AudioBuffer>> {
+export async function synthesize808Samples(): Promise<
+  Map<DrumInstrumentId, AudioBuffer>
+> {
   const samples = new Map<DrumInstrumentId, AudioBuffer>();
   const ids = Object.keys(builders) as DrumInstrumentId[];
 
   // Render all samples in parallel
   const results = await Promise.all(
     ids.map(async (id) => {
-      const buffer = await renderOffline(ctx, BUFFER_DURATION, builders[id]);
+      const buffer = await renderOffline(BUFFER_DURATION, builders[id]);
       return [id, buffer] as const;
     }),
   );

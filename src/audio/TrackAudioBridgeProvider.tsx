@@ -19,6 +19,7 @@ import {
   createClipScheduler,
   type ClipScheduler,
 } from "./mixer/clip-scheduler";
+import { sequencerCache } from "./drum-machine/sequencer-cache";
 
 const Ctx = createContext<TrackAudioBridge | null>(null);
 
@@ -167,23 +168,120 @@ export function TrackAudioBridgeProvider({
     return useDawStore.subscribe((state) => {
       for (const track of state.tracks) {
         const prev = prevTracks.find((t) => t.id === track.id);
-        if (!prev) continue;
-        if (track.volume !== prev.volume) {
+        // For new tracks (!prev), apply initial values to sync mixer with store
+        if (!prev || track.volume !== prev.volume) {
           mixer.setFaderLevel(track.id, track.volume);
         }
-        if (track.pan !== prev.pan) {
+        if (!prev || track.pan !== prev.pan) {
           mixer.setPan(track.id, track.pan);
         }
-        if (track.muted !== prev.muted) {
+        if (!prev || track.muted !== prev.muted) {
           mixer.setMute(track.id, track.muted);
         }
-        if (track.solo !== prev.solo) {
+        if (!prev || track.solo !== prev.solo) {
           mixer.setSolo(track.id, track.solo);
         }
       }
       prevTracks = state.tracks;
     });
   }, [mixer]);
+
+  // Persistent drum scheduling: runs for all drum tracks regardless of UI selection.
+  // Moved here from useDrumMachineState (panels.tsx) so playback survives track deselection.
+  useEffect(() => {
+    let timerId: ReturnType<typeof setInterval> | null = null;
+
+    function startScheduling(): void {
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+
+      const state = useDawStore.getState();
+      if (state.transportState !== "playing") return;
+
+      const clock = transport.getClock();
+      if (!clock) return;
+
+      const drumTracks = state.tracks.filter((t) => t.type === "drum");
+      if (drumTracks.length === 0) return;
+
+      const stepsPerBeat = 4;
+      const stepDuration = 60 / (state.bpm * stepsPerBeat);
+      const lookAheadSec = 0.1;
+      const intervalMs = 25;
+
+      type PerTrack = {
+        seq: { scheduleStep(step: number, time: number): void };
+        nextStepIndex: number;
+        nextStepArrangementTime: number;
+        stepsLength: number;
+      };
+      const perTrack: PerTrack[] = [];
+
+      for (const track of drumTracks) {
+        const seq = sequencerCache.get(track.id);
+        if (!seq) continue;
+        const pattern = seq.getPattern();
+        const cursor = clock.getCursorSeconds();
+        const totalSteps = cursor / stepDuration;
+        const wholeStep = Math.floor(totalSteps + 1e-9);
+        const remainder = totalSteps - wholeStep;
+        let nextStepIndex: number;
+        let nextStepArrangementTime: number;
+        if (remainder < 1e-6) {
+          nextStepIndex = wholeStep % pattern.steps.length;
+          nextStepArrangementTime = wholeStep * stepDuration;
+        } else {
+          nextStepIndex = (wholeStep + 1) % pattern.steps.length;
+          nextStepArrangementTime = (wholeStep + 1) * stepDuration;
+        }
+        perTrack.push({
+          seq,
+          nextStepIndex,
+          nextStepArrangementTime,
+          stepsLength: pattern.steps.length,
+        });
+      }
+
+      if (perTrack.length === 0) return;
+
+      timerId = setInterval(() => {
+        if (clock.state !== "playing") return;
+        const cursorNow = clock.getCursorSeconds();
+        const windowEnd = cursorNow + lookAheadSec;
+        const timeOffset = engine.ctx.currentTime - cursorNow;
+
+        for (const ts of perTrack) {
+          while (ts.nextStepArrangementTime < windowEnd) {
+            const audioTime = ts.nextStepArrangementTime + timeOffset;
+            ts.seq.scheduleStep(ts.nextStepIndex, Math.max(0, audioTime));
+            ts.nextStepIndex = (ts.nextStepIndex + 1) % ts.stepsLength;
+            ts.nextStepArrangementTime += stepDuration;
+          }
+        }
+      }, intervalMs);
+    }
+
+    // Start immediately if already playing
+    startScheduling();
+
+    // Re-evaluate when transport state, BPM, or tracks change
+    const unsub = useDawStore.subscribe((state, prev) => {
+      if (
+        state.transportState !== prev.transportState ||
+        state.bpm !== prev.bpm ||
+        state.tracks !== prev.tracks
+      ) {
+        startScheduling();
+      }
+    });
+
+    return () => {
+      if (timerId !== null) clearInterval(timerId);
+      unsub();
+    };
+  }, [transport, engine]);
 
   // Guard against StrictMode double-mount (same pattern as EffectsBridgeProvider)
   const mountedRef = useRef(true);
