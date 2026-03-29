@@ -19,12 +19,12 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
 ✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
-✓ long-running-harness-23s ● P1 bug Fix review findings: routing cycle detection, cleanup, store guards
-✓ long-running-harness-6uj ● P1 task E17.2: Synth MIDI-to-audio pre-renderer
-✓ long-running-harness-pzv ● P1 task E17.1: WAV encoder with incremental chunk assembly
+✓ long-running-harness-1iv ● P1 task Integration test helpers & mock AudioContext
+✓ long-running-harness-720 ● P1 task Bounce engine & end-to-end workflow integration tests
+✓ long-running-harness-8um ● P1 task Transport<->Scheduler & 808 step sync integration tests
+✓ long-running-harness-9tm ● P1 task Mixer integration tests: synth, effects insert chain, arrangement
 ✓ long-running-harness-qyt ● P1 task E17.3: BounceEngine with OfflineAudioContext rendering
-✓ long-running-harness-xp5 ● P1 bug Fix automation review findings (P1+P2)
-✓ long-running-harness-yiu ● P1 task Compound: E11 Piano Roll & MIDI Editor
+✓ long-running-harness-r63 ● P1 task Session serialization roundtrip integration tests
 
 --------------------------------------------------------------------------------
 Total: 20 issues (0 open, 0 in progress)
@@ -32,9 +32,9 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-2431c4a Fix bounce/synth review findings: filter init, LFO cleanup, concurrency guard
-a15af1f chore: auto-commit uncommitted changes from long-running-harness-aow
-19fed27 E17: Add bounce/export system with offline audio rendering
+c5d68c8 Fix P2 review findings: test coverage, mock fidelity, assertion precision
+872d43b chore: auto-commit uncommitted changes from long-running-harness-tnf
+a2569f6 E18: Add integration verification test suite
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

@@ -10,72 +10,56 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. [P2] `synth-renderer.ts:194` — Filter produces silence for voices allocated between coefficient update cycles**
+**1. [P2] `soloIsolate` is not covered in `computeSessionBounds` integration tests**
 
-The inner loop recomputes biquad coefficients only at `s % 128 === 0`. `createBiquadCoeffs()` initializes with `{ b0: 0, ..., a0: 1 }`, so `process(input)` returns `(0 * input) / 1 = 0`. Any voice allocated at samples 1–127, 129–255, etc. renders silence until the next 128-sample boundary. For reused voices, stale coefficients from the previous note are used during the same window. Fix: call `computeBiquadCoeffs(...)` inside `allocateNoteOn` immediately after resetting.
-
----
-
-**2. [P2] `synth-renderer.ts:150–156` — LFO computed but discarded in the hot render loop**
+`bounce-engine.ts:56` handles `soloIsolate` in `getAudibleTrackIds`, but no test in `bounce-workflow.test.ts` exercises this path. The solo test at `bounce-workflow.test.ts:55` only has tracks with `solo: true` and the default `soloIsolate: false`. A track with `soloIsolate: true` should remain audible during a solo bounce — this contract is untested.
 
 ```ts
-const lfo1Val = lfo1.process(params.lfo1Rate, sampleRate) * params.lfo1Depth;
-const lfo2Val = lfo2.process(params.lfo2Rate, sampleRate) * params.lfo2Depth;
-void lfo1Val;
-void lfo2Val;
+// Missing test:
+it("solo mode audible includes soloIsolate tracks", () => {
+  const t1 = makeTrack({ id: "t1", clipIds: ["c1"], solo: true });
+  const t2 = makeTrack({ id: "t2", clipIds: ["c2"] });
+  const t3 = makeTrack({ id: "t3", clipIds: ["c3"], soloIsolate: true });
+  // t3 should appear in bounds despite not being soloed
 ```
 
-`lfo.process()` advances the LFO phase state every sample with a `Math.sin` call — this is CPU work in the innermost loop that produces zero effect. Either remove the LFO processing entirely (since it's unimplemented) or move it outside the `s` loop if only used for coefficient modulation.
+**2. [P2] `exponentialRampToValueAtTime` mock accepts `v <= 0` silently**
 
----
+`helpers.ts:44` — the mock just does `param.value = v` for all values. The real Web Audio API throws `DOMException` for `v <= 0`. Production code in `drum-kit.ts:69` and `bounce-engine.ts:354` both pass `0.001`, which is safe now, but a future regression passing `0` (e.g. a fade-to-zero) would pass these tests incorrectly.
 
-**3. [P2] `bounce-engine.ts` — `cancelFlag` shared state between concurrent `bounce()` calls**
+**3. [P2] Loop wrap assertion is too loose**
 
-The cancel flag is reset to `false` at the start of every `bounce()` call. If a consumer starts a new bounce before fully draining/discarding the previous generator, the new call clears the cancel flag for the still-live old generator. The `BounceEngine` type and factory have no documentation of the single-concurrent-use assumption. At minimum, add a comment or throw if `bounce()` is called while another generator is active.
-
----
-
-**4. [P3] `bounce-engine.ts:456` — `WAV_CHUNK_SAMPLES` comment misleading for non-44100 Hz sessions**
-
+`transport-scheduler.test.ts` "loop wrap re-syncs scheduler beat phase" asserts:
 ```ts
-const WAV_CHUNK_SAMPLES = 30 * 44100; // ~30 seconds per encoding chunk
+expect(clock.getCursorSeconds()).toBeLessThan(0.5);
 ```
+After advancing 1.1s into a 1.0s loop, the cursor should wrap to ~0.1s. The `< 0.5` bound would still pass even if the wrap math was significantly wrong. Should be `toBeCloseTo(0.1, 1)`.
 
-The sample count is correct for chunking, but the comment is only accurate at 44100 Hz. At 48000 Hz it produces ~27.5-second chunks. Minor, but could confuse when debugging 48 kHz exports.
+**4. [P2] "BPM change" test doesn't exercise scheduler integration**
 
----
+`transport-scheduler.test.ts` "BPM change updates tempo map for scheduler" only asserts `clock.getTempoMap().secondsPerBeat() ≈ 1.0`. This checks the clock in isolation — the scheduler is created and started but its beat timing at the new BPM is never verified. The test name claims to verify scheduler behavior but the assertions don't reach the scheduler.
 
-**5. [P3] `bounce-engine.ts:444–452` — Non-mixer automation silently skipped with no comment**
+**5. [P3] `mockPanner()` and `mockCompressor()` return untyped `object`**
 
-`resolveOfflineParam` returns `undefined` for any target type other than "mixer". If a session has armed synth-parameter or drum-parameter automation lanes, they are silently ignored during bounce with no log or warning. Add a comment at the call site noting that only mixer volume/pan automation is applied offline.
+`helpers.ts:66,80` — `mockPanner()` returns `object`, `mockCompressor()` returns `object`, while `mockGainNode()` returns the typed `MockGainNode`. TypeScript cannot check `.pan.value` or `.threshold.value` accesses on untyped objects. Add typed interfaces for consistency.
 
----
+**6. [P3] `copyFromChannel: vi.fn()` inconsistency**
 
-**6. [P3] `wav-encoder.ts:37,49` — IEEE float WAV fmt chunk may trip strict parsers**
-
-Format code 3 (`WAVE_FORMAT_IEEE_FLOAT`) with a 16-byte fmt chunk is technically non-conformant; the spec recommends an 18-byte chunk with `cbSize=0` for non-PCM formats. Most decoders handle 16-byte fine, but some strict parsers or embedded hardware reject it. Low risk for a DAW export, but worth noting.
+`helpers.ts:153` — `copyFromChannel` is a no-op mock while `copyToChannel` has a real implementation. Bounce engine only calls `getChannelData()`, so this doesn't cause test failures, but the asymmetry is misleading and leaves a silent trap if any future code calls `copyFromChannel` to read data back.
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 1323 tests pass, no regressions. TypeScript compiles cleanly.
+All 47 tests pass, TypeScript compiles cleanly, and the auto-commit (872d43b) contains no source changes (only agent logs).
 
-REVIEW_CHANGES_REQUESTED
+REVIEW_APPROVED
 
-1. **P2 — LFO modulation discarded in synth-renderer, causing live/bounce divergence** (`src/audio/bounce/synth-renderer.ts:150-156`). `lfo1Val` and `lfo2Val` are computed then explicitly voided. Any session using LFO modulation on pitch/filter/amp will render differently offline vs. live. Either wire the LFO outputs to the corresponding modulation targets (matching `SynthProcessor`) or document this as a known limitation and surface a warning to the user when bouncing tracks with active LFO modulation.
+Minor observations (non-blocking):
 
-2. **P2 — `WAV_CHUNK_SAMPLES` hardcoded to 44100** (`src/audio/bounce/bounce-engine.ts:456`). The constant `30 * 44100` means chunks are ~30s at 44.1kHz but ~27.6s at 48kHz and ~13.8s at 96kHz. Should be computed from the actual `sampleRate` parameter:
-   ```ts
-   const chunkSamples = 30 * sampleRate;
-   ```
-   The current code works but contradicts the intent (fixed time per chunk) and would allocate fewer/smaller chunks at higher sample rates for no reason.
+1. **P3** `helpers.ts:178` - Module-level `idCounter` is not reset in `transport-scheduler.test.ts` or `mixer-integration.test.ts`. Not a bug today because those files don't call factory functions, but a future contributor adding a `makeTrack()` call there would get surprising IDs.
 
-3. **P2 — Cancellation cannot interrupt `OfflineAudioContext.startRendering()`** (`src/audio/bounce/bounce-engine.ts:612`). The `await ctx.startRendering()` blocks until the entire offline render completes. For a 10-minute session at 96kHz this could be substantial. The `isCancelled()` checks only run at yield boundaries — but the longest gap is the full render. Consider using `ctx.suspend()`/`ctx.resume()` with periodic cancellation checks, or at minimum document this limitation.
+2. **P3** `bounce-workflow.test.ts:220-231` - `drainGenerator` returns `result: unknown`, forcing every call site to cast (e.g., `as { blob: Blob; duration: number }`). Could use the actual `BounceResult` type from `@audio/bounce/types` to preserve type safety within tests.
 
-4. **P3 — `mapPitchToDrum` re-creates lookup object on every call** (`src/audio/bounce/bounce-engine.ts:366-387`). This is called once per drum hit event. For dense drum patterns the object literal is allocated and GC'd repeatedly. Hoist the `map` to module scope as a `const`.
-
-5. **P3 — `faderTaper` not exported from module index** (`src/audio/mixer/fader-taper.ts`). The bounce engine imports `faderTaper` via `@audio/mixer/fader-taper` (deep import) rather than through the mixer barrel export. This bypasses the module boundary. Either add it to `@audio/mixer/index.ts` and import from there, or verify this is intentional given project import-boundary lint rules.
-
-6. **P3 — No validation on `BounceOptions.sampleRate`/`bitDepth`** (`src/audio/bounce/bounce-engine.ts:501`). Passing `sampleRate: 0` or a negative value would create an `OfflineAudioContext` with invalid parameters and throw an opaque browser error. A guard at the boundary (`if (sampleRate <= 0) throw ...`) would produce a clearer error message.
+3. **P3** `helpers.ts:46-48` - `linearRampToValueAtTime` and `exponentialRampToValueAtTime` mocks set `param.value` instantly. Acceptable simplification for integration tests, but worth a comment if someone later writes tests that depend on ramp timing behavior.
 </claude-opus-review>
 
 <gemini-review>

@@ -11,7 +11,7 @@ YOLO mode is enabled. All tool calls will be automatically approved.
   code: -32000,
   data: undefined
 }
-MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
+Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+No input provided via stdin. Input can be provided by piping data into gemini or using the --prompt option.

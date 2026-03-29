@@ -1,19 +1,15 @@
-Committed successfully. All pre-commit hooks passed (lint, typecheck, format).
+All checks pass (lint, TypeScript, prettier, tests). Committed as `c5d68c8`.
 
-**Summary of fixes applied:**
+**Fixes applied:**
 
 | Finding | Severity | Fix |
 |---------|----------|-----|
-| Biquad coefficients zero on voice allocation | P2 | `computeBiquadCoeffs()` called in `allocateNoteOn` immediately after filter reset |
-| LFO computed but discarded in hot loop | P2 | Removed `lfo.process()` calls from inner sample loop |
-| `cancelFlag` shared between concurrent bounces | P2 | Added `bouncing` guard that throws + `try/finally` to reset |
-| `WAV_CHUNK_SAMPLES` hardcoded to 44100 | P2 | Changed to `WAV_CHUNK_SECONDS * sampleRate` |
-| No `sampleRate` validation | P3 | Guard at bounce boundary throws for `<= 0` |
-| `startRendering()` not interruptible | P2 | Documented limitation as comment |
-| `mapPitchToDrum` re-creates object per call | P3 | Hoisted `PITCH_TO_DRUM` to module scope |
-| `faderTaper` deep import bypasses barrel | P3 | Added export to `mixer/index.ts`, updated import |
-| Non-mixer automation silently skipped | P3 | Added documenting comment |
-
-**1323 tests pass, TypeScript clean, lint clean.**
+| `soloIsolate` untested in `computeSessionBounds` | P2 | Added test with solo + soloIsolate tracks |
+| `exponentialRampToValueAtTime` accepts `v <= 0` | P2 | Mock now throws `DOMException` for `v <= 0` |
+| Loop wrap assertion too loose (`< 0.5`) | P2 | Tightened to `toBeCloseTo(0.1, 1)` |
+| BPM test doesn't verify scheduler | P2 | Added beat-spacing assertion at 60 BPM |
+| `mockPanner`/`mockCompressor` untyped | P3 | Added `MockPannerNode`/`MockCompressorNode` types |
+| `copyFromChannel` no-op mock | P3 | Implemented real data copy from channel |
+| `drainGenerator` returns `unknown` | P3 | Typed with `BounceResult`, removed unsafe casts |
 
 FIXES_APPLIED

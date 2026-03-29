@@ -1,0 +1,37 @@
+All 5 epics created and wired. Here's the summary:
+
+## Polish Cycle 1 -- Epic Plan
+
+Since all 4 reviewers crashed/timed out, I conducted an independent deep audit of the BRUTALWAV codebase. Found **25+ polish issues** across resilience, audio feedback, accessibility, and visual craft.
+
+### Epics Created
+
+| # | Priority | Epic ID | Title |
+|---|----------|---------|-------|
+| 1 | **P1** | `ba9` | QA verification via browser automation |
+| 2 | P2 | `3tn` | Resilience and data safety |
+| 3 | P2 | `wzc` | Live audio metering and bounce fidelity |
+| 4 | P2 | `wjm` | Accessibility and interaction quality |
+| 5 | P2 | `kza` | Visual craft and design system completeness |
+
+### Dependency Graph
+```
+ba9 (QA) ──blocks──> 3tn (Resilience)
+          ──blocks──> wzc (Metering/Bounce)  
+          ──blocks──> wjm (Accessibility)
+          ──blocks──> kza (Visual Craft)
+```
+
+### Key Discoveries Beyond What Reviewers Would Have Caught
+- **Mixer meters are completely dead** (hardcoded 0 despite full AnalyserNode infrastructure existing)
+- **Session data lost on every refresh** (in-memory storage with a "temporary" comment)
+- **No ErrorBoundary anywhere** -- single component error = white screen
+- **Touch input completely unsupported** on Fader/RotaryKnob (mouse-only)
+- **Color contrast failures** on gray-500 labels against dark backgrounds
+- **Missing keyboard shortcuts legend** -- users can't discover shortcuts
+
+POLISH_EPIC: long-running-harness-ba9
+POLISH_EPIC: long-running-harness-3tn
+POLISH_EPIC: long-running-harness-wzc
+POLISH_EPIC: long-running-harness-wjm
+POLISH_EPIC: long-running-harness-kza
