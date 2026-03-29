@@ -19,7 +19,7 @@ import {
   createClipScheduler,
   type ClipScheduler,
 } from "./mixer/clip-scheduler";
-import { sequencerCache } from "./drum-machine/sequencer-cache";
+import { getOrCreateSequencer } from "./drum-machine/sequencer-cache";
 
 const Ctx = createContext<TrackAudioBridge | null>(null);
 
@@ -220,8 +220,7 @@ export function TrackAudioBridgeProvider({
       const perTrack: PerTrack[] = [];
 
       for (const track of drumTracks) {
-        const seq = sequencerCache.get(track.id);
-        if (!seq) continue;
+        const seq = getOrCreateSequencer(track.id);
         const pattern = seq.getPattern();
         const cursor = clock.getCursorSeconds();
         const totalSteps = cursor / stepDuration;
@@ -266,12 +265,15 @@ export function TrackAudioBridgeProvider({
     // Start immediately if already playing
     startScheduling();
 
-    // Re-evaluate when transport state, BPM, or tracks change
+    // Re-evaluate when transport state, BPM, or track structure changes.
+    // Avoid restarting on property-only changes (volume/pan/mute/solo) which
+    // would clear the interval and re-schedule already-queued steps.
     const unsub = useDawStore.subscribe((state, prev) => {
       if (
         state.transportState !== prev.transportState ||
         state.bpm !== prev.bpm ||
-        state.tracks !== prev.tracks
+        state.tracks.length !== prev.tracks.length ||
+        state.tracks.some((t, i) => t.id !== prev.tracks[i]?.id)
       ) {
         startScheduling();
       }
