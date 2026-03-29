@@ -71,6 +71,16 @@
   color: var(--color-gray-300);
 }
 
+.add-send:active {
+  background-color: var(--color-black);
+  border-color: var(--color-white);
+}
+
+.add-send:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .send-slider {
   width: 48px;
   display: block;
@@ -85,6 +95,15 @@
   color: var(--color-gray-300);
   cursor: pointer;
   padding: 0 2px;
+}
+
+.pre:hover {
+  color: var(--color-white);
+}
+
+.pre:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .pre-active {

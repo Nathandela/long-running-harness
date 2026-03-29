@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { tokens } from "../tokens/tokens";
 
 type RotaryKnobProps = {
@@ -76,7 +76,9 @@ export function RotaryKnob({
   valueText,
 }: RotaryKnobProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const listenersRef = useRef<AbortController | null>(null);
+  const [isFocusVisible, setIsFocusVisible] = useState(false);
 
   const ratio = max === min ? 0 : (value - min) / (max - min);
 
@@ -174,6 +176,7 @@ export function RotaryKnob({
 
   return (
     <div
+      ref={wrapperRef}
       role="slider"
       tabIndex={0}
       aria-valuemin={min}
@@ -182,12 +185,26 @@ export function RotaryKnob({
       aria-valuetext={valueText}
       aria-label={label}
       onKeyDown={handleKeyDown}
+      onFocus={(e) => {
+        if (
+          e.target === wrapperRef.current &&
+          e.target.matches(":focus-visible")
+        ) {
+          setIsFocusVisible(true);
+        }
+      }}
+      onBlur={() => {
+        setIsFocusVisible(false);
+      }}
       style={{
         display: "inline-flex",
         flexDirection: "column",
         alignItems: "center",
         gap: tokens.space[1],
         userSelect: "none",
+        outline: isFocusVisible ? `2px solid ${tokens.color.blue}` : "none",
+        outlineOffset: "2px",
+        borderRadius: "2px",
       }}
     >
       <span

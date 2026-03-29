@@ -62,8 +62,12 @@ export function ChannelStrip({
     onSoloToggle(trackId);
   }, [trackId, onSoloToggle]);
 
+  const stripClass = [styles["strip"], muted ? styles["strip-muted"] : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={styles["strip"]} data-testid={`channel-strip-${trackId}`}>
+    <div className={stripClass} data-testid={`channel-strip-${trackId}`}>
       <div
         style={{
           width: "100%",
@@ -111,6 +115,7 @@ export function ChannelStrip({
           }
           onClick={handleMute}
           aria-label={muted ? "Unmute" : "Mute"}
+          aria-pressed={muted}
           type="button"
         >
           M
@@ -121,6 +126,7 @@ export function ChannelStrip({
           }
           onClick={handleSolo}
           aria-label={solo ? "Unsolo" : "Solo"}
+          aria-pressed={solo}
           type="button"
         >
           S

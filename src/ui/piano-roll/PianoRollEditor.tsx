@@ -253,6 +253,7 @@ export function PianoRollEditor({
           data-testid="tool-pencil"
           className={styles["toolButton"]}
           aria-pressed={tool === "pencil"}
+          title="Pencil Tool (P)"
           onClick={() => {
             setTool("pencil");
           }}
@@ -263,6 +264,7 @@ export function PianoRollEditor({
           data-testid="tool-select"
           className={styles["toolButton"]}
           aria-pressed={tool === "select"}
+          title="Select Tool (S)"
           onClick={() => {
             setTool("select");
           }}
@@ -273,6 +275,7 @@ export function PianoRollEditor({
           data-testid="tool-erase"
           className={styles["toolButton"]}
           aria-pressed={tool === "erase"}
+          title="Erase Tool (E)"
           onClick={() => {
             setTool("erase");
           }}
@@ -298,6 +301,7 @@ export function PianoRollEditor({
         <canvas
           ref={canvasRef}
           role="application"
+          tabIndex={0}
           aria-label="Piano roll editor"
           className={styles["canvas"]}
           style={{ cursor: interactions.cursor }}

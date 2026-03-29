@@ -68,16 +68,48 @@
   background-color: var(--color-gray-700);
 }
 
+.btn:active {
+  background-color: var(--color-black);
+  border-color: var(--color-white);
+}
+
+.btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .btn-mute-active {
   composes: btn;
   background-color: var(--color-red);
   color: var(--color-white);
 }
 
+.btn-mute-active:hover {
+  background-color: var(--color-red);
+  opacity: 0.85;
+}
+
+.btn-mute-active:active {
+  opacity: 0.7;
+}
+
 .btn-solo-active {
   composes: btn;
   background-color: var(--color-amber);
   color: var(--color-black);
+}
+
+.btn-solo-active:hover {
+  background-color: var(--color-amber);
+  opacity: 0.85;
+}
+
+.btn-solo-active:active {
+  opacity: 0.7;
+}
+
+.strip-muted {
+  opacity: 0.5;
 }
 
 .db-label {

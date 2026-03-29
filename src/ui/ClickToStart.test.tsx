@@ -9,24 +9,16 @@ describe("ClickToStart", () => {
     expect(screen.getByText("Click to start audio engine")).toBeInTheDocument();
   });
 
+  it("renders a semantic button element", () => {
+    render(<ClickToStart onStart={vi.fn()} />);
+    const button = screen.getByRole("button");
+    expect(button.tagName).toBe("BUTTON");
+  });
+
   it("calls onStart when clicked", () => {
     const onStart = vi.fn();
     render(<ClickToStart onStart={onStart} />);
     fireEvent.click(screen.getByRole("button"));
-    expect(onStart).toHaveBeenCalledOnce();
-  });
-
-  it("calls onStart on Enter key", () => {
-    const onStart = vi.fn();
-    render(<ClickToStart onStart={onStart} />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
-    expect(onStart).toHaveBeenCalledOnce();
-  });
-
-  it("calls onStart on Space key", () => {
-    const onStart = vi.fn();
-    render(<ClickToStart onStart={onStart} />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: " " });
     expect(onStart).toHaveBeenCalledOnce();
   });
 });

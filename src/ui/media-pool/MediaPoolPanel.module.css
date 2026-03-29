@@ -50,6 +50,18 @@
   outline-offset: var(--focus-offset);
 }
 
+.importBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--color-gray-700);
+  color: var(--color-gray-500);
+}
+
+.importBtn:disabled:hover {
+  border-color: var(--color-gray-700);
+  color: var(--color-gray-500);
+}
+
 .list {
   flex: 1;
   overflow-y: auto;

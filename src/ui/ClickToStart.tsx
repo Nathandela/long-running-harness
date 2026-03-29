@@ -6,16 +6,9 @@ export function ClickToStart({
   onStart,
 }: ClickToStartProps): React.JSX.Element {
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       onClick={onStart}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onStart();
-        }
-      }}
       style={{
         position: "fixed",
         inset: 0,
@@ -27,6 +20,9 @@ export function ClickToStart({
         fontFamily: "var(--font-mono)",
         cursor: "pointer",
         zIndex: 9999,
+        border: "none",
+        width: "100%",
+        height: "100%",
       }}
     >
       <div style={{ textAlign: "center" }}>
@@ -47,6 +43,6 @@ export function ClickToStart({
           Click to start audio engine
         </p>
       </div>
-    </div>
+    </button>
   );
 }
