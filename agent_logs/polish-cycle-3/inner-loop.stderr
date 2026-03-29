@@ -26,3 +26,11 @@
 [2026-03-29_04-47-56] Attempt 1/2 for long-running-harness-3as (log: agent_logs/loop_long-running-harness-3as-2026-03-29_04-47-56.log)
 [2026-03-29_04-54-28] Epic long-running-harness-3as completed successfully
 [2026-03-29_04-54-28] WARN: Working tree dirty after epic completion, auto-committing
+[2026-03-29_04-54-42] Epic long-running-harness-3as done. Completed so far: 3
+[2026-03-29_04-54-42] Memory OK: 49% free
+[2026-03-29_04-54-43] ==========================================
+[2026-03-29_04-54-43] Processing epic: long-running-harness-isy
+[2026-03-29_04-54-43] ==========================================
+[2026-03-29_04-54-43] Attempt 1/2 for long-running-harness-isy (log: agent_logs/loop_long-running-harness-isy-2026-03-29_04-54-43.log)
+[2026-03-29_05-06-28] Epic long-running-harness-isy completed successfully
+[2026-03-29_05-06-28] WARN: Working tree dirty after epic completion, auto-committing
