@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useDawStore } from "@state/store";
-import type { TrackModel, AudioClipModel } from "@state/track/types";
+import type { TrackModel, AudioClipModel, ClipModel } from "@state/track/types";
 import { sharedUndoManager } from "@state/undo";
 import { useArrangementInteractions } from "./use-arrangement-interactions";
 import type { ArrangementViewState } from "./arrangement-renderer";
@@ -95,6 +95,15 @@ function mockMouseEvent(
     preventDefault: (): void => {},
     ...overrides,
   } as unknown as React.MouseEvent<HTMLCanvasElement>;
+}
+
+function mockKeyboardEvent(
+  key: string,
+): React.KeyboardEvent<HTMLCanvasElement> {
+  return {
+    key,
+    preventDefault: (): void => {},
+  } as unknown as React.KeyboardEvent<HTMLCanvasElement>;
 }
 
 describe("useArrangementInteractions", () => {
@@ -326,5 +335,77 @@ describe("useArrangementInteractions", () => {
     });
 
     expect(sharedUndoManager.canUndo).toBe(false);
+  });
+
+  it("deletes selected clips on Delete key", () => {
+    const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+    const clips: Record<string, ClipModel> = {
+      c1: makeClip({ id: "c1", trackId: "t1", startTime: 1, duration: 2 }),
+    };
+    useDawStore.setState({ tracks, clips, selectedClipIds: ["c1"] });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    act(() => {
+      result.current.onKeyDown(mockKeyboardEvent("Delete"));
+    });
+
+    expect(useDawStore.getState().clips["c1"]).toBeUndefined();
+    expect(useDawStore.getState().selectedClipIds).toEqual([]);
+
+    // Undo restores the clip
+    sharedUndoManager.undo();
+    expect(useDawStore.getState().clips["c1"]).toBeDefined();
+    expect(useDawStore.getState().clips["c1"]?.startTime).toBe(1);
+  });
+
+  it("deletes selected tracks on Delete key when no clips selected", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1" })],
+      selectedTrackIds: ["t1"],
+      selectedClipIds: [],
+    });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    act(() => {
+      result.current.onKeyDown(mockKeyboardEvent("Delete"));
+    });
+
+    expect(useDawStore.getState().tracks).toHaveLength(0);
+    expect(useDawStore.getState().selectedTrackIds).toEqual([]);
+
+    // Undo restores the track
+    sharedUndoManager.undo();
+    expect(useDawStore.getState().tracks).toHaveLength(1);
+    expect(useDawStore.getState().tracks[0]?.id).toBe("t1");
+  });
+
+  it("removes track when clicking delete button", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1" })],
+    });
+
+    const { result } = renderHook(() =>
+      useArrangementInteractions(defaultView, "1/4"),
+    );
+
+    // Click the delete button in header (x=145, y=35 hits the delete button area)
+    act(() => {
+      result.current.onPointerDown(
+        mockPointerEvent({ clientX: 145, clientY: 35 }),
+      );
+    });
+
+    expect(useDawStore.getState().tracks).toHaveLength(0);
+
+    // Undo restores the track
+    sharedUndoManager.undo();
+    expect(useDawStore.getState().tracks).toHaveLength(1);
+    expect(useDawStore.getState().tracks[0]?.id).toBe("t1");
   });
 });

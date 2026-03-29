@@ -202,6 +202,23 @@ describe("DrumMachinePanel", () => {
     if (first) expect(first).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("renders commit to timeline button when callback provided", () => {
+    const props = createMockProps();
+    const onCommitToTimeline = vi.fn();
+    render(
+      <DrumMachinePanel {...props} onCommitToTimeline={onCommitToTimeline} />,
+    );
+    const btn = screen.getByTestId("commit-to-timeline");
+    fireEvent.click(btn);
+    expect(onCommitToTimeline).toHaveBeenCalled();
+  });
+
+  it("does not render commit button when callback not provided", () => {
+    const props = createMockProps();
+    render(<DrumMachinePanel {...props} />);
+    expect(screen.queryByTestId("commit-to-timeline")).not.toBeInTheDocument();
+  });
+
   describe("roving tabindex keyboard navigation", () => {
     it("only first step has tabIndex=0, rest have tabIndex=-1", () => {
       const props = createMockProps();

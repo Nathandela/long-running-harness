@@ -10,6 +10,10 @@ import type {
   DrumInstrumentParams,
   DrumPattern,
 } from "@audio/drum-machine/drum-types";
+import { DRUM_TO_PITCH } from "@audio/drum-machine/drum-types";
+import type { MidiClipModel, MIDINoteEvent } from "@state/track/types";
+import { AddClipCommand } from "@state/track/track-commands";
+import { sharedUndoManager } from "@state/undo";
 import {
   sequencerCache,
   paramsCache,
@@ -36,6 +40,7 @@ function useDrumMachineState(trackId: string): {
   ) => void;
   onSwitchPattern: (name: string) => void;
   onClearPattern: () => void;
+  onCommitToTimeline: () => void;
 } {
   const transport = useTransport();
   const transportState = useDawStore((s) => s.transportState);
@@ -148,6 +153,47 @@ function useDrumMachineState(trackId: string): {
     setPattern(seq.getPattern());
   }, [seq]);
 
+  const onCommitToTimeline = useCallback(() => {
+    const state = useDawStore.getState();
+    const currentPattern = seq.getPattern();
+    const barDuration = (60 / state.bpm) * 4; // 1 bar = 4 beats
+    const stepDuration = barDuration / currentPattern.steps.length;
+
+    const noteEvents: MIDINoteEvent[] = [];
+    for (let i = 0; i < currentPattern.steps.length; i++) {
+      const step = currentPattern.steps[i];
+      if (!step) continue;
+      const velocity = step.accent ? 127 : 100;
+      for (const instId of Object.keys(step.triggers) as DrumInstrumentId[]) {
+        if (!step.triggers[instId]) continue;
+        const pitch = DRUM_TO_PITCH[instId];
+        noteEvents.push({
+          id: "note-" + crypto.randomUUID(),
+          pitch,
+          velocity,
+          startTime: i * stepDuration,
+          duration: stepDuration * 0.8,
+        });
+      }
+    }
+
+    if (noteEvents.length === 0) return;
+
+    const clip: MidiClipModel = {
+      type: "midi",
+      id: "clip-" + crypto.randomUUID(),
+      trackId,
+      startTime: state.cursorSeconds,
+      duration: barDuration,
+      noteEvents,
+      name: "808 " + currentPattern.name,
+    };
+
+    const cmd = new AddClipCommand(clip);
+    cmd.execute();
+    sharedUndoManager.push(cmd);
+  }, [seq, trackId]);
+
   return {
     pattern,
     currentStep,
@@ -158,6 +204,7 @@ function useDrumMachineState(trackId: string): {
     onParamChange,
     onSwitchPattern,
     onClearPattern,
+    onCommitToTimeline,
   };
 }
 
@@ -178,6 +225,7 @@ function DrumMachineController({
       onParamChange={state.onParamChange}
       onSwitchPattern={state.onSwitchPattern}
       onClearPattern={state.onClearPattern}
+      onCommitToTimeline={state.onCommitToTimeline}
       params={state.params}
     />
   );

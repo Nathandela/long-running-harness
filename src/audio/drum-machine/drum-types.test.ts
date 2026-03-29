@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   DRUM_INSTRUMENTS,
   DEFAULT_INSTRUMENT_PARAMS,
+  DRUM_TO_PITCH,
   createEmptyPattern,
+  mapPitchToDrum,
 } from "./drum-types";
 import type { DrumStep, DrumTrigger, DrumKit } from "./drum-types";
 
@@ -77,6 +79,45 @@ describe("createEmptyPattern", () => {
   it("has a name", () => {
     const pattern = createEmptyPattern("A");
     expect(pattern.name).toBe("A");
+  });
+});
+
+describe("DRUM_TO_PITCH", () => {
+  it("maps all 11 instruments to MIDI pitches", () => {
+    for (const inst of DRUM_INSTRUMENTS) {
+      expect(DRUM_TO_PITCH[inst.id]).toBeDefined();
+      expect(DRUM_TO_PITCH[inst.id]).toBeGreaterThanOrEqual(35);
+      expect(DRUM_TO_PITCH[inst.id]).toBeLessThanOrEqual(127);
+    }
+  });
+});
+
+describe("mapPitchToDrum", () => {
+  it("maps primary GM pitches to correct drum ids", () => {
+    expect(mapPitchToDrum(36)).toBe("bd");
+    expect(mapPitchToDrum(38)).toBe("sd");
+    expect(mapPitchToDrum(42)).toBe("ch");
+    expect(mapPitchToDrum(46)).toBe("oh");
+    expect(mapPitchToDrum(39)).toBe("cp");
+  });
+
+  it("maps alternate pitches", () => {
+    expect(mapPitchToDrum(35)).toBe("bd");
+    expect(mapPitchToDrum(40)).toBe("sd");
+    expect(mapPitchToDrum(44)).toBe("ch");
+    expect(mapPitchToDrum(51)).toBe("cy");
+  });
+
+  it("returns undefined for unmapped pitches", () => {
+    expect(mapPitchToDrum(60)).toBeUndefined();
+    expect(mapPitchToDrum(0)).toBeUndefined();
+  });
+
+  it("round-trips via DRUM_TO_PITCH", () => {
+    for (const inst of DRUM_INSTRUMENTS) {
+      const pitch = DRUM_TO_PITCH[inst.id];
+      expect(mapPitchToDrum(pitch)).toBe(inst.id);
+    }
   });
 });
 

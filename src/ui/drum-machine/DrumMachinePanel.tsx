@@ -29,6 +29,7 @@ type DrumMachinePanelProps = {
   ) => void;
   onSwitchPattern: (name: string) => void;
   onClearPattern: () => void;
+  onCommitToTimeline?: () => void;
   params: Record<DrumInstrumentId, DrumInstrumentParams>;
 };
 
@@ -268,6 +269,7 @@ export function DrumMachinePanel({
   onParamChange,
   onSwitchPattern,
   onClearPattern,
+  onCommitToTimeline,
   params,
 }: DrumMachinePanelProps): React.JSX.Element {
   return (
@@ -369,6 +371,26 @@ export function DrumMachinePanel({
         >
           CLR
         </button>
+        {onCommitToTimeline !== undefined && (
+          <button
+            type="button"
+            data-testid="commit-to-timeline"
+            aria-label="Commit to Timeline"
+            onClick={onCommitToTimeline}
+            style={{
+              fontFamily: tokens.font.mono,
+              fontSize: tokens.text.xs,
+              padding: "2px 8px",
+              border: BORDER,
+              background: tokens.color.gray900,
+              color: tokens.color.white,
+              cursor: "pointer",
+              marginLeft: "auto",
+            }}
+          >
+            COMMIT
+          </button>
+        )}
       </div>
 
       {/* Accent row */}

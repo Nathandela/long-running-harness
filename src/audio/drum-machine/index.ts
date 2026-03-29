@@ -12,7 +12,9 @@ export {
   DRUM_INSTRUMENTS,
   DEFAULT_INSTRUMENT_PARAMS,
   PARAM_RANGES,
+  DRUM_TO_PITCH,
   createEmptyPattern,
+  mapPitchToDrum,
 } from "./drum-types";
 
 export { createDrumKit } from "./drum-kit";

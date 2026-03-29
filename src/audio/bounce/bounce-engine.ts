@@ -29,7 +29,7 @@ import type {
   TrackInstrumentConfig,
 } from "./types";
 import type { AutomationLane } from "@audio/automation/automation-types";
-import type { DrumInstrumentId } from "@audio/drum-machine/drum-types";
+import { mapPitchToDrum } from "@audio/drum-machine/drum-types";
 import {
   evaluateCurve,
   denormalize,
@@ -361,31 +361,7 @@ function scheduleDrumClips(
   }
 }
 
-/** Simple MIDI pitch to drum ID mapping (GM drum map subset) */
-const PITCH_TO_DRUM: Readonly<Record<number, DrumInstrumentId>> = {
-  36: "bd",
-  35: "bd",
-  38: "sd",
-  40: "sd",
-  41: "lt",
-  43: "lt",
-  45: "mt",
-  47: "mt",
-  48: "ht",
-  50: "ht",
-  37: "rs",
-  39: "cp",
-  56: "cb",
-  46: "oh",
-  42: "ch",
-  44: "ch",
-  49: "cy",
-  51: "cy",
-};
-
-function mapPitchToDrum(pitch: number): DrumInstrumentId | undefined {
-  return PITCH_TO_DRUM[pitch];
-}
+// mapPitchToDrum imported from @audio/drum-machine/drum-types
 
 // ─── Automation scheduling ───
 

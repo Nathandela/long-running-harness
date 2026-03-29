@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useDawStore } from "./store";
-import type { TrackModel, AudioClipModel } from "./track/types";
+import type { TrackModel, AudioClipModel, MidiClipModel } from "./track/types";
 
 describe("DawStore", () => {
   beforeEach(() => {
@@ -136,6 +136,79 @@ describe("DawStore", () => {
       const movedClip = state.clips["c1"];
       expect(movedClip?.trackId).toBe("t2");
       expect(movedClip?.startTime).toBe(5.0);
+    });
+  });
+
+  describe("trimClip", () => {
+    const track: TrackModel = {
+      id: "t1",
+      name: "Track 1",
+      type: "instrument",
+      color: "#ff0000",
+      muted: false,
+      solo: false,
+      armed: false,
+      soloIsolate: false,
+      volume: 1,
+      pan: 0,
+      clipIds: [],
+    };
+
+    beforeEach(() => {
+      useDawStore.setState({ tracks: [], clips: {} });
+      useDawStore.getState().addTrack(track);
+    });
+
+    it("trims MIDI clip start time", () => {
+      const midiClip: MidiClipModel = {
+        type: "midi",
+        id: "mc1",
+        trackId: "t1",
+        startTime: 1,
+        duration: 4,
+        noteEvents: [],
+        name: "MIDI Clip",
+      };
+      useDawStore.getState().addClip(midiClip);
+      useDawStore.getState().trimClip("mc1", 2, undefined);
+      const clip = useDawStore.getState().clips["mc1"];
+      expect(clip?.startTime).toBe(2);
+      expect(clip?.duration).toBe(3);
+    });
+
+    it("trims MIDI clip end time", () => {
+      const midiClip: MidiClipModel = {
+        type: "midi",
+        id: "mc2",
+        trackId: "t1",
+        startTime: 1,
+        duration: 4,
+        noteEvents: [],
+        name: "MIDI Clip",
+      };
+      useDawStore.getState().addClip(midiClip);
+      useDawStore.getState().trimClip("mc2", undefined, 3);
+      const clip = useDawStore.getState().clips["mc2"];
+      expect(clip?.startTime).toBe(1);
+      expect(clip?.duration).toBe(2);
+    });
+
+    it("rejects MIDI clip trim that would result in zero duration", () => {
+      const midiClip: MidiClipModel = {
+        type: "midi",
+        id: "mc3",
+        trackId: "t1",
+        startTime: 1,
+        duration: 2,
+        noteEvents: [],
+        name: "MIDI Clip",
+      };
+      useDawStore.getState().addClip(midiClip);
+      useDawStore.getState().trimClip("mc3", 3, undefined);
+      const clip = useDawStore.getState().clips["mc3"];
+      // Should not change (would result in 0 duration)
+      expect(clip?.startTime).toBe(1);
+      expect(clip?.duration).toBe(2);
     });
   });
 

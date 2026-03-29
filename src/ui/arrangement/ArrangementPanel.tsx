@@ -329,12 +329,14 @@ export function ArrangementPanel({
         aria-label="Arrangement timeline"
         aria-describedby="arrangement-keys"
         className={styles["canvas"]}
+        tabIndex={0}
         style={{ cursor: interactions.cursor }}
         onWheel={handleWheel}
         onPointerDown={interactions.onPointerDown}
         onPointerMove={interactions.onPointerMove}
         onPointerUp={interactions.onPointerUp}
         onDoubleClick={interactions.onDoubleClick}
+        onKeyDown={interactions.onKeyDown}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       />

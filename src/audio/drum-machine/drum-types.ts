@@ -130,6 +130,49 @@ export type DrumKit = {
   dispose(): void;
 };
 
+// ─── GM drum pitch mapping ───
+
+/** Primary MIDI pitch for each drum instrument (GM drum map) */
+export const DRUM_TO_PITCH: Readonly<Record<DrumInstrumentId, number>> = {
+  bd: 36, // C1 - Bass Drum
+  sd: 38, // D1 - Snare
+  lt: 41, // F1 - Low Tom
+  mt: 45, // A1 - Mid Tom
+  ht: 48, // C2 - High Tom
+  rs: 37, // C#1 - Rimshot
+  cp: 39, // Eb1 - Clap
+  cb: 56, // Ab2 - Cowbell
+  oh: 46, // Bb1 - Open Hi-Hat
+  ch: 42, // F#1 - Closed Hi-Hat
+  cy: 49, // Db2 - Cymbal
+};
+
+/** MIDI pitch to DrumInstrumentId (GM drum map, multiple pitches per instrument) */
+const PITCH_TO_DRUM: Readonly<Record<number, DrumInstrumentId>> = {
+  36: "bd",
+  35: "bd",
+  38: "sd",
+  40: "sd",
+  41: "lt",
+  43: "lt",
+  45: "mt",
+  47: "mt",
+  48: "ht",
+  50: "ht",
+  37: "rs",
+  39: "cp",
+  56: "cb",
+  46: "oh",
+  42: "ch",
+  44: "ch",
+  49: "cy",
+  51: "cy",
+};
+
+export function mapPitchToDrum(pitch: number): DrumInstrumentId | undefined {
+  return PITCH_TO_DRUM[pitch];
+}
+
 // ─── Factory helpers ───
 
 function createEmptyStep(): DrumStep {

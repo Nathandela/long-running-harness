@@ -40,12 +40,14 @@ export function VirtualKeyboard({
 
   const handleMouseDown = useCallback(
     (note: number) => {
-      if (!activeNotes.current.has(note)) {
-        activeNotes.current.add(note);
-        onNoteOn(note, 100);
+      // Release first if already active (prevents stuck notes on rapid clicks)
+      if (activeNotes.current.has(note)) {
+        onNoteOff(note);
       }
+      activeNotes.current.add(note);
+      onNoteOn(note, 100);
     },
-    [onNoteOn],
+    [onNoteOn, onNoteOff],
   );
 
   const handleMouseUp = useCallback(

@@ -6,7 +6,12 @@ import { isAudioClip } from "@state/track/types";
 import type { TrackModel, ClipModel } from "@state/track/types";
 import type { AutomationLane } from "@audio/automation/automation-types";
 import { evaluateCurve } from "@audio/automation/automation-curve";
-import { RULER_HEIGHT, CLIP_PADDING } from "./constants";
+import {
+  RULER_HEIGHT,
+  CLIP_PADDING,
+  DELETE_BTN_SIZE,
+  DELETE_BTN_MARGIN,
+} from "./constants";
 
 // -- Design token constants (canvas cannot read CSS vars) ---------------------
 
@@ -212,6 +217,21 @@ function drawTrackHeaders(rc: RenderContext): void {
       ctx.fillStyle = COLOR.gray500;
       ctx.fillText("S", view.headerWidth - 18, indicatorY);
     }
+
+    // Delete button (X in top-right corner)
+    const btnX = view.headerWidth - DELETE_BTN_SIZE - DELETE_BTN_MARGIN;
+    const btnY = y + DELETE_BTN_MARGIN;
+    ctx.fillStyle = COLOR.gray700;
+    ctx.fillRect(btnX, btnY, DELETE_BTN_SIZE, DELETE_BTN_SIZE);
+    ctx.strokeStyle = COLOR.gray500;
+    ctx.lineWidth = 1.5;
+    const inset = 4;
+    ctx.beginPath();
+    ctx.moveTo(btnX + inset, btnY + inset);
+    ctx.lineTo(btnX + DELETE_BTN_SIZE - inset, btnY + DELETE_BTN_SIZE - inset);
+    ctx.moveTo(btnX + DELETE_BTN_SIZE - inset, btnY + inset);
+    ctx.lineTo(btnX + inset, btnY + DELETE_BTN_SIZE - inset);
+    ctx.stroke();
 
     // Header right border
     ctx.strokeStyle = COLOR.gray700;

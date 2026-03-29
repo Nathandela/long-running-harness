@@ -4,11 +4,18 @@
  */
 import type { ClipModel, TrackModel } from "@state/track/types";
 import type { ArrangementViewState } from "./arrangement-renderer";
-import { RULER_HEIGHT, CLIP_PADDING, TRIM_HANDLE_PX } from "./constants";
+import {
+  RULER_HEIGHT,
+  CLIP_PADDING,
+  TRIM_HANDLE_PX,
+  DELETE_BTN_SIZE,
+  DELETE_BTN_MARGIN,
+} from "./constants";
 
 export type HitResult =
   | { kind: "none" }
   | { kind: "track-header"; trackIndex: number; trackId: string }
+  | { kind: "track-delete-button"; trackIndex: number; trackId: string }
   | { kind: "clip-body"; clipId: string; trackId: string }
   | { kind: "clip-left-edge"; clipId: string; trackId: string }
   | { kind: "clip-right-edge"; clipId: string; trackId: string }
@@ -64,6 +71,19 @@ export function hitTest(
     );
     const track = tracks[trackIndex];
     if (track !== undefined) {
+      // Check delete button (top-right corner of header)
+      const trackTop =
+        RULER_HEIGHT + trackIndex * view.trackHeight - view.scrollY;
+      const btnX = view.headerWidth - DELETE_BTN_SIZE - DELETE_BTN_MARGIN;
+      const btnY = trackTop + DELETE_BTN_MARGIN;
+      if (
+        x >= btnX &&
+        x <= btnX + DELETE_BTN_SIZE &&
+        y >= btnY &&
+        y <= btnY + DELETE_BTN_SIZE
+      ) {
+        return { kind: "track-delete-button", trackIndex, trackId: track.id };
+      }
       return { kind: "track-header", trackIndex, trackId: track.id };
     }
     return { kind: "none" };

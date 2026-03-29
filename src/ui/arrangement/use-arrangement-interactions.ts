@@ -9,7 +9,12 @@ import type { ClipModel, MidiClipModel } from "@state/track/types";
 import { isAudioClip, isMidiClip } from "@state/track/types";
 import type { UndoCommand } from "@state/undo";
 import { sharedUndoManager } from "@state/undo";
-import { AddClipCommand, SplitClipCommand } from "@state/track/track-commands";
+import {
+  AddClipCommand,
+  RemoveClipCommand,
+  RemoveTrackCommand,
+  SplitClipCommand,
+} from "@state/track/track-commands";
 import type { ArrangementViewState } from "./arrangement-renderer";
 import { hitTest, xToSeconds, snapToGrid, type GridSnap } from "./hit-test";
 import { RULER_HEIGHT } from "./constants";
@@ -52,6 +57,7 @@ export type ArrangementInteractions = {
   onPointerMove: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerUp: (e: React.PointerEvent<HTMLCanvasElement>) => void;
   onDoubleClick: (e: React.MouseEvent<HTMLCanvasElement>) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLCanvasElement>) => void;
   cursor: string;
 };
 
@@ -147,6 +153,12 @@ export function useArrangementInteractions(
           }
           e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current = { kind: "rubber-band", startX: x, startY: y };
+          break;
+        }
+        case "track-delete-button": {
+          const cmd = new RemoveTrackCommand(hit.trackId);
+          cmd.execute();
+          sharedUndoManager.push(cmd);
           break;
         }
         case "track-header": {
@@ -398,11 +410,42 @@ export function useArrangementInteractions(
     [view, gridSnap, getCanvasPos, onOpenPianoRoll],
   );
 
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLCanvasElement>): void => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      e.preventDefault();
+      const state = useDawStore.getState();
+
+      // If clips are selected, delete them
+      if (state.selectedClipIds.length > 0) {
+        for (const clipId of state.selectedClipIds) {
+          const cmd = new RemoveClipCommand(clipId);
+          cmd.execute();
+          sharedUndoManager.push(cmd);
+        }
+        state.setSelectedClipIds([]);
+        return;
+      }
+
+      // If tracks are selected (and no clips selected), delete them
+      if (state.selectedTrackIds.length > 0) {
+        for (const trackId of state.selectedTrackIds) {
+          const cmd = new RemoveTrackCommand(trackId);
+          cmd.execute();
+          sharedUndoManager.push(cmd);
+        }
+        state.setSelectedTrackIds([]);
+      }
+    },
+    [],
+  );
+
   return {
     onPointerDown,
     onPointerMove,
     onPointerUp,
     onDoubleClick,
+    onKeyDown,
     cursor,
   };
 }

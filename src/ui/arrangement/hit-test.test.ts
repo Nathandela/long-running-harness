@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import type { TrackModel, AudioClipModel } from "@state/track/types";
+import type {
+  TrackModel,
+  AudioClipModel,
+  ClipModel,
+  MidiClipModel,
+} from "@state/track/types";
 import type { ArrangementViewState } from "./arrangement-renderer";
 import { hitTest, snapToGrid, xToSeconds } from "./hit-test";
 
@@ -162,5 +167,41 @@ describe("hitTest", () => {
     if (result.kind === "track-header") {
       expect(result.trackId).toBe("t2");
     }
+  });
+
+  it("returns track-delete-button when clicking delete button area", () => {
+    const tracks = [makeTrack({ id: "t1" })];
+    // Delete button at x=138..154, y=30..46
+    const result = hitTest(145, 35, defaultView, tracks, {});
+    expect(result.kind).toBe("track-delete-button");
+    if (result.kind === "track-delete-button") {
+      expect(result.trackId).toBe("t1");
+    }
+  });
+
+  it("returns clip edges for MIDI clips", () => {
+    const tracks = [
+      makeTrack({ id: "t1", type: "instrument", clipIds: ["mc1"] }),
+    ];
+    const midiClip: MidiClipModel = {
+      type: "midi",
+      id: "mc1",
+      trackId: "t1",
+      startTime: 1,
+      duration: 2,
+      noteEvents: [],
+      name: "MIDI Clip",
+    };
+    const clips: Record<string, ClipModel> = { mc1: midiClip };
+    // Left edge: clip starts at x=260, click at x=263
+    expect(hitTest(263, 50, defaultView, tracks, clips).kind).toBe(
+      "clip-left-edge",
+    );
+    // Right edge: clip ends at x=460, click at x=455
+    expect(hitTest(455, 50, defaultView, tracks, clips).kind).toBe(
+      "clip-right-edge",
+    );
+    // Body: click at center
+    expect(hitTest(360, 50, defaultView, tracks, clips).kind).toBe("clip-body");
   });
 });

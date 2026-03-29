@@ -313,15 +313,38 @@ export const useDawStore = create<DawStore>()((set, get) => ({
     set((state) => {
       const clip = state.clips[id];
       if (!clip) return state;
-      if (!isAudioClip(clip)) return state;
 
-      let { startTime, sourceOffset, duration } = clip;
+      if (isAudioClip(clip)) {
+        let { startTime, sourceOffset, duration } = clip;
+        const clipEnd = startTime + duration;
+
+        if (newStart !== undefined) {
+          const delta = newStart - startTime;
+          startTime = newStart;
+          sourceOffset = sourceOffset + delta;
+          duration = clipEnd - newStart;
+        }
+
+        if (newEnd !== undefined) {
+          duration = newEnd - startTime;
+        }
+
+        if (duration <= 0 || sourceOffset < 0) return state;
+
+        return {
+          clips: {
+            ...state.clips,
+            [id]: { ...clip, startTime, sourceOffset, duration },
+          },
+        };
+      }
+
+      // MIDI clips: adjust startTime and duration (no sourceOffset)
+      let { startTime, duration } = clip;
       const clipEnd = startTime + duration;
 
       if (newStart !== undefined) {
-        const delta = newStart - startTime;
         startTime = newStart;
-        sourceOffset = sourceOffset + delta;
         duration = clipEnd - newStart;
       }
 
@@ -329,13 +352,12 @@ export const useDawStore = create<DawStore>()((set, get) => ({
         duration = newEnd - startTime;
       }
 
-      // Guard against invalid state
-      if (duration <= 0 || sourceOffset < 0) return state;
+      if (duration <= 0) return state;
 
       return {
         clips: {
           ...state.clips,
-          [id]: { ...clip, startTime, sourceOffset, duration },
+          [id]: { ...clip, startTime, duration },
         },
       };
     });
