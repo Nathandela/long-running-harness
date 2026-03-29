@@ -25,3 +25,4 @@
 {"type":"summary","completed":5,"failed":0,"skipped":0,"total_duration_s":3768}
 {"type":"summary","completed":0,"failed":0,"skipped":0,"total_duration_s":3}
 {"epic_id":"long-running-harness-0yz","result":"complete","attempts":1,"duration_s":534,"timestamp":"2026-03-29T02:42:02Z"}
+{"epic_id":"long-running-harness-6o3","result":"complete","attempts":1,"duration_s":338,"timestamp":"2026-03-29T02:47:55Z"}
