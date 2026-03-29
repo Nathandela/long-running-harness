@@ -20,14 +20,13 @@ import { sharedUndoManager } from "@state/undo";
 import {
   sequencerCache,
   paramsCache,
-  setBridgeRef,
   getOrCreateSequencer,
   getOrCreateParams,
 } from "@audio/drum-machine/sequencer-cache";
 import styles from "./panels.module.css";
 
 // Re-export for test compatibility
-export { sequencerCache, paramsCache, setBridgeRef };
+export { sequencerCache, paramsCache };
 
 function useDrumMachineState(trackId: string): {
   pattern: DrumPattern;
@@ -279,14 +278,6 @@ export function InstrumentPanel(): React.JSX.Element {
   const tracks = useDawStore((s) => s.tracks);
   const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
   const bridge = useTrackAudioBridge();
-
-  // Keep bridge ref current for drum trigger callbacks
-  useEffect(() => {
-    setBridgeRef(bridge);
-    return () => {
-      setBridgeRef(null);
-    };
-  }, [bridge]);
 
   if (selectedTrack?.type === "instrument") {
     return <SynthTrackPanel trackId={selectedTrack.id} bridge={bridge} />;

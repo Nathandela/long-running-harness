@@ -19,7 +19,10 @@ import {
   createClipScheduler,
   type ClipScheduler,
 } from "./mixer/clip-scheduler";
-import { getOrCreateSequencer } from "./drum-machine/sequencer-cache";
+import {
+  getOrCreateSequencer,
+  setBridgeRef,
+} from "./drum-machine/sequencer-cache";
 
 const Ctx = createContext<TrackAudioBridge | null>(null);
 
@@ -299,6 +302,15 @@ export function TrackAudioBridgeProvider({
       }, 0);
     };
   }, [value]);
+
+  // Keep bridge ref current for drum trigger callbacks.
+  // Wired here (not in InstrumentPanel) so drums play regardless of which bottom panel is visible.
+  useEffect(() => {
+    setBridgeRef(value.bridge);
+    return () => {
+      setBridgeRef(null);
+    };
+  }, [value.bridge]);
 
   return <Ctx.Provider value={value.bridge}>{children}</Ctx.Provider>;
 }

@@ -156,6 +156,8 @@ export function useArrangementInteractions(
           break;
         }
         case "track-delete-button": {
+          // Require double-click to prevent accidental track deletion
+          if (e.detail < 2) break;
           const cmd = new RemoveTrackCommand(hit.trackId);
           cmd.execute();
           sharedUndoManager.push(cmd);
