@@ -106,9 +106,10 @@ export function renderMidiClipToAudio(
     createOfflineVoice(),
   );
 
-  // LFOs (shared across all voices)
-  const lfo1 = createLFO(params.lfo1Shape);
-  const lfo2 = createLFO(params.lfo2Shape);
+  // LFOs not yet wired to modulation targets — created but not processed.
+  // TODO: Wire LFO to pitch/filter/amp modulation to match SynthProcessor.
+  void createLFO(params.lfo1Shape);
+  void createLFO(params.lfo2Shape);
 
   // ADSR params (pre-allocated)
   const ampParams: ADSRParams = {
@@ -139,21 +140,12 @@ export function renderMidiClipToAudio(
       if (!evt || evt.sample > s) break;
 
       if (evt.type === "on") {
-        allocateNoteOn(voices, evt.note, evt.velocity, params);
+        allocateNoteOn(voices, evt.note, evt.velocity, params, sampleRate);
       } else {
         releaseNote(voices, evt.note);
       }
       eventIdx++;
     }
-
-    // LFO processing
-    const lfo1Val =
-      lfo1.process(params.lfo1Rate, sampleRate) * params.lfo1Depth;
-    const lfo2Val =
-      lfo2.process(params.lfo2Rate, sampleRate) * params.lfo2Depth;
-    // Unused but kept for parity with processor — lfo modulation can be added later
-    void lfo1Val;
-    void lfo2Val;
 
     let mixL = 0;
     let mixR = 0;
@@ -234,6 +226,7 @@ function allocateNoteOn(
   note: number,
   velocity: number,
   params: SynthParameterMap,
+  sampleRate: number,
 ): void {
   // Find free voice
   let idx = -1;
@@ -274,6 +267,17 @@ function allocateNoteOn(
   v.osc1.type = params.osc1Type;
   v.osc2.type = params.osc2Type;
   v.filter.type = params.filterType;
+
+  // Compute initial biquad coefficients so the filter doesn't produce silence
+  // until the next s % 128 boundary in the render loop.
+  computeBiquadCoeffs(
+    params.filterType,
+    Math.min(Math.max(params.filterCutoff, 20), sampleRate / 2 - 100),
+    params.filterResonance,
+    sampleRate,
+    v.filter.coeffs,
+  );
+
   v.ampEnv.gate(false);
   v.filterEnv.gate(false);
 }

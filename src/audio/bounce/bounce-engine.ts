@@ -35,7 +35,7 @@ import {
   denormalize,
   findPointsInRange,
 } from "@audio/automation/automation-curve";
-import { faderTaper } from "@audio/mixer/fader-taper";
+import { faderTaper } from "@audio/mixer";
 import { renderMidiClipToAudio } from "./synth-renderer";
 import { encodeWavHeader, encodePcmChunk, assembleWav } from "./wav-encoder";
 
@@ -362,28 +362,29 @@ function scheduleDrumClips(
 }
 
 /** Simple MIDI pitch to drum ID mapping (GM drum map subset) */
+const PITCH_TO_DRUM: Readonly<Record<number, DrumInstrumentId>> = {
+  36: "bd",
+  35: "bd",
+  38: "sd",
+  40: "sd",
+  41: "lt",
+  43: "lt",
+  45: "mt",
+  47: "mt",
+  48: "ht",
+  50: "ht",
+  37: "rs",
+  39: "cp",
+  56: "cb",
+  46: "oh",
+  42: "ch",
+  44: "ch",
+  49: "cy",
+  51: "cy",
+};
+
 function mapPitchToDrum(pitch: number): DrumInstrumentId | undefined {
-  const map: Record<number, DrumInstrumentId> = {
-    36: "bd",
-    35: "bd",
-    38: "sd",
-    40: "sd",
-    41: "lt",
-    43: "lt",
-    45: "mt",
-    47: "mt",
-    48: "ht",
-    50: "ht",
-    37: "rs",
-    39: "cp",
-    56: "cb",
-    46: "oh",
-    42: "ch",
-    44: "ch",
-    49: "cy",
-    51: "cy",
-  };
-  return map[pitch];
+  return PITCH_TO_DRUM[pitch];
 }
 
 // ─── Automation scheduling ───
@@ -441,6 +442,8 @@ function resolveOfflineParam(
   lane: AutomationLane,
   strip: OfflineMixerStrip,
 ): ResolvedOfflineParam | undefined {
+  // Only mixer volume/pan automation is applied offline.
+  // Synth-parameter and drum-parameter lanes are silently skipped.
   if (lane.target.type !== "mixer") return undefined;
 
   switch (lane.target.param) {
@@ -453,7 +456,8 @@ function resolveOfflineParam(
 
 // ─── WAV encoding (chunked) ───
 
-const WAV_CHUNK_SAMPLES = 30 * 44100; // ~30 seconds per encoding chunk
+/** ~30 seconds of samples per encoding chunk (adapts to actual sample rate) */
+const WAV_CHUNK_SECONDS = 30;
 
 function encodeRenderedBuffer(
   buffer: AudioBuffer,
@@ -462,6 +466,7 @@ function encodeRenderedBuffer(
   const numChannels = Math.min(buffer.numberOfChannels, 2);
   const totalSamples = buffer.length;
   const sampleRate = buffer.sampleRate;
+  const chunkSamples = WAV_CHUNK_SECONDS * sampleRate;
 
   const channelData: Float32Array[] = [];
   for (let c = 0; c < numChannels; c++) {
@@ -477,8 +482,8 @@ function encodeRenderedBuffer(
   const chunks: ArrayBuffer[] = [];
 
   // Encode in chunks for memory efficiency
-  for (let offset = 0; offset < totalSamples; offset += WAV_CHUNK_SAMPLES) {
-    const end = Math.min(offset + WAV_CHUNK_SAMPLES, totalSamples);
+  for (let offset = 0; offset < totalSamples; offset += chunkSamples) {
+    const end = Math.min(offset + chunkSamples, totalSamples);
     const chunkChannels = channelData.map((ch) => ch.subarray(offset, end));
     chunks.push(encodePcmChunk(chunkChannels, bitDepth));
   }
@@ -503,6 +508,7 @@ export function createBounceEngine(
 ): BounceEngine {
   // Cancellation state — checked at yield/await suspension points
   let cancelFlag = false;
+  let bouncing = false;
   // Indirection prevents the linter from proving the flag is always falsy
   // (it changes externally via cancel() between yield/await suspensions)
   function isCancelled(): boolean {
@@ -513,136 +519,160 @@ export function createBounceEngine(
     async *bounce(
       options: BounceOptions,
     ): AsyncGenerator<BounceProgress, BounceResult> {
+      if (bouncing) {
+        throw new Error(
+          "BounceEngine: bounce() called while another bounce is active. " +
+            "Cancel or drain the previous generator first.",
+        );
+      }
+      bouncing = true;
       cancelFlag = false;
-      const emptyResult: BounceResult = {
-        blob: new Blob(),
-        duration: 0,
-        sampleRate: options.sampleRate,
-        channels: 2,
-      };
 
-      // Phase: Preparing
-      yield {
-        phase: "preparing",
-        progress: 0,
-        renderedSeconds: 0,
-        totalSeconds: 0,
-      };
-
-      if (isCancelled()) return emptyResult;
-
-      // Determine render range
-      const sessionBounds = computeSessionBounds(options.tracks, options.clips);
-      let rangeStart: number;
-      let rangeEnd: number;
-
-      if (options.range.type === "region") {
-        rangeStart = options.range.start;
-        rangeEnd = options.range.end;
-      } else {
-        rangeStart = sessionBounds.start;
-        rangeEnd = sessionBounds.end;
+      if (options.sampleRate <= 0) {
+        bouncing = false;
+        throw new Error(
+          `BounceEngine: invalid sampleRate ${String(options.sampleRate)}`,
+        );
       }
 
-      const duration = Math.max(0, rangeEnd - rangeStart);
-      if (duration === 0) return emptyResult;
+      try {
+        const emptyResult: BounceResult = {
+          blob: new Blob(),
+          duration: 0,
+          sampleRate: options.sampleRate,
+          channels: 2,
+        };
 
-      // Build event timeline
-      const timeline = buildEventTimeline(options.tracks, options.clips);
-      const audibleIds = getAudibleTrackIds(options.tracks);
+        // Phase: Preparing
+        yield {
+          phase: "preparing",
+          progress: 0,
+          renderedSeconds: 0,
+          totalSeconds: 0,
+        };
 
-      // Phase: Rendering
-      yield {
-        phase: "rendering",
-        progress: 0.1,
-        renderedSeconds: 0,
-        totalSeconds: duration,
-      };
+        if (isCancelled()) return emptyResult;
 
-      // Create OfflineAudioContext
-      const ctx = contextFactory(duration, options.sampleRate);
+        // Determine render range
+        const sessionBounds = computeSessionBounds(
+          options.tracks,
+          options.clips,
+        );
+        let rangeStart: number;
+        let rangeEnd: number;
 
-      // Build offline mixer graph
-      const mixer = buildOfflineMixer(
-        ctx,
-        options.tracks,
-        options.masterLevel,
-        audibleIds,
-      );
+        if (options.range.type === "region") {
+          rangeStart = options.range.start;
+          rangeEnd = options.range.end;
+        } else {
+          rangeStart = sessionBounds.start;
+          rangeEnd = sessionBounds.end;
+        }
 
-      // Schedule audio clips
-      scheduleAudioClips(
-        ctx,
-        timeline.audioClips,
-        mixer,
-        rangeStart,
-        options.getBuffer,
-      );
+        const duration = Math.max(0, rangeEnd - rangeStart);
+        if (duration === 0) return emptyResult;
 
-      // Schedule MIDI clips (pre-rendered synth)
-      scheduleMidiClips(
-        ctx,
-        timeline.midiClips,
-        mixer,
-        rangeStart,
-        options.instruments,
-      );
+        // Build event timeline
+        const timeline = buildEventTimeline(options.tracks, options.clips);
+        const audibleIds = getAudibleTrackIds(options.tracks);
 
-      // Schedule drum clips
-      scheduleDrumClips(
-        ctx,
-        timeline.midiClips,
-        mixer,
-        rangeStart,
-        options.instruments,
-      );
+        // Phase: Rendering
+        yield {
+          phase: "rendering",
+          progress: 0.1,
+          renderedSeconds: 0,
+          totalSeconds: duration,
+        };
 
-      // Schedule automation
-      scheduleAutomation(
-        ctx,
-        options.automationLanes,
-        mixer,
-        rangeStart,
-        duration,
-      );
+        // Create OfflineAudioContext
+        const ctx = contextFactory(duration, options.sampleRate);
 
-      if (isCancelled()) return emptyResult;
+        // Build offline mixer graph
+        const mixer = buildOfflineMixer(
+          ctx,
+          options.tracks,
+          options.masterLevel,
+          audibleIds,
+        );
 
-      // Render
-      const renderedBuffer = await ctx.startRendering();
+        // Schedule audio clips
+        scheduleAudioClips(
+          ctx,
+          timeline.audioClips,
+          mixer,
+          rangeStart,
+          options.getBuffer,
+        );
 
-      yield {
-        phase: "rendering",
-        progress: 0.7,
-        renderedSeconds: duration,
-        totalSeconds: duration,
-      };
+        // Schedule MIDI clips (pre-rendered synth)
+        scheduleMidiClips(
+          ctx,
+          timeline.midiClips,
+          mixer,
+          rangeStart,
+          options.instruments,
+        );
 
-      if (isCancelled()) return emptyResult;
+        // Schedule drum clips
+        scheduleDrumClips(
+          ctx,
+          timeline.midiClips,
+          mixer,
+          rangeStart,
+          options.instruments,
+        );
 
-      // Phase: Encoding
-      yield {
-        phase: "encoding",
-        progress: 0.8,
-        renderedSeconds: duration,
-        totalSeconds: duration,
-      };
+        // Schedule automation
+        scheduleAutomation(
+          ctx,
+          options.automationLanes,
+          mixer,
+          rangeStart,
+          duration,
+        );
 
-      const blob = encodeRenderedBuffer(renderedBuffer, options.bitDepth);
+        if (isCancelled()) return emptyResult;
 
-      yield {
-        phase: "complete",
-        progress: 1,
-        renderedSeconds: duration,
-        totalSeconds: duration,
-      };
+        // Note: startRendering() blocks until the entire offline render completes.
+        // Cancellation checks only run at yield boundaries, so a long render
+        // (e.g. 10 min at 96kHz) cannot be interrupted mid-render.
+        const renderedBuffer = await ctx.startRendering();
 
-      return {
-        blob,
-        duration,
-        sampleRate: options.sampleRate,
-        channels: 2,
-      };
+        yield {
+          phase: "rendering",
+          progress: 0.7,
+          renderedSeconds: duration,
+          totalSeconds: duration,
+        };
+
+        if (isCancelled()) return emptyResult;
+
+        // Phase: Encoding
+        yield {
+          phase: "encoding",
+          progress: 0.8,
+          renderedSeconds: duration,
+          totalSeconds: duration,
+        };
+
+        const blob = encodeRenderedBuffer(renderedBuffer, options.bitDepth);
+
+        yield {
+          phase: "complete",
+          progress: 1,
+          renderedSeconds: duration,
+          totalSeconds: duration,
+        };
+
+        return {
+          blob,
+          duration,
+          sampleRate: options.sampleRate,
+          channels: 2,
+        };
+      } finally {
+        bouncing = false;
+      }
     },
 
     cancel(): void {

@@ -14,6 +14,7 @@ export type {
 } from "./routing";
 export { createClipScheduler } from "./clip-scheduler";
 export type { ClipScheduler } from "./clip-scheduler";
+export { faderTaper } from "./fader-taper";
 export {
   computePeakAndRms,
   MeterState,
