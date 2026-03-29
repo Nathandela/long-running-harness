@@ -14,7 +14,7 @@ On March 24 2026, Anthropic published a [post on harness design](https://www.ant
 
 This repository is the same brief, built with **[compound-agent](https://github.com/Nathandela/compound-agent)** -- an open-source Claude Code plugin that ships persistent memory, multi-agent workflows, and autonomous loop execution into any repository. The build ran autonomously for ~20 hours across multiple sessions on a Claude Max subscription, with no human intervention during the autonomous loops.
 
-Full writeup: **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design-dark-factories)**
+Full writeup: **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design)**
 
 ## Features
 
@@ -72,7 +72,7 @@ The `agent_logs/` directory contains the full trace: review reports, architect p
 ## See also
 
 - **[compound-agent](https://github.com/Nathandela/compound-agent)** -- The harness that built this. Persistent memory, multi-agent review, autonomous loops.
-- **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design-dark-factories)** -- Blog post comparing this approach to Anthropic's internal harness.
+- **[Harness Design for Dark Software Factories](https://nathan-delacretaz.com/thinks/harness-design)** -- Blog post comparing this approach to Anthropic's internal harness.
 - **[Anthropic: Harness Design for Long-Running Apps](https://www.anthropic.com/engineering/harness-design-long-running-apps)** -- The post that inspired this benchmark.
 - **[Live demo](https://nathan-delacretaz.com/daw/index.html)** -- Try BRUTALWAV in the browser.
 
