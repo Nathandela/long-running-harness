@@ -45,14 +45,24 @@ function DawShellInner({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [bottomPanel, setBottomPanel] = useState<BottomPanelMode>("default");
   const [editingClipId, setEditingClipId] = useState<string | null>(null);
-  const [showMediaPoolOverride, setShowMediaPoolOverride] = useState(false);
+  // Track ID for which the media-pool override is active (auto-resets on track switch)
+  const [mediaPoolOverrideTrackId, setMediaPoolOverrideTrackId] = useState<
+    string | undefined
+  >(undefined);
 
   // Determine if the selected track is instrument/drum (full-width instrument panel)
-  const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
-  const tracks = useDawStore((s) => s.tracks);
-  const selectedTrack = tracks.find((t) => selectedTrackIds.includes(t.id));
-  const isInstrumentOrDrum =
-    selectedTrack?.type === "instrument" || selectedTrack?.type === "drum";
+  // Scoped selectors return primitives so React can bail out of re-renders.
+  const selectedTrackId = useDawStore((s) => s.selectedTrackIds[0]);
+  const isInstrumentOrDrum = useDawStore((s) => {
+    const id = s.selectedTrackIds[0];
+    if (id === undefined) return false;
+    const track = s.tracks.find((t) => t.id === id);
+    return track?.type === "instrument" || track?.type === "drum";
+  });
+
+  const showMediaPoolOverride =
+    mediaPoolOverrideTrackId !== undefined &&
+    mediaPoolOverrideTrackId === selectedTrackId;
 
   const openPianoRoll = useCallback((clipId: string) => {
     setEditingClipId(clipId);
@@ -117,6 +127,15 @@ function DawShellInner({
 
   useKeyboardShortcuts(registry, shortcuts);
 
+  const panelBtnBase: React.CSSProperties = {
+    position: "absolute",
+    top: 4,
+    right: 8,
+    zIndex: 10,
+    cursor: "pointer",
+    fontFamily: "var(--font-mono)",
+  };
+
   return (
     <div
       data-testid="daw-shell"
@@ -148,15 +167,10 @@ function DawShellInner({
                 data-testid="close-piano-roll"
                 onClick={closePianoRoll}
                 style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 8,
-                  zIndex: 10,
+                  ...panelBtnBase,
                   background: "var(--color-gray-700)",
                   border: "1px solid var(--color-gray-500)",
                   color: "var(--color-gray-100)",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-mono)",
                   fontSize: "var(--text-sm)",
                   padding: "4px 12px",
                   borderRadius: "3px",
@@ -167,7 +181,9 @@ function DawShellInner({
               <PianoRollEditor clipId={editingClipId} />
             </div>
           ) : isInstrumentOrDrum ? (
-            <div style={{ position: "relative", overflow: "hidden" }}>
+            <div
+              style={{ position: "relative", overflow: "hidden", height: 240 }}
+            >
               {showMediaPoolOverride ? (
                 <MediaPoolPanel pool={pool} />
               ) : (
@@ -177,18 +193,15 @@ function DawShellInner({
                 type="button"
                 data-testid="toggle-media-pool"
                 onClick={() => {
-                  setShowMediaPoolOverride((prev) => !prev);
+                  setMediaPoolOverrideTrackId((prev) =>
+                    prev === selectedTrackId ? undefined : selectedTrackId,
+                  );
                 }}
                 style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 8,
-                  zIndex: 10,
+                  ...panelBtnBase,
                   background: "var(--color-gray-800)",
                   border: "var(--border)",
                   color: "var(--color-gray-300)",
-                  cursor: "pointer",
-                  fontFamily: "var(--font-mono)",
                   fontSize: "var(--text-xs)",
                   padding: "2px 8px",
                 }}

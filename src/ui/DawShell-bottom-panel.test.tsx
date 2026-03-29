@@ -231,4 +231,36 @@ describe("DawShell bottom panel conditional layout", () => {
     expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
     expect(screen.queryByTestId("media-pool-panel")).not.toBeInTheDocument();
   });
+
+  it("resets stale media-pool override when switching tracks", async () => {
+    useDawStore.setState({
+      tracks: [
+        makeTrack({ id: "t1", type: "instrument" }),
+        makeTrack({ id: "t2", type: "audio" }),
+        makeTrack({ id: "t3", type: "instrument" }),
+      ],
+      selectedTrackIds: ["t1"],
+    });
+
+    const storage = createInMemorySessionStorage();
+    render(<DawShell sessionStorage={storage} />);
+
+    // Toggle to media pool on instrument track
+    await userEvent.click(screen.getByTestId("toggle-media-pool"));
+    expect(screen.getByTestId("media-pool-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("instrument-panel")).not.toBeInTheDocument();
+
+    // Switch to audio track (side-by-side layout)
+    act(() => {
+      useDawStore.setState({ selectedTrackIds: ["t2"] });
+    });
+
+    // Switch back to a different instrument track -- override must be reset
+    act(() => {
+      useDawStore.setState({ selectedTrackIds: ["t3"] });
+    });
+
+    expect(screen.getByTestId("instrument-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("media-pool-panel")).not.toBeInTheDocument();
+  });
 });
