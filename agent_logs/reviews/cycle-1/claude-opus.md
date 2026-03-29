@@ -1,13 +1,19 @@
+All 1323 tests pass, no regressions. TypeScript compiles cleanly.
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 - No duplicate lane target guard**: `addLane` in `automation-store.ts:53` allows adding multiple lanes for the same track+target pair (e.g., two volume lanes for track-1). This will cause the scheduler to double-schedule AudioParam values, producing incorrect output. Add a guard that rejects or replaces a lane if one already exists for the same target on that track.
+1. **P2 — LFO modulation discarded in synth-renderer, causing live/bounce divergence** (`src/audio/bounce/synth-renderer.ts:150-156`). `lfo1Val` and `lfo2Val` are computed then explicitly voided. Any session using LFO modulation on pitch/filter/amp will render differently offline vs. live. Either wire the LFO outputs to the corresponding modulation targets (matching `SynthProcessor`) or document this as a known limitation and surface a warning to the user when bouncing tracks with active LFO modulation.
 
-2. **P2 - `movePoint` and `addPoint` don't clamp value to 0..1 or time to >= 0**: The Zod schema validates on persistence, but the store methods (`automation-store.ts:97`, `automation-store.ts:129`) accept any `number` for time and value at runtime. A caller passing `newValue: -0.5` or `newTime: -1` would create invalid state that persists until the next save/load cycle catches it. Clamp `value` to `[0, 1]` and `time` to `>= 0` in the pure functions (`insertPoint`, `movePoint` in `automation-curve.ts`).
+2. **P2 — `WAV_CHUNK_SAMPLES` hardcoded to 44100** (`src/audio/bounce/bounce-engine.ts:456`). The constant `30 * 44100` means chunks are ~30s at 44.1kHz but ~27.6s at 48kHz and ~13.8s at 96kHz. Should be computed from the actual `sampleRate` parameter:
+   ```ts
+   const chunkSamples = 30 * sampleRate;
+   ```
+   The current code works but contradicts the intent (fixed time per chunk) and would allocate fewer/smaller chunks at higher sample rates for no reason.
 
-3. **P2 - Module-level mutable `laneCounter` is not safe across concurrent test suites or SSR**: `automation-types.ts:59` uses a module-level `let laneCounter`. This is the same pattern as the existing `routeCounter` so it's consistent, but any future parallel test runner or SSR context will collide. Flagging for awareness; no immediate fix needed if this is an accepted pattern.
+3. **P2 — Cancellation cannot interrupt `OfflineAudioContext.startRendering()`** (`src/audio/bounce/bounce-engine.ts:612`). The `await ctx.startRendering()` blocks until the entire offline render completes. For a 10-minute session at 96kHz this could be substantial. The `isCancelled()` checks only run at yield boundaries — but the longest gap is the full render. Consider using `ctx.suspend()`/`ctx.resume()` with periodic cancellation checks, or at minimum document this limitation.
 
-4. **P2 - `cancelScheduledValues(windowStart)` may truncate in-progress ramps**: In `automation-scheduler.ts:78`, cancelling from `windowStart` before setting the new start value can cause a brief jump to the last committed value on the AudioParam before the new `setValueAtTime` takes effect. The Web Audio spec applies `cancelScheduledValues` immediately. Consider using `cancelAndHoldAtTime(windowStart)` instead (available in all modern browsers) to avoid audible glitches at window boundaries.
+4. **P3 — `mapPitchToDrum` re-creates lookup object on every call** (`src/audio/bounce/bounce-engine.ts:366-387`). This is called once per drum hit event. For dense drum patterns the object literal is allocated and GC'd repeatedly. Hoist the `map` to module scope as a `const`.
 
-5. **P3 - `scheduledParams` Set grows unbounded**: In `automation-scheduler.ts:57`, `scheduledParams` accumulates every resolved param across all `scheduleWindow` calls and only clears on `cancelAll`. If lanes are reconfigured over a long session, stale param references will accumulate. Minor memory leak; consider clearing per-window or using a WeakSet.
+5. **P3 — `faderTaper` not exported from module index** (`src/audio/mixer/fader-taper.ts`). The bounce engine imports `faderTaper` via `@audio/mixer/fader-taper` (deep import) rather than through the mixer barrel export. This bypasses the module boundary. Either add it to `@audio/mixer/index.ts` and import from there, or verify this is intentional given project import-boundary lint rules.
 
-6. **P3 - `insertPoint` is O(n) linear scan**: `automation-curve.ts:94` uses `findIndex` for insertion. `evaluateCurve` uses binary search for lookup. For consistency and performance with many points, `insertPoint` could also use binary search. Low priority since point arrays are typically small.
+6. **P3 — No validation on `BounceOptions.sampleRate`/`bitDepth`** (`src/audio/bounce/bounce-engine.ts:501`). Passing `sampleRate: 0` or a negative value would create an `OfflineAudioContext` with invalid parameters and throw an opaque browser error. A guard at the boundary (`if (sampleRate <= 0) throw ...`) would produce a clearer error message.

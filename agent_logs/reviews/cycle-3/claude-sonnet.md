@@ -1,8 +1,10 @@
-The single new commit (`4822fb6`) closes the remaining gap: `paramResolverRef` was never populated (noted as an observation in the last review). The implementation is clean:
+The test was updated to match — line 64 now expects `46 + 8` for IEEE float with the comment explaining the cbSize extension. All six original findings are resolved:
 
-- `createParamResolver` correctly maps `mixer.volume` → `faderGain.gain` (range 0–2) and `mixer.pan` → `panner.pan` (range -1–1); returns `undefined` for effect/synth targets with a clear TODO.
-- Wired from `EffectsBridgeProvider` via `useEffect([value, transport])` — both deps are stable references, so the effect fires once.
-- `_effectsBridge` parameter accepted but unused (correct underscore convention for future wiring).
-- Tests cover all five target types including the not-yet-supported ones.
+- P2 #1: `computeBiquadCoeffs` called immediately in `allocateNoteOn` ✓
+- P2 #2: LFO hot-path removed from render loop ✓
+- P2 #3: `bouncing` guard flag with try/finally ✓
+- P3 #4: `WAV_CHUNK_SECONDS * sampleRate` ✓
+- P3 #5: Comment on silent automation skip ✓
+- P3 #6: 18-byte fmt for IEEE float + test updated ✓
 
 REVIEW_APPROVED

@@ -8,47 +8,74 @@ npx ca load-session
 <claude-sonnet-review>
 REVIEW_CHANGES_REQUESTED
 
-**1. [P1] Scheduler never called — automation playback is dead code**
+---
 
-`createAutomationScheduler` / `scheduleWindow` has zero callers outside its own test file. The entire audio-side of E16 (the feature's purpose) is unreachable at runtime. No transport or look-ahead scheduler integration exists.
+**1. [P2] `synth-renderer.ts:194` — Filter produces silence for voices allocated between coefficient update cycles**
 
-**2. [P2] `addLane` permits duplicate `ParameterTarget` per track**
+The inner loop recomputes biquad coefficients only at `s % 128 === 0`. `createBiquadCoeffs()` initializes with `{ b0: 0, ..., a0: 1 }`, so `process(input)` returns `(0 * input) / 1 = 0`. Any voice allocated at samples 1–127, 129–255, etc. renders silence until the next 128-sample boundary. For reused voices, stale coefficients from the previous note are used during the same window. Fix: call `computeBiquadCoeffs(...)` inside `allocateNoteOn` immediately after resetting.
 
-There is no guard preventing two "mixer.volume" lanes on the same track. If both are armed, the scheduler will call `setValueAtTime` / `linearRampToValueAtTime` on the same `AudioParam` twice per window in a single pass. Web Audio API order-of-effect within the same rendering quantum is not guaranteed, so the resulting value is undefined. Should check for an existing lane with the same `target` before creating a new one.
+---
 
-Location: `src/state/automation/automation-store.ts:53` (`addLane`).
+**2. [P2] `synth-renderer.ts:150–156` — LFO computed but discarded in the hot render loop**
 
-**3. [P2] `cancelAll` holds stale AudioParam references, risking throws on disposed nodes**
+```ts
+const lfo1Val = lfo1.process(params.lfo1Rate, sampleRate) * params.lfo1Depth;
+const lfo2Val = lfo2.process(params.lfo2Rate, sampleRate) * params.lfo2Depth;
+void lfo1Val;
+void lfo2Val;
+```
 
-`scheduledParams` grows monotonically — it is never pruned when a lane is removed or when its audio node is disconnected/disposed. `cancelAll()` then calls `cancelScheduledValues(0)` on every param ever encountered, including possibly-GC'd or already-disconnected AudioParams, which can throw in some browser AudioContext implementations.
+`lfo.process()` advances the LFO phase state every sample with a `Math.sin` call — this is CPU work in the innermost loop that produces zero effect. Either remove the LFO processing entirely (since it's unimplemented) or move it outside the `s` loop if only used for coefficient modulation.
 
-Location: `src/audio/automation/automation-scheduler.ts:96–100`.
+---
 
-**4. [P3] Zero-length scheduling window produces redundant ramp calls**
+**3. [P2] `bounce-engine.ts` — `cancelFlag` shared state between concurrent `bounce()` calls**
 
-When `windowEnd === windowStart` (can occur at transport start/seek), `stepSize = 0` and the loop schedules 4 identical `linearRampToValueAtTime` calls at the exact same time as the `setValueAtTime`. Harmless but wastes scheduling budget and indicates missing guard.
+The cancel flag is reset to `false` at the start of every `bounce()` call. If a consumer starts a new bounce before fully draining/discarding the previous generator, the new call clears the cancel flag for the still-live old generator. The `BounceEngine` type and factory have no documentation of the single-concurrent-use assumption. At minimum, add a comment or throw if `bounce()` is called while another generator is active.
 
-Location: `src/audio/automation/automation-scheduler.ts:86–93`.
+---
 
-**5. [P3] `_resetLaneCounter` / `_seedLaneCounter` exported via public index**
+**4. [P3] `bounce-engine.ts:456` — `WAV_CHUNK_SAMPLES` comment misleading for non-44100 Hz sessions**
 
-Both test-only functions are re-exported from `src/audio/automation/index.ts`, making them part of the module's public API. Production code can call `_resetLaneCounter()` and trigger ID collisions on subsequent lane creation. Move them to a separate `automation-types.internal.ts` or at least drop them from `index.ts`.
+```ts
+const WAV_CHUNK_SAMPLES = 30 * 44100; // ~30 seconds per encoding chunk
+```
+
+The sample count is correct for chunking, but the comment is only accurate at 44100 Hz. At 48000 Hz it produces ~27.5-second chunks. Minor, but could confuse when debugging 48 kHz exports.
+
+---
+
+**5. [P3] `bounce-engine.ts:444–452` — Non-mixer automation silently skipped with no comment**
+
+`resolveOfflineParam` returns `undefined` for any target type other than "mixer". If a session has armed synth-parameter or drum-parameter automation lanes, they are silently ignored during bounce with no log or warning. Add a comment at the call site noting that only mixer volume/pan automation is applied offline.
+
+---
+
+**6. [P3] `wav-encoder.ts:37,49` — IEEE float WAV fmt chunk may trip strict parsers**
+
+Format code 3 (`WAVE_FORMAT_IEEE_FLOAT`) with a 16-byte fmt chunk is technically non-conformant; the spec recommends an 18-byte chunk with `cbSize=0` for non-PCM formats. Most decoders handle 16-byte fine, but some strict parsers or embedded hardware reject it. Low risk for a DAW export, but worth noting.
 </claude-sonnet-review>
 
 <claude-opus-review>
+All 1323 tests pass, no regressions. TypeScript compiles cleanly.
+
 REVIEW_CHANGES_REQUESTED
 
-1. **P1 - No duplicate lane target guard**: `addLane` in `automation-store.ts:53` allows adding multiple lanes for the same track+target pair (e.g., two volume lanes for track-1). This will cause the scheduler to double-schedule AudioParam values, producing incorrect output. Add a guard that rejects or replaces a lane if one already exists for the same target on that track.
+1. **P2 — LFO modulation discarded in synth-renderer, causing live/bounce divergence** (`src/audio/bounce/synth-renderer.ts:150-156`). `lfo1Val` and `lfo2Val` are computed then explicitly voided. Any session using LFO modulation on pitch/filter/amp will render differently offline vs. live. Either wire the LFO outputs to the corresponding modulation targets (matching `SynthProcessor`) or document this as a known limitation and surface a warning to the user when bouncing tracks with active LFO modulation.
 
-2. **P2 - `movePoint` and `addPoint` don't clamp value to 0..1 or time to >= 0**: The Zod schema validates on persistence, but the store methods (`automation-store.ts:97`, `automation-store.ts:129`) accept any `number` for time and value at runtime. A caller passing `newValue: -0.5` or `newTime: -1` would create invalid state that persists until the next save/load cycle catches it. Clamp `value` to `[0, 1]` and `time` to `>= 0` in the pure functions (`insertPoint`, `movePoint` in `automation-curve.ts`).
+2. **P2 — `WAV_CHUNK_SAMPLES` hardcoded to 44100** (`src/audio/bounce/bounce-engine.ts:456`). The constant `30 * 44100` means chunks are ~30s at 44.1kHz but ~27.6s at 48kHz and ~13.8s at 96kHz. Should be computed from the actual `sampleRate` parameter:
+   ```ts
+   const chunkSamples = 30 * sampleRate;
+   ```
+   The current code works but contradicts the intent (fixed time per chunk) and would allocate fewer/smaller chunks at higher sample rates for no reason.
 
-3. **P2 - Module-level mutable `laneCounter` is not safe across concurrent test suites or SSR**: `automation-types.ts:59` uses a module-level `let laneCounter`. This is the same pattern as the existing `routeCounter` so it's consistent, but any future parallel test runner or SSR context will collide. Flagging for awareness; no immediate fix needed if this is an accepted pattern.
+3. **P2 — Cancellation cannot interrupt `OfflineAudioContext.startRendering()`** (`src/audio/bounce/bounce-engine.ts:612`). The `await ctx.startRendering()` blocks until the entire offline render completes. For a 10-minute session at 96kHz this could be substantial. The `isCancelled()` checks only run at yield boundaries — but the longest gap is the full render. Consider using `ctx.suspend()`/`ctx.resume()` with periodic cancellation checks, or at minimum document this limitation.
 
-4. **P2 - `cancelScheduledValues(windowStart)` may truncate in-progress ramps**: In `automation-scheduler.ts:78`, cancelling from `windowStart` before setting the new start value can cause a brief jump to the last committed value on the AudioParam before the new `setValueAtTime` takes effect. The Web Audio spec applies `cancelScheduledValues` immediately. Consider using `cancelAndHoldAtTime(windowStart)` instead (available in all modern browsers) to avoid audible glitches at window boundaries.
+4. **P3 — `mapPitchToDrum` re-creates lookup object on every call** (`src/audio/bounce/bounce-engine.ts:366-387`). This is called once per drum hit event. For dense drum patterns the object literal is allocated and GC'd repeatedly. Hoist the `map` to module scope as a `const`.
 
-5. **P3 - `scheduledParams` Set grows unbounded**: In `automation-scheduler.ts:57`, `scheduledParams` accumulates every resolved param across all `scheduleWindow` calls and only clears on `cancelAll`. If lanes are reconfigured over a long session, stale param references will accumulate. Minor memory leak; consider clearing per-window or using a WeakSet.
+5. **P3 — `faderTaper` not exported from module index** (`src/audio/mixer/fader-taper.ts`). The bounce engine imports `faderTaper` via `@audio/mixer/fader-taper` (deep import) rather than through the mixer barrel export. This bypasses the module boundary. Either add it to `@audio/mixer/index.ts` and import from there, or verify this is intentional given project import-boundary lint rules.
 
-6. **P3 - `insertPoint` is O(n) linear scan**: `automation-curve.ts:94` uses `findIndex` for insertion. `evaluateCurve` uses binary search for lookup. For consistency and performance with many points, `insertPoint` could also use binary search. Low priority since point arrays are typically small.
+6. **P3 — No validation on `BounceOptions.sampleRate`/`bitDepth`** (`src/audio/bounce/bounce-engine.ts:501`). Passing `sampleRate: 0` or a negative value would create an `OfflineAudioContext` with invalid parameters and throw an opaque browser error. A guard at the boundary (`if (sampleRate <= 0) throw ...`) would produce a clearer error message.
 </claude-opus-review>
 
 <gemini-review>
@@ -68,12 +95,7 @@ YOLO mode is enabled. All tool calls will be automatically approved.
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-Error executing tool read_file: Path not in workspace: Attempted path "/tmp/src-diff.txt" resolves outside the allowed workspace directories: /Users/Nathan/Documents/Code/long-running-harness or the project temp directory: /Users/Nathan/.gemini/tmp/long-running-harness
-REVIEW_CHANGES_REQUESTED
-
-1. **P1 - Scheduler misses fast automation (Fixed-step sampling):** In `automation-scheduler.ts`, `scheduleWindow` samples the evaluated curve using a hardcoded `SCHEDULE_STEPS = 4`. By blindly sampling the curve at fixed intervals, the scheduler effectively downsamples the automation control rate. Sharp transients or rapid automation spikes (like a rhythmic volume gate) falling between these step intervals will be completely skipped or improperly slurred. To achieve the intended sample-accurate playback, the scheduler must iterate over the actual `lane.points` that fall within the `[arrStart, arrEnd]` window and place Web Audio API events at those exact breakpoint times (in addition to handling window boundaries for continuity).
-
-2. **P2 - Memory leak in `scheduledParams`:** In `automation-scheduler.ts`, the `scheduledParams` Set retains strong references to every automated `AudioParam`. If a user deletes an effect or a track while the transport is running, its corresponding `AudioParam` remains in this Set. This prevents the underlying AudioNodes from being garbage collected until `cancelAll()` is called (typically when the transport stops). Consider adding an unregister mechanism (e.g., `unscheduleParam`) or pruning unreferenced parameters during the scheduling tick.
+REVIEW_APPROVED
 </gemini-review>
 
 

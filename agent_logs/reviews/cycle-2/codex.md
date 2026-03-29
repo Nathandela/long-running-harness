@@ -1,6 +1,1 @@
-REVIEW_CHANGES_REQUESTED
-
-- **[P1] Automation playback is still not wired to any real `AudioParam`s** ([use-transport.ts:53](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:53), [use-transport.ts:87](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:87), [use-transport.ts:198](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:198), [automation-scheduler.ts:75](/Users/Nathan/Documents/Code/long-running-harness/src/audio/automation/automation-scheduler.ts:75))
-Detail: `useTransportInit()` now creates an `AutomationScheduler`, but it does so through `paramResolverRef.current`, whose default implementation is `() => undefined`. The new `setParamResolver()` API exists, but there is still no non-test call site registering a resolver from the live mixer/effects/synth layer. That means `scheduleWindow()` still skips every lane at `resolveParam(lane)`.
-Risk: The transport now iterates automation lanes on every look-ahead tick, but no actual parameter automation is applied. From the user’s perspective automation playback still does nothing.
-Suggestion: Register a real resolver from the provider/module that owns the live `AudioParam`s, then add an integration test that plays transport with an armed automation lane and verifies the target param receives scheduled calls through the transport path.
+REVIEW_APPROVED

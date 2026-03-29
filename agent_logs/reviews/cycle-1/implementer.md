@@ -1,16 +1,19 @@
+Committed successfully. All pre-commit hooks passed (lint, typecheck, format).
+
+**Summary of fixes applied:**
+
+| Finding | Severity | Fix |
+|---------|----------|-----|
+| Biquad coefficients zero on voice allocation | P2 | `computeBiquadCoeffs()` called in `allocateNoteOn` immediately after filter reset |
+| LFO computed but discarded in hot loop | P2 | Removed `lfo.process()` calls from inner sample loop |
+| `cancelFlag` shared between concurrent bounces | P2 | Added `bouncing` guard that throws + `try/finally` to reset |
+| `WAV_CHUNK_SAMPLES` hardcoded to 44100 | P2 | Changed to `WAV_CHUNK_SECONDS * sampleRate` |
+| No `sampleRate` validation | P3 | Guard at bounce boundary throws for `<= 0` |
+| `startRendering()` not interruptible | P2 | Documented limitation as comment |
+| `mapPitchToDrum` re-creates object per call | P3 | Hoisted `PITCH_TO_DRUM` to module scope |
+| `faderTaper` deep import bypasses barrel | P3 | Added export to `mixer/index.ts`, updated import |
+| Non-mixer automation silently skipped | P3 | Added documenting comment |
+
+**1323 tests pass, TypeScript clean, lint clean.**
+
 FIXES_APPLIED
-
-**Summary of all fixes applied:**
-
-| Severity | Finding | Fix |
-|----------|---------|-----|
-| **P1** | Scheduler never called (Sonnet) | Added `onAdvance` callback to look-ahead scheduler; wired automation scheduler in `use-transport.ts` with ref-based `ParamResolver` |
-| **P1** | No duplicate lane guard (Opus) | `addLane` now rejects if a lane with same `ParameterTarget` already exists for the track |
-| **P1** | Fixed-step sampling misses transients (Gemini) | Replaced `SCHEDULE_STEPS=4` with `findPointsInRange()` — schedules at exact breakpoint times within each window |
-| **P2** | `cancelAndHoldAtTime` (Opus) | Uses `cancelAndHoldAtTime` when available, falls back to `cancelScheduledValues` |
-| **P2** | `scheduledParams` leak (Sonnet/Opus/Gemini) | Rebuilt per-window; `cancelAll` uses try/catch for disposed params |
-| **P2** | No value/time clamping (Opus) | `insertPoint` and `movePoint` now clamp time >= 0, value to [0,1] |
-| **P3** | Zero-length window (Sonnet) | Early return when `windowEnd <= windowStart` |
-| **P3** | Test helpers in public API (Sonnet) | Removed `_resetLaneCounter`/`_seedLaneCounter` from `index.ts` exports |
-
-All **1279 tests passing**, clean typecheck, clean lint.

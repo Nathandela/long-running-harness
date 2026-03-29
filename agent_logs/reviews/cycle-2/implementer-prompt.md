@@ -6,32 +6,38 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-All five original findings are addressed:
+All P2 issues are fixed. Checking the one remaining open finding.
 
-- **P1 (scheduler dead code)**: Wired via `onAdvance` callback in `look-ahead-scheduler.ts`, created and owned in `use-transport.ts` with `cancelAll` on pause/stop.
-- **P1 (duplicate targets)**: `targetsEqual` covers all three discriminants, `addLane` guards with it.
-- **P2 (stale params)**: `scheduledParams` rebuilt per window; `cancelAll` has try/catch.
-- **P2 (cancelAndHoldAtTime)**: Optional method on `ResolvedParam.param` with fallback to `cancelScheduledValues`.
-- **P2/P3 (clamping, zero-length window, test exports)**: All cleanly resolved.
+The `@audio/mixer` export of `faderTaper` is confirmed at line 17 — the linter-enforced import change is valid.
 
-The new `findPointsInRange` binary search is correct (exclusive start, exclusive end), and `timeOffset` is computed correctly for arrangement→AudioContext conversion.
+**Remaining open finding from original review:**
 
-REVIEW_APPROVED
+**6. [P3] `wav-encoder.ts:37,49` — IEEE float WAV fmt chunk still non-conformant**
+
+Not addressed. `WAVE_FORMAT_IEEE_FLOAT` (code 3) with a 16-byte fmt sub-chunk is technically non-conformant; the spec requires 18 bytes (with `cbSize=0`). Fix is two lines: change the sub-chunk size field from 16 to 18 and append `view.setUint16(36, 0, true)` for `cbSize`, shifting the `data` chunk to offset 38. The `44`-byte total header becomes 46 bytes.
+
+---
+
+All P2 findings (#1 filter init, #2 LFO hot-path, #3 concurrent bounce guard) and P3 findings #4/#5 are resolved. Only the P3 WAV conformance issue remains.
+
+REVIEW_CHANGES_REQUESTED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All 67 tests pass (up from 52), no type errors. Let me verify the fixes against my original findings:
+All 6 findings addressed:
 
-| # | Finding | Status |
-|---|---------|--------|
-| 1 | P1 - No duplicate lane target guard | Fixed: `targetsEqual()` added, `addLane` rejects duplicates |
-| 2 | P2 - No clamping in movePoint/addPoint | Fixed: `clampPoint()` in `insertPoint`, inline clamping in `movePoint` |
-| 3 | P2 - Module-level mutable laneCounter | Flagged for awareness only, no fix expected |
-| 4 | P2 - `cancelScheduledValues` truncation glitch | Fixed: `cancelAndHoldAtTime` with fallback |
-| 5 | P3 - scheduledParams grows unbounded | Fixed: rebuilt per-window, replaced at end |
-| 6 | P3 - insertPoint O(n) scan | Low priority, not addressed |
+| # | Finding | Resolution |
+|---|---------|------------|
+| 1 | LFO discarded silently | LFOs no longer processed in render loop; clear TODO added |
+| 2 | `WAV_CHUNK_SAMPLES` hardcoded 44100 | Now `WAV_CHUNK_SECONDS * sampleRate` |
+| 3 | Can't interrupt `startRendering()` | Documented as known limitation in comment |
+| 4 | `mapPitchToDrum` allocates per-call | Hoisted to module-scope `PITCH_TO_DRUM` const |
+| 5 | Deep import `@audio/mixer/fader-taper` | Now imports from barrel `@audio/mixer` |
+| 6 | No sampleRate validation | Guard added with clear error message |
 
-Additional improvements beyond the findings: `findPointsInRange()` with binary search for breakpoint-accurate scheduling, zero-length window guard, try/catch in `cancelAll` for disconnected params, comprehensive tests for all new behaviors.
+Bonus improvements: concurrent-bounce guard (`bouncing` flag), `try`/`finally` for cleanup, and initial biquad coefficients computed in `allocateNoteOn` to prevent filter silence until the first `s % 128` boundary.
+
+38 tests pass, TypeScript compiles cleanly.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -46,7 +52,9 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
+    at Socket.<anonymous> (node:internal/child_process:456:11)
+    at Socket.emit (node:events:518:28)
+    at Pipe.<anonymous> (node:net:351:12) {
   code: -32000,
   data: undefined
 }
@@ -57,12 +65,7 @@ REVIEW_APPROVED
 </gemini-review>
 
 <codex-review>
-REVIEW_CHANGES_REQUESTED
-
-- **[P1] Automation playback is still not wired to any real `AudioParam`s** ([use-transport.ts:53](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:53), [use-transport.ts:87](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:87), [use-transport.ts:198](/Users/Nathan/Documents/Code/long-running-harness/src/audio/use-transport.ts:198), [automation-scheduler.ts:75](/Users/Nathan/Documents/Code/long-running-harness/src/audio/automation/automation-scheduler.ts:75))
-Detail: `useTransportInit()` now creates an `AutomationScheduler`, but it does so through `paramResolverRef.current`, whose default implementation is `() => undefined`. The new `setParamResolver()` API exists, but there is still no non-test call site registering a resolver from the live mixer/effects/synth layer. That means `scheduleWindow()` still skips every lane at `resolveParam(lane)`.
-Risk: The transport now iterates automation lanes on every look-ahead tick, but no actual parameter automation is applied. From the user’s perspective automation playback still does nothing.
-Suggestion: Register a real resolver from the provider/module that owns the live `AudioParam`s, then add an integration test that plays transport with an armed automation lane and verifies the target param receives scheduled calls through the transport path.</codex-review>
+REVIEW_APPROVED</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.
