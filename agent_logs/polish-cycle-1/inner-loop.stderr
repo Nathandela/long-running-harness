@@ -26,3 +26,11 @@
 [2026-03-29_03-37-17] Attempt 1/2 for long-running-harness-wzc (log: agent_logs/loop_long-running-harness-wzc-2026-03-29_03-37-17.log)
 [2026-03-29_03-52-49] Epic long-running-harness-wzc completed successfully
 [2026-03-29_03-52-49] WARN: Working tree dirty after epic completion, auto-committing
+[2026-03-29_03-53-03] Epic long-running-harness-wzc done. Completed so far: 3
+[2026-03-29_03-53-03] Memory OK: 49% free
+[2026-03-29_03-53-04] ==========================================
+[2026-03-29_03-53-04] Processing epic: long-running-harness-wjm
+[2026-03-29_03-53-04] ==========================================
+[2026-03-29_03-53-04] Attempt 1/2 for long-running-harness-wjm (log: agent_logs/loop_long-running-harness-wjm-2026-03-29_03-53-04.log)
+[2026-03-29_04-04-36] Epic long-running-harness-wjm completed successfully
+[2026-03-29_04-04-36] WARN: Working tree dirty after epic completion, auto-committing
