@@ -165,3 +165,30 @@
   opacity: 1;
   color: var(--color-gray-300);
 }
+
+.cursorDisplay {
+}
+
+@media (max-width: 767px) {
+  .transportBar {
+    gap: var(--space-2);
+    overflow-x: auto;
+  }
+
+  .controls {
+    gap: var(--space-1);
+  }
+
+  .label,
+  .shortcutHint {
+    display: none;
+  }
+
+  .cursorDisplay {
+    display: none;
+  }
+
+  .brand {
+    font-size: var(--text-sm);
+  }
+}

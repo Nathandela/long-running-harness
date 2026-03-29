@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { useTransportCursor } from "@ui/hooks/useTransportCursor";
 import type { TempoMap } from "@audio/tempo-map";
+import styles from "./TransportBar.module.css";
 
 type CursorDisplayProps = {
   transportSAB: SharedArrayBuffer | null;
@@ -51,6 +52,7 @@ export function CursorDisplay({
       ref={spanRef}
       data-testid="cursor-display"
       aria-label="Cursor position"
+      className={styles["cursorDisplay"]}
       style={{
         fontFamily: "var(--font-mono)",
         fontSize: "var(--text-sm)",
