@@ -374,6 +374,63 @@ describe("arrangement-renderer", () => {
       }).not.toThrow();
     });
 
+    it("draws waveform peaks inside audio clips when provided", () => {
+      const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+      const clip = makeClip({
+        id: "c1",
+        trackId: "t1",
+        startTime: 0,
+        duration: 2,
+        sourceId: "src-1",
+      });
+      const clips: Record<string, ClipModel> = { c1: clip };
+      // 4 peak pairs: interleaved [min, max, min, max, ...]
+      const peaksData = new Float32Array([
+        -0.5, 0.5, -0.3, 0.3, -0.8, 0.8, -0.1, 0.1,
+      ]);
+      const clipPeaks: Record<string, { peaks: Float32Array; length: number }> =
+        {
+          "src-1": { peaks: peaksData, length: 4 },
+        };
+      const { rc, mock } = makeRenderContext({ tracks, clips, clipPeaks });
+      renderArrangement(rc);
+
+      // Should draw waveform bars (fillRect calls beyond background/headers/clip fill)
+      // The peaks rendering draws additional fillRect calls for each peak pair
+      const fillCalls = mock.fillRect.mock.calls;
+      expect(fillCalls.length).toBeGreaterThan(5);
+    });
+
+    it("skips waveform peaks for midi clips", () => {
+      const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+      const midiClip: ClipModel = {
+        type: "midi",
+        id: "c1",
+        trackId: "t1",
+        startTime: 0,
+        duration: 2,
+        noteEvents: [],
+        name: "MIDI Clip",
+      };
+      const clips: Record<string, ClipModel> = { c1: midiClip };
+      const { rc } = makeRenderContext({ tracks, clips });
+      expect(() => {
+        renderArrangement(rc);
+      }).not.toThrow();
+    });
+
+    it("handles missing peaks gracefully", () => {
+      const tracks = [makeTrack({ id: "t1", clipIds: ["c1"] })];
+      const clips: Record<string, ClipModel> = {
+        c1: makeClip({ id: "c1", trackId: "t1", sourceId: "no-peaks" }),
+      };
+      // No clipPeaks provided at all
+      const { rc } = makeRenderContext({ tracks, clips });
+      expect(() => {
+        renderArrangement(rc);
+      }).not.toThrow();
+    });
+
     it("draws automation curves as line segments over tracks", () => {
       const tracks = [makeTrack({ id: "t1", name: "Track 1" })];
       const lane = makeAutomationLane({

@@ -25,11 +25,24 @@ describe("SynthEditor", () => {
     expect(screen.getByTestId("virtual-keyboard")).toBeDefined();
   });
 
-  it("renders oscillator type selectors", () => {
+  it("renders RotaryKnob sliders instead of plain range inputs", () => {
     render(<SynthEditor trackId={trackId} />);
-    const selects = screen.getAllByRole("combobox");
+    const sliders = screen.getAllByRole("slider");
+    // All parameter knobs should be RotaryKnob (role="slider")
+    expect(sliders.length).toBeGreaterThanOrEqual(14);
+    // No plain range inputs should remain
+    const rangeInputs = document.querySelectorAll('input[type="range"]');
+    expect(rangeInputs.length).toBe(0);
+  });
+
+  it("renders toggle button groups for type selectors", () => {
+    render(<SynthEditor trackId={trackId} />);
+    const groups = screen.getAllByRole("radiogroup");
     // 2 osc types + 1 filter type + 2 LFO shapes = 5
-    expect(selects.length).toBe(5);
+    expect(groups.length).toBe(5);
+    // No native select elements should remain
+    const selects = document.querySelectorAll("select");
+    expect(selects.length).toBe(0);
   });
 
   it("virtual keyboard triggers note callbacks", () => {

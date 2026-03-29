@@ -6,6 +6,7 @@
 
 import { useCallback } from "react";
 import { tokens } from "@ui/tokens/tokens";
+import { RotaryKnob } from "@ui/controls/RotaryKnob";
 import { useSynthStore } from "@state/synth";
 import { VirtualKeyboard } from "./VirtualKeyboard";
 import { ModulationMatrix } from "./ModulationMatrix";
@@ -50,54 +51,7 @@ const controlRowStyle: React.CSSProperties = {
 
 // ─── Reusable Controls ───
 
-function Knob({
-  label,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit?: string;
-  onChange: (v: number) => void;
-}): React.JSX.Element {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 2,
-      }}
-    >
-      <span style={labelStyle}>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => {
-          onChange(Number(e.target.value));
-        }}
-        style={{ width: 60, accentColor: tokens.color.blue }}
-        data-testid={"knob-" + label.toLowerCase().replace(/\s/g, "-")}
-      />
-      <span style={{ ...labelStyle, fontSize: tokens.text["2xs"] }}>
-        {value.toFixed(step < 1 ? 2 : 0)}
-        {unit ?? ""}
-      </span>
-    </div>
-  );
-}
-
-function TypeSelector<T extends string>({
+function ToggleGroup<T extends string>({
   label,
   value,
   options,
@@ -111,27 +65,40 @@ function TypeSelector<T extends string>({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <span style={labelStyle}>{label}</span>
-      <select
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value as T);
-        }}
-        data-testid={"select-" + label.toLowerCase().replace(/\s/g, "-")}
-        style={{
-          backgroundColor: tokens.color.gray900,
-          color: tokens.color.gray100,
-          border: BORDER,
-          fontFamily: tokens.font.mono,
-          fontSize: tokens.text.xs,
-          padding: "2px 4px",
-        }}
+      <div
+        role="radiogroup"
+        aria-label={label}
+        data-testid={"toggle-" + label.toLowerCase().replace(/\s/g, "-")}
+        style={{ display: "flex", gap: 0 }}
       >
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
+        {options.map((opt) => {
+          const active = opt === value;
+          return (
+            <button
+              key={opt}
+              role="radio"
+              aria-checked={active}
+              onClick={() => {
+                onChange(opt);
+              }}
+              style={{
+                fontFamily: tokens.font.mono,
+                fontSize: tokens.text["2xs"],
+                textTransform: "uppercase",
+                border: BORDER,
+                padding: "2px 4px",
+                cursor: "pointer",
+                backgroundColor: active
+                  ? tokens.color.blue
+                  : tokens.color.gray900,
+                color: active ? tokens.color.white : tokens.color.gray300,
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -195,7 +162,7 @@ export function SynthEditor({
         <section style={sectionStyle} data-testid="osc1-section">
           <span style={{ ...labelStyle, color: tokens.color.blue }}>OSC 1</span>
           <div style={controlRowStyle}>
-            <TypeSelector
+            <ToggleGroup
               label="Type"
               value={p.osc1Type}
               options={WAVEFORM_TYPES}
@@ -203,28 +170,26 @@ export function SynthEditor({
                 set("osc1Type", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Oct"
               value={p.osc1Octave}
               min={-2}
               max={2}
-              step={1}
               onChange={(v) => {
                 set("osc1Octave", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Detune"
               value={p.osc1Detune}
               min={-100}
               max={100}
-              step={1}
-              unit="c"
+              valueText={`${String(p.osc1Detune)}c`}
               onChange={(v) => {
                 set("osc1Detune", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Level"
               value={p.osc1Level}
               min={0}
@@ -241,7 +206,7 @@ export function SynthEditor({
         <section style={sectionStyle} data-testid="osc2-section">
           <span style={{ ...labelStyle, color: tokens.color.pink }}>OSC 2</span>
           <div style={controlRowStyle}>
-            <TypeSelector
+            <ToggleGroup
               label="Type"
               value={p.osc2Type}
               options={WAVEFORM_TYPES}
@@ -249,28 +214,26 @@ export function SynthEditor({
                 set("osc2Type", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Oct"
               value={p.osc2Octave}
               min={-2}
               max={2}
-              step={1}
               onChange={(v) => {
                 set("osc2Octave", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Detune"
               value={p.osc2Detune}
               min={-100}
               max={100}
-              step={1}
-              unit="c"
+              valueText={`${String(p.osc2Detune)}c`}
               onChange={(v) => {
                 set("osc2Detune", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Level"
               value={p.osc2Level}
               min={0}
@@ -292,7 +255,7 @@ export function SynthEditor({
             FILTER
           </span>
           <div style={controlRowStyle}>
-            <TypeSelector
+            <ToggleGroup
               label="Type"
               value={p.filterType}
               options={FILTER_TYPES}
@@ -300,18 +263,17 @@ export function SynthEditor({
                 set("filterType", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Cutoff"
               value={p.filterCutoff}
               min={20}
               max={20000}
-              step={1}
-              unit="Hz"
+              valueText={`${String(p.filterCutoff)}Hz`}
               onChange={(v) => {
                 set("filterCutoff", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Reso"
               value={p.filterResonance}
               min={0.5}
@@ -321,13 +283,12 @@ export function SynthEditor({
                 set("filterResonance", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Env"
               value={p.filterEnvDepth}
               min={-60}
               max={60}
-              step={1}
-              unit="st"
+              valueText={`${String(p.filterEnvDepth)}st`}
               onChange={(v) => {
                 set("filterEnvDepth", v);
               }}
@@ -341,29 +302,29 @@ export function SynthEditor({
             AMP ENV
           </span>
           <div style={controlRowStyle}>
-            <Knob
+            <RotaryKnob
               label="A"
               value={p.ampAttack}
               min={0}
               max={5}
               step={0.01}
-              unit="s"
+              valueText={`${p.ampAttack.toFixed(2)}s`}
               onChange={(v) => {
                 set("ampAttack", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="D"
               value={p.ampDecay}
               min={0}
               max={5}
               step={0.01}
-              unit="s"
+              valueText={`${p.ampDecay.toFixed(2)}s`}
               onChange={(v) => {
                 set("ampDecay", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="S"
               value={p.ampSustain}
               min={0}
@@ -373,13 +334,13 @@ export function SynthEditor({
                 set("ampSustain", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="R"
               value={p.ampRelease}
               min={0}
               max={10}
               step={0.01}
-              unit="s"
+              valueText={`${p.ampRelease.toFixed(2)}s`}
               onChange={(v) => {
                 set("ampRelease", v);
               }}
@@ -393,29 +354,29 @@ export function SynthEditor({
             FLT ENV
           </span>
           <div style={controlRowStyle}>
-            <Knob
+            <RotaryKnob
               label="A"
               value={p.filterAttack}
               min={0}
               max={5}
               step={0.01}
-              unit="s"
+              valueText={`${p.filterAttack.toFixed(2)}s`}
               onChange={(v) => {
                 set("filterAttack", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="D"
               value={p.filterDecay}
               min={0}
               max={5}
               step={0.01}
-              unit="s"
+              valueText={`${p.filterDecay.toFixed(2)}s`}
               onChange={(v) => {
                 set("filterDecay", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="S"
               value={p.filterSustain}
               min={0}
@@ -425,13 +386,13 @@ export function SynthEditor({
                 set("filterSustain", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="R"
               value={p.filterRelease}
               min={0}
               max={10}
               step={0.01}
-              unit="s"
+              valueText={`${p.filterRelease.toFixed(2)}s`}
               onChange={(v) => {
                 set("filterRelease", v);
               }}
@@ -446,7 +407,7 @@ export function SynthEditor({
         <section style={sectionStyle} data-testid="lfo1-section">
           <span style={labelStyle}>LFO 1</span>
           <div style={controlRowStyle}>
-            <TypeSelector
+            <ToggleGroup
               label="Shape"
               value={p.lfo1Shape}
               options={LFO_SHAPES}
@@ -454,18 +415,18 @@ export function SynthEditor({
                 set("lfo1Shape", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Rate"
               value={p.lfo1Rate}
               min={0.1}
               max={20}
               step={0.1}
-              unit="Hz"
+              valueText={`${p.lfo1Rate.toFixed(1)}Hz`}
               onChange={(v) => {
                 set("lfo1Rate", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Depth"
               value={p.lfo1Depth}
               min={0}
@@ -482,7 +443,7 @@ export function SynthEditor({
         <section style={sectionStyle} data-testid="lfo2-section">
           <span style={labelStyle}>LFO 2</span>
           <div style={controlRowStyle}>
-            <TypeSelector
+            <ToggleGroup
               label="Shape"
               value={p.lfo2Shape}
               options={LFO_SHAPES}
@@ -490,18 +451,18 @@ export function SynthEditor({
                 set("lfo2Shape", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Rate"
               value={p.lfo2Rate}
               min={0.1}
               max={20}
               step={0.1}
-              unit="Hz"
+              valueText={`${p.lfo2Rate.toFixed(1)}Hz`}
               onChange={(v) => {
                 set("lfo2Rate", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Depth"
               value={p.lfo2Depth}
               min={0}
@@ -518,7 +479,7 @@ export function SynthEditor({
         <section style={sectionStyle} data-testid="master-section">
           <span style={labelStyle}>MASTER</span>
           <div style={controlRowStyle}>
-            <Knob
+            <RotaryKnob
               label="Gain"
               value={p.masterGain}
               min={0}
@@ -528,13 +489,13 @@ export function SynthEditor({
                 set("masterGain", v);
               }}
             />
-            <Knob
+            <RotaryKnob
               label="Glide"
               value={p.glideTime}
               min={0}
               max={1}
               step={0.01}
-              unit="s"
+              valueText={`${p.glideTime.toFixed(2)}s`}
               onChange={(v) => {
                 set("glideTime", v);
               }}

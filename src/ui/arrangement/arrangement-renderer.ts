@@ -2,6 +2,7 @@
  * Pure canvas renderer for the arrangement view.
  * No DOM access -- only draws to the CanvasRenderingContext2D passed in.
  */
+import { isAudioClip } from "@state/track/types";
 import type { TrackModel, ClipModel } from "@state/track/types";
 import type { AutomationLane } from "@audio/automation/automation-types";
 import { evaluateCurve } from "@audio/automation/automation-curve";
@@ -46,6 +47,7 @@ export type RenderContext = {
   cursorSeconds: number;
   bpm: number;
   automationLanes?: Record<string, readonly AutomationLane[]>;
+  clipPeaks?: Record<string, { peaks: Float32Array; length: number }>;
 };
 
 // -- Helpers ------------------------------------------------------------------
@@ -248,6 +250,34 @@ function drawClips(rc: RenderContext): void {
       // Clip fill (track color at 60% opacity)
       ctx.fillStyle = hexToRgba(track.color, 0.6);
       ctx.fillRect(x, clipY, w, clipH);
+
+      // Waveform peaks (audio clips only)
+      if (isAudioClip(clip)) {
+        const peakData = rc.clipPeaks?.[clip.sourceId];
+        if (peakData && peakData.length > 0) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x, clipY, w, clipH);
+          ctx.clip();
+
+          ctx.fillStyle = "rgba(255,255,255,0.4)";
+          const mid = clipY + clipH / 2;
+          const halfH = clipH / 2;
+          const barWidth = Math.max(1, w / peakData.length);
+
+          for (let p = 0; p < peakData.length; p++) {
+            const min = peakData.peaks[p * 2];
+            const max = peakData.peaks[p * 2 + 1];
+            if (min === undefined || max === undefined) continue;
+            const px = x + (p / peakData.length) * w;
+            const top = mid - max * halfH;
+            const bottom = mid - min * halfH;
+            ctx.fillRect(px, top, barWidth, bottom - top);
+          }
+
+          ctx.restore();
+        }
+      }
 
       // Clip border
       const isSelected = selectedSet.has(clip.id);
