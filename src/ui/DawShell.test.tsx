@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { DawShell } from "./DawShell";
+import { createInMemorySessionStorage } from "@state/session/session-storage";
 
 vi.mock("@audio/transport-provider", () => ({
   TransportProvider: ({
@@ -58,7 +59,8 @@ vi.mock("@audio/media-pool/use-media-pool", () => ({
 
 describe("DawShell", () => {
   it("renders the complete layout structure", () => {
-    render(<DawShell />);
+    const storage = createInMemorySessionStorage();
+    render(<DawShell sessionStorage={storage} />);
     expect(screen.getByTestId("daw-shell")).toBeInTheDocument();
     expect(screen.getByTestId("toolbar")).toBeInTheDocument();
     expect(screen.getByTestId("arrangement-panel")).toBeInTheDocument();

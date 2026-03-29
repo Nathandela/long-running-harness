@@ -68,4 +68,54 @@ describe("createAudioEngine", () => {
       "/worklet.js",
     );
   });
+
+  it("wraps resume() rejection with a descriptive AudioEngineError", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class extends MockAudioContext {
+        override resume(): Promise<void> {
+          return Promise.reject(new Error("autoplay policy"));
+        }
+      },
+    );
+    const failEngine = createAudioEngine();
+    await expect(failEngine.resume()).rejects.toThrow(
+      /audio playback was blocked/i,
+    );
+  });
+
+  it("wraps loadWorkletModule() rejection with a descriptive AudioEngineError", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class extends MockAudioContext {
+        override readonly audioWorklet = {
+          addModule: vi.fn().mockRejectedValue(new Error("network error")),
+        };
+      },
+    );
+    const failEngine = createAudioEngine();
+    await expect(failEngine.loadWorkletModule("/bad.js")).rejects.toThrow(
+      /failed to load audio worklet/i,
+    );
+  });
+
+  it("AudioEngineError includes the original cause", async () => {
+    const original = new Error("the root cause");
+    vi.stubGlobal(
+      "AudioContext",
+      class extends MockAudioContext {
+        override resume(): Promise<void> {
+          return Promise.reject(original);
+        }
+      },
+    );
+    const failEngine = createAudioEngine();
+    try {
+      await failEngine.resume();
+      expect.fail("should have thrown");
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).cause).toBe(original);
+    }
+  });
 });

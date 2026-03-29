@@ -16,19 +16,21 @@ import { RoutingBridgeProvider } from "@audio/mixer/RoutingBridgeProvider";
 import { useMediaPool } from "@audio/media-pool/use-media-pool";
 import { sharedUndoManager } from "@state/undo/shared-undo-manager";
 import { useSessionPersistence } from "@state/session/use-session-persistence";
-import { createInMemorySessionStorage } from "@state/session/index";
+import type { SessionStorage } from "@state/session/session-storage";
 import { createDefaultSession } from "@state/session/session-schema";
 import { hydrateStore } from "@state/session/use-session-persistence";
+import { ErrorBoundary } from "./ErrorBoundary";
 
-// Use in-memory storage until IndexedDB is wired in App-level provider
-const defaultStorage = createInMemorySessionStorage();
-
-function DawShellInner(): React.JSX.Element {
+function DawShellInner({
+  sessionStorage,
+}: {
+  sessionStorage: SessionStorage;
+}): React.JSX.Element {
   const registry = useMemo(() => new CommandRegistry(), []);
   const shortcuts = useMemo(() => new ShortcutMap(), []);
   const pool = useMediaPool();
   const undoManager = sharedUndoManager;
-  const { saveNow, recoveryWarnings } = useSessionPersistence(defaultStorage);
+  const { saveNow, recoveryWarnings } = useSessionPersistence(sessionStorage);
   const [dismissed, setDismissed] = useState(false);
   const showRecovery = !dismissed && recoveryWarnings.length > 0;
 
@@ -49,25 +51,27 @@ function DawShellInner(): React.JSX.Element {
       }}
     >
       <Toolbar />
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          flex: 1,
-          overflow: "hidden",
-        }}
-      >
-        <ArrangementPanel />
-        <MixerPanel />
-        <div style={{ display: "flex", overflow: "hidden" }}>
-          <div style={{ flex: 1 }}>
-            <InstrumentPanel />
-          </div>
-          <div style={{ flex: 1 }}>
-            <MediaPoolPanel pool={pool} />
+      <ErrorBoundary fallbackLabel="Panel crashed">
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            overflow: "hidden",
+          }}
+        >
+          <ArrangementPanel />
+          <MixerPanel />
+          <div style={{ display: "flex", overflow: "hidden" }}>
+            <div style={{ flex: 1 }}>
+              <InstrumentPanel />
+            </div>
+            <div style={{ flex: 1 }}>
+              <MediaPoolPanel pool={pool} />
+            </div>
           </div>
         </div>
-      </div>
+      </ErrorBoundary>
       <RecoveryDialog
         open={showRecovery}
         warnings={recoveryWarnings}
@@ -83,12 +87,16 @@ function DawShellInner(): React.JSX.Element {
   );
 }
 
-export function DawShell(): React.JSX.Element {
+export function DawShell({
+  sessionStorage,
+}: {
+  sessionStorage: SessionStorage;
+}): React.JSX.Element {
   return (
     <TransportProvider>
       <EffectsBridgeProvider>
         <RoutingBridgeProvider>
-          <DawShellInner />
+          <DawShellInner sessionStorage={sessionStorage} />
         </RoutingBridgeProvider>
       </EffectsBridgeProvider>
     </TransportProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   isCrossOriginIsolated,
   createAudioEngine,
@@ -10,7 +10,9 @@ import {
 import { AudioEngineProvider } from "@audio/audio-engine-provider";
 import { MediaPoolProvider } from "@audio/media-pool/media-pool-provider";
 import { CrossOriginError, ClickToStart, DawShell } from "@ui/index";
+import { ErrorBoundary } from "@ui/ErrorBoundary";
 import { useDawStore } from "@state/index";
+import { createIndexedDBSessionStorage } from "@state/session/index";
 
 export function App(): React.JSX.Element {
   const crossOriginOk = isCrossOriginIsolated();
@@ -18,6 +20,7 @@ export function App(): React.JSX.Element {
   const [pool, setPool] = useState<MediaPool | null>(null);
   const engineRef = useRef<AudioEngineContext | null>(null);
   const setEngineStatus = useDawStore((s) => s.setEngineStatus);
+  const sessionStorage = useMemo(() => createIndexedDBSessionStorage(), []);
 
   useEffect(() => {
     if (engine === null) return;
@@ -83,10 +86,12 @@ export function App(): React.JSX.Element {
   }
 
   return (
-    <AudioEngineProvider engine={engine}>
-      <MediaPoolProvider pool={pool}>
-        <DawShell />
-      </MediaPoolProvider>
-    </AudioEngineProvider>
+    <ErrorBoundary>
+      <AudioEngineProvider engine={engine}>
+        <MediaPoolProvider pool={pool}>
+          <DawShell sessionStorage={sessionStorage} />
+        </MediaPoolProvider>
+      </AudioEngineProvider>
+    </ErrorBoundary>
   );
 }

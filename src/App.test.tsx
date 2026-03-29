@@ -20,6 +20,14 @@ vi.mock("@audio/media-pool/idb-storage", async (importOriginal) => {
   };
 });
 
+vi.mock("@state/session/index", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@state/session/index")>();
+  return {
+    ...actual,
+    createIndexedDBSessionStorage: actual.createInMemorySessionStorage,
+  };
+});
+
 function createMockGainNode(): GainNode {
   return {
     gain: { value: 1, setValueAtTime: vi.fn(), setTargetAtTime: vi.fn() },

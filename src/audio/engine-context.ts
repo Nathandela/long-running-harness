@@ -4,6 +4,13 @@
  * and AudioWorklet module loading.
  */
 
+export class AudioEngineError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause });
+    this.name = "AudioEngineError";
+  }
+}
+
 export type AudioEngineState =
   | "uninitialized"
   | "suspended"
@@ -41,7 +48,14 @@ export function createAudioEngine(): AudioEngineContext {
     },
     async resume(): Promise<void> {
       if (ctx.state === "suspended") {
-        await ctx.resume();
+        try {
+          await ctx.resume();
+        } catch (err) {
+          throw new AudioEngineError(
+            "Audio playback was blocked by the browser. Click the page and try again.",
+            err,
+          );
+        }
       }
     },
     async close(): Promise<void> {
@@ -50,7 +64,14 @@ export function createAudioEngine(): AudioEngineContext {
       }
     },
     async loadWorkletModule(url: string): Promise<void> {
-      await ctx.audioWorklet.addModule(url);
+      try {
+        await ctx.audioWorklet.addModule(url);
+      } catch (err) {
+        throw new AudioEngineError(
+          `Failed to load audio worklet module "${url}". Check your network connection and reload.`,
+          err,
+        );
+      }
     },
   };
 
