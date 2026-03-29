@@ -2,24 +2,48 @@ REVIEW_CHANGES_REQUESTED
 
 ---
 
-**1. P2 — `RotaryKnob` visual label ignores `valueText`, displays raw float**
+**1. P2 — `addDrumTrack` caches rejected synthesis promise permanently**
 
-`src/ui/controls/RotaryKnob.tsx:228` renders `{value}` directly. `valueText` is only wired to `aria-valuetext`. For knobs with `step < 1`, `snapToStep` can produce floating-point noise (e.g. `0.10000000000000001`), so the visible label shows garbage. The old `Knob` used `value.toFixed(step < 1 ? 2 : 0)` + `unit`. Fix: render `valueText ?? value` in the visible `<span>`.
+`src/audio/track-audio-bridge.ts:127`
 
----
+```ts
+void getOrSynthesize808Samples(ctx).then((samples) => { ... });
+```
 
-**2. P2 — `ToggleGroup` radiogroup has no arrow-key navigation**
+No `.catch()`. If `synthesize808Samples` rejects (e.g., `OfflineAudioContext` unavailable, OOM), `sampleCachePromise` permanently holds the rejected promise — every subsequent drum track silently never gets a kit. The drum machine UI renders but produces no audio, with no error surfaced.
 
-`src/ui/synth/SynthEditor.tsx:65–104` — The WAI-ARIA radiogroup pattern requires the group to be a single Tab stop and arrow keys to cycle focus+selection between options. The current implementation has no `onKeyDown` on the group; Tab moves through every individual button. This is a keyboard accessibility regression from the native `<select>`.
-
----
-
-**3. P3 — Buffer fetch errors silently swallowed**
-
-`src/audio/TrackAudioBridgeProvider.tsx` — the new `.catch(() => { /* allow retry */ })` discards all errors with no logging. A bad URL or network error will retry silently on every sync tick with no diagnostic trail. Add at minimum a `console.error` or a dev-mode log.
+Fix: add `.catch((err) => { console.error('808 synthesis failed:', err); sampleCachePromise = null; })` so failures reset the cache and are visible.
 
 ---
 
-**4. P3 — Weak waveform peaks test assertion**
+**2. P2 — `renderOffline` fallback path ties AudioBuffer to a specific `AudioContext`**
 
-`src/ui/arrangement/arrangement-renderer.test.ts:385` — `expect(fillCalls.length).toBeGreaterThan(5)` doesn't validate that the correct number of bars (4) were drawn, that they stay within clip bounds, or that the clip path is actually set. A trivially wrong implementation (e.g. drawing 6 filled rects for unrelated reasons) would still pass.
+`src/audio/drum-machine/drum-synthesis.ts:24`
+
+```ts
+const out = targetCtx.createBuffer(1, length, SAMPLE_RATE);
+```
+
+When `targetCtx.sampleRate !== 44100` (macOS defaults to 48000 Hz in some configs), the synthesized buffers are created via `targetCtx.createBuffer()`. These are stored in the module-level `sampleCachePromise`. If the engine's `AudioContext` is ever recreated, the new `getOrSynthesize808Samples(newCtx)` call returns the cached buffers from the closed context.
+
+Note: 44100 Hz contexts return the `OfflineAudioContext`-produced buffer (context-independent) — this path is safe. Only the `sampleRate !== 44100` branch is affected.
+
+Also the comment "Copy to target context's sample rate" is wrong — the output buffer's sample rate is still `SAMPLE_RATE` (44100), not `targetCtx.sampleRate`. SRC happens at playback.
+
+---
+
+**3. P3 — `bridgeRef` module singleton races during React StrictMode remount**
+
+`src/ui/panels.tsx:62-67`, `src/ui/panels.tsx:337-341`
+
+StrictMode's intentional double-mount runs: `setBridgeRef(bridge)` → `setBridgeRef(null)` (cleanup) → `setBridgeRef(bridge)`. Any `setInterval` drum trigger that fires during the null window silently drops (the guard `if (!bridge) return` swallows it). Not a production issue but breaks expected behavior in development.
+
+Longer term, a module-level singleton for a React-lifecycle-managed value is fragile; prefer a context or ref passed to sequencer callbacks.
+
+---
+
+**4. P3 — `ArrangementPanel` playback RAF loop uses stale closure values**
+
+`src/ui/arrangement/ArrangementPanel.tsx:224-252`
+
+The inline `tick` function in the playback RAF branch directly captures `view`, `tracks`, `clips`, `selectedClipIds`, `bpm`, `automationLanes`, `clipPeaks` from the outer closure (stale after mount). This is correct by design — when those change, `render` (a dep) changes, restarting the effect with fresh values. But the `eslint-disable` comment only says "deps trigger effect restart" without explaining the mechanism. If someone later adds state to the tick that isn't a dep of `render`, it'll silently use stale values. The pattern should be documented more explicitly.

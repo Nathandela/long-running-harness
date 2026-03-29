@@ -1,11 +1,9 @@
 You are reviewing code changes made by an autonomous agent loop.
 
 ## Recently Completed Epics/Tasks
-✓ long-running-harness-0ph ● P0 task SharedArrayBuffer layout + MessagePort protocol types
-✓ long-running-harness-20g ● P0 task AudioContext lifecycle + AudioWorklet loading
+✓ long-running-harness-0tc3 ● P0 bug BUG3: Mixer fader/pan don't affect audio
 ✓ long-running-harness-5uh4 ● P0 task Add ROUTING toggle to MixerPanel + wire RoutingMatrix
 ✓ long-running-harness-60p ● P0 task E7-T1: Mixer audio graph engine
-✓ long-running-harness-6vx ● P0 task E6-T1: Track & Clip data models
 ✓ long-running-harness-7pq7 ● P0 epic W1: Track Creation & Panel Wiring
 ├── ✓ long-running-harness-ayef ● P0 epic W3: Piano Roll, Media Drag & Clip Workflow
 ├── ✓ long-running-harness-bs9b ● P0 epic W2: Effects, Routing & Mixer Integration
@@ -13,14 +11,16 @@ You are reviewing code changes made by an autonomous agent loop.
 └── ✓ long-running-harness-w8bo ● P0 epic W5: Audio Engine Bridge (Sound Pipeline)
 ✓ long-running-harness-8yqu ● P0 task W3-T2: Double-click MIDI clip opens piano roll
 ✓ long-running-harness-b4o ● P0 task E7-T2: Solo-in-place state machine
+✓ long-running-harness-bup0 ● P0 epic FIX: Audio Pipeline & Transport
 ✓ long-running-harness-cz0 ● P0 task E7-T6: Mixer panel UI
-✓ long-running-harness-g4l ● P0 task Zustand store skeleton + layout shell
 ✓ long-running-harness-iy45 ● P0 task W3-T3: Media pool drag-to-arrangement
 ✓ long-running-harness-iz6 ● P0 task Add React ErrorBoundary at App and DawShell levels
 ✓ long-running-harness-jooj ● P0 task W3-T1: Bottom panel state switching (piano roll toggle)
-✓ long-running-harness-ku1 ● P0 task Vite COOP/COEP headers + crossOriginIsolated check
+✓ long-running-harness-mx1z ● P0 bug FIX: Transport stop allNotesOff + 808 step sequencer transport wiring + synth param forwarding
 ✓ long-running-harness-qeex ● P0 task Add FX button to ChannelStrip + wire EffectsRack in MixerPanel
-✓ long-running-harness-s4u ● P0 task E6-T2: Track store & arrangement query
+✓ long-running-harness-r3io ● P0 epic FIX: MIDI Clip Playback During Transport
+✓ long-running-harness-uuln ● P0 bug BUG2: Drums have silent placeholder samples
+✓ long-running-harness-xwcc ● P0 bug BUG1: Cursor doesn't move during playback
 ✓ long-running-harness-y33 ● P0 task E7-T4: Clip playback scheduler
 
 --------------------------------------------------------------------------------
@@ -29,8 +29,8 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-929763f chore: auto-commit uncommitted changes from long-running-harness-sf6v
-3096f84 Visual polish: RotaryKnobs, toggle groups, waveform peaks (W6 epic)
+f4466c5 chore: auto-commit uncommitted changes from long-running-harness-bup0
+b577444 Fix audio pipeline: cursor movement, 808 drum synthesis, mixer forwarding
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and

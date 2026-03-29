@@ -1,0 +1,46 @@
+Now let me understand the codebase structure by reading the key files mentioned in the epic.Now let me read the key files I need to modify directly.Now let me check the existing tests, arrangement panel, and keyboard handling to understand how they're wired.Now I have a thorough understanding of the codebase. Let me check the bounce engine for the `mapPitchToDrum` function and look at existing keyboard handling.No keyboard handling exists in the arrangement yet. Let me also check the store for `trimClip` to understand MIDI clip trimming, and check for the `StepSequencer` class.I see that `trimClip` in the store only handles audio clips (`if (!isAudioClip(clip)) return state;`). This is one of the bugs! Let me read the full trimClip implementation, and find the StepSequencer class used in the app.Now let me read the bounce engine to get the full PITCH_TO_DRUM map.Now I have all the context I need. Let me check the existing test infrastructure to understand how tests are run.Now I have comprehensive understanding of the codebase. Let me plan and then implement. I'll break this into clear sub-tasks:
+
+1. **BUG 5 - Synth notes stick on rapid clicks**: Fix VirtualKeyboard to release before re-triggering
+2. **BUG 4 - Cannot remove tracks**: Add delete button in track headers + Delete key handler 
+3. **BUG 6 - MIDI clips can't be resized or deleted**: Fix trimClip for MIDI clips + add Delete key for clips
+4. **808 Pattern to Timeline**: Add "Commit to Timeline" button + extract mapPitchToDrum
+
+Let me start by writing tests, then implementing.Starting with BUG 5 - the simplest fix. The `handleMouseDown` currently skips if the note is already active, but should instead release first then re-trigger.Now BUG 6 - Fix `trimClip` in store.ts to handle MIDI clips too.Now I need to add keyboard handling for Delete key (clips and tracks) in the ArrangementPanel. The arrangement uses canvas, so I need to add a `onKeyDown` handler. Let me also add the trim-left/trim-right handling for MIDI clips in `use-arrangement-interactions.ts` — looking at the code, the trim handlers already work for any clip type since they call `state.trimClip()` which we just fixed. The `originalSourceOffset` in the drag state defaults to 0 for non-audio clips. So the trim interactions should now work.
+
+Let me add the keyboard Delete handler to the ArrangementPanel.I'll add a `onKeyDown` handler to the interactions hook that handles Delete/Backspace for both clips and tracks.Now add the `onKeyDown` handler before the return statement:Now wire the `onKeyDown` into the ArrangementPanel canvas:Now BUG 4 - Add delete button to track headers in the canvas renderer. I need to add a visual "X" button and detect clicks on it in the hit-test.
+
+First, let me add a new hit result kind for the delete button:Now add the delete button hit detection in the header area. I need to export the button dimensions so the renderer can draw it:Now update hit-test to detect clicks on the delete button area within the track header:Now draw the delete button in the arrangement renderer:Now add the delete button drawing after the mute/solo indicators in `drawTrackHeaders`:Now handle the delete button click in `use-arrangement-interactions.ts`:Now for the 808 Pattern to Timeline feature. I need to:
+1. Extract `mapPitchToDrum` to a shared location (or create the reverse: drumId to pitch mapping)
+2. Add a "Commit to Timeline" button in DrumMachinePanel
+3. Wire it through the controller in panels.tsx
+
+First, let me create a shared drum-pitch mapping utility. I need a function that maps DrumInstrumentId to MIDI pitch:I'll add the pitch mapping to `drum-types.ts` since that's where the instrument definitions live, and then also export `mapPitchToDrum` from there (and update the bounce engine to use it).Update the index to export these:Now update the bounce engine to use the shared function instead of its local copy:Now remove the local `PITCH_TO_DRUM` and `mapPitchToDrum` from the bounce engine:Now add the "Commit to Timeline" button to `DrumMachinePanel`. First, I need to add a prop for it:Now add the "Commit to Timeline" button in the header, after the CLR button:Now wire the commit handler in `panels.tsx`. I need to:
+1. Read the current 16-step pattern
+2. Convert active steps to MIDI note events using `DRUM_TO_PITCH`
+3. Create a MidiClipModel (duration = 1 bar)
+4. Place it on the drum track at the current cursor position via AddClipCommandNow add the `onCommitToTimeline` handler to `useDrumMachineState`:Now add the implementation after `onClearPattern`:Now pass it through the DrumMachineController:Now let me write tests. First let me read the existing test files to understand test patterns.Now I'll write tests. Let me check if there's a VirtualKeyboard test:No existing VirtualKeyboard test. Let me also check how types are imported in the test files:I see the test uses `ClipModel` in the code at line 114 but only imports `AudioClipModel`. Let me check:Interesting - it uses `ClipModel` without importing it. That must work because it's inferring from the Record type. Let me check if this actually compiles... Actually looking at the import, it only imports `AudioClipModel` but uses `ClipModel`. This might be a TS type that's available via the `Record<string, ClipModel>` usage in `hitTest` function signature. No - `ClipModel` would need to be imported. Let me check if there's a setup file:The test file has `ClipModel` used without import — it's likely relying on vitest globals. Let me now write the test files. I'll write tests for the new features in parallel using agents.All tests written. Now let me also write a test for the `mapPitchToDrum` and `DRUM_TO_PITCH` exports, and for the MIDI clip trimming in the store. Let me also add a test for the `onCommitToTimeline` logic in panels.tsx.Let me add tests for `mapPitchToDrum` and `DRUM_TO_PITCH`:Now let me add a test for MIDI clip trimming in the store. Let me find existing store tests:All 1551 tests pass across 139 test files. Now let me also run lint to make sure there are no type errors:I need to fix lint errors in the test files. Let me fix them:Now fix the unused imports in the other test files:The imports `DELETE_BTN_SIZE` and `DELETE_BTN_MARGIN` are imported but not used as values (the test uses hardcoded coordinates). Let me check the test to see if they're used:Now fix the unused MidiClipModel import in the interactions test:Only imported, not used. Remove it:One error left — `DrumInstrumentId` is now unused in bounce-engine.ts since `mapPitchToDrum` (which returns that type) is now imported from drum-types. Let me check if it's still used:Only in the import. Let me check what's used from that import:Zero errors, only pre-existing warnings. Let me run tests once more to confirm everything is green:All 1551 tests pass, 0 errors in lint. Now let me commit and push.Pre-commit hook failed due to prettier formatting. Let me fix:Good, formatting done. Now re-stage and commit:Commit successful. Now push and close the epic:EPIC_COMPLETE
+
+## Summary
+
+All 4 items in the epic **FIX: Track Management & MIDI Clip Editing** have been implemented:
+
+**BUG 4 - Track Deletion:**
+- Added X delete button rendered on canvas in track headers (`arrangement-renderer.ts`)
+- Added `track-delete-button` hit result in `hit-test.ts` with proper click detection
+- Delete/Backspace key removes selected tracks (when no clips selected)
+- All operations use `RemoveTrackCommand` for full undo support
+
+**BUG 5 - Stuck Synth Notes:**
+- `VirtualKeyboard.tsx`: `handleMouseDown` now fires `noteOff` before `noteOn` when a key is already active, preventing voice accumulation on rapid clicks
+
+**BUG 6 - MIDI Clip Resize/Delete:**
+- Fixed `store.ts:trimClip()` to handle MIDI clips (was returning early for non-audio clips)
+- Delete key removes selected clips via `RemoveClipCommand`
+- MIDI clip edge detection already worked in hit-test (no changes needed)
+
+**808 Pattern to Timeline:**
+- Added "COMMIT" button in `DrumMachinePanel`
+- `panels.tsx:onCommitToTimeline()` reads the 16-step pattern, converts active steps to MIDI note events using `DRUM_TO_PITCH` mapping, and creates a `MidiClipModel` at the cursor position
+- Extracted `mapPitchToDrum` and `DRUM_TO_PITCH` to shared `drum-types.ts` module; bounce-engine imports from there
+
+**Tests:** 1551 tests passing, 0 lint errors.
