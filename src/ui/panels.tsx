@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import { SynthEditor } from "@ui/synth";
 import { DrumMachinePanel } from "@ui/drum-machine";
-import { createStepSequencer } from "@audio/drum-machine/step-sequencer";
+import {
+  createStepSequencer,
+  type StepSequencer,
+} from "@audio/drum-machine/step-sequencer";
 import { useTransport } from "@audio/use-transport";
 import {
   DRUM_INSTRUMENTS,
@@ -13,7 +16,21 @@ import {
 } from "@audio/drum-machine/drum-types";
 import styles from "./panels.module.css";
 
-function useDrumMachineState(): {
+// Module-level cache: preserves sequencer state across unmount/remount cycles
+const sequencerCache = new Map<string, StepSequencer>();
+
+function getOrCreateSequencer(trackId: string): StepSequencer {
+  let seq = sequencerCache.get(trackId);
+  if (!seq) {
+    seq = createStepSequencer(() => {
+      // Trigger callback - audio playback handled separately
+    });
+    sequencerCache.set(trackId, seq);
+  }
+  return seq;
+}
+
+function useDrumMachineState(trackId: string): {
   pattern: DrumPattern;
   currentStep: number;
   params: Record<DrumInstrumentId, DrumInstrumentParams>;
@@ -32,11 +49,7 @@ function useDrumMachineState(): {
   const transportState = useDawStore((s) => s.transportState);
   const bpm = useDawStore((s) => s.bpm);
 
-  const [seq] = useState(() =>
-    createStepSequencer(() => {
-      // Trigger callback - audio playback handled separately
-    }),
-  );
+  const seq = getOrCreateSequencer(trackId);
 
   const [pattern, setPattern] = useState<DrumPattern>(() => seq.getPattern());
   const [liveStep, setLiveStep] = useState(0);
@@ -49,6 +62,11 @@ function useDrumMachineState(): {
     }
     return initial;
   });
+
+  // Sync pattern when trackId changes (sequencer instance changes)
+  useEffect(() => {
+    setPattern(seq.getPattern());
+  }, [seq]);
 
   // Transport sync: advance step indicator when playing
   const rafRef = useRef(0);
@@ -64,7 +82,7 @@ function useDrumMachineState(): {
     const tick = (): void => {
       const cursor = clock.getCursorSeconds();
       const stepDuration = 60 / (bpm * stepsPerBeat);
-      const step = Math.floor(cursor / stepDuration) % 16;
+      const step = Math.floor(cursor / stepDuration) % pattern.steps.length;
       if (step !== lastStep) {
         lastStep = step;
         setLiveStep(step);
@@ -76,7 +94,7 @@ function useDrumMachineState(): {
     return () => {
       cancelAnimationFrame(rafRef.current);
     };
-  }, [transportState, transport, bpm]);
+  }, [transportState, transport, bpm, pattern.steps.length]);
 
   // Derive currentStep: 0 when stopped, liveStep when playing/paused
   const currentStep = transportState === "stopped" ? 0 : liveStep;
@@ -97,10 +115,10 @@ function useDrumMachineState(): {
     [seq],
   );
 
-  const onTriggerPad = useCallback((_instrumentId: DrumInstrumentId) => {
-    // Audio triggering handled by audio layer
-  }, []);
+  // TODO: wire to audio engine for pad preview
+  const onTriggerPad = useCallback((_instrumentId: DrumInstrumentId) => {}, []);
 
+  // TODO: propagate param changes to audio engine
   const onParamChange = useCallback(
     (
       instrumentId: DrumInstrumentId,
@@ -141,8 +159,12 @@ function useDrumMachineState(): {
   };
 }
 
-function DrumMachineController(): React.JSX.Element {
-  const state = useDrumMachineState();
+function DrumMachineController({
+  trackId,
+}: {
+  trackId: string;
+}): React.JSX.Element {
+  const state = useDrumMachineState(trackId);
   return (
     <DrumMachinePanel
       pattern={state.pattern}
@@ -181,7 +203,10 @@ export function InstrumentPanel(): React.JSX.Element {
         data-testid="instrument-panel"
         className={styles["instrumentPanelFull"]}
       >
-        <DrumMachineController />
+        <DrumMachineController
+          key={selectedTrack.id}
+          trackId={selectedTrack.id}
+        />
       </section>
     );
   }

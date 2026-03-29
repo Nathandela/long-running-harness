@@ -58,13 +58,17 @@ export function TransportBar(): React.JSX.Element {
 
   const handleAddTrack = useCallback(
     (type: TrackType, color: string, namePrefix: string): void => {
-      const trackCount = useDawStore
+      const existing = useDawStore
         .getState()
-        .tracks.filter((t) => t.type === type).length;
+        .tracks.filter((t) => t.type === type);
+      const maxNum = existing.reduce((max, t) => {
+        const match = t.name.match(new RegExp(`^${namePrefix} (\\d+)$`));
+        return match ? Math.max(max, Number(match[1])) : max;
+      }, 0);
       const id = crypto.randomUUID();
       addTrack({
         id,
-        name: `${namePrefix} ${String(trackCount + 1)}`,
+        name: `${namePrefix} ${String(maxNum + 1)}`,
         type,
         color,
         muted: false,
@@ -81,7 +85,7 @@ export function TransportBar(): React.JSX.Element {
     [addTrack, setSelectedTrackIds],
   );
 
-  // Close menu on outside click
+  // Close menu on outside click or Escape key
   useEffect(() => {
     if (!addMenuOpen) return;
     const handleClick = (e: MouseEvent): void => {
@@ -92,9 +96,16 @@ export function TransportBar(): React.JSX.Element {
         setAddMenuOpen(false);
       }
     };
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === "Escape") {
+        setAddMenuOpen(false);
+      }
+    };
     document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [addMenuOpen]);
 
@@ -111,6 +122,8 @@ export function TransportBar(): React.JSX.Element {
           type="button"
           className={styles["transportBtn"]}
           aria-label="Add Track"
+          aria-haspopup="menu"
+          aria-expanded={addMenuOpen}
           onClick={() => {
             setAddMenuOpen((prev) => !prev);
           }}

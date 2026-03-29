@@ -28,13 +28,13 @@ vi.mock("@audio/use-transport", () => ({
   }),
 }));
 
-// Mock synth store
-vi.mock("@state/synth/synth-store", () => ({
-  useSynthStore: vi.fn(() => ({
-    params: {},
-    setParam: vi.fn(),
-  })),
-}));
+// Mock synth store - shallow mock sufficient for non-instrument tests,
+// instrument test initializes real store via dynamic import
+vi.mock("@state/synth/synth-store", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@state/synth/synth-store")>();
+  return actual;
+});
 
 function makeTrack(
   overrides: Partial<TrackModel> & { id: string; type: TrackModel["type"] },
@@ -159,6 +159,18 @@ describe("InstrumentPanel", () => {
     const { InstrumentPanel } = await import("@ui/panels");
     render(<InstrumentPanel />);
     expect(screen.getByText("AUDIO TRACK")).toBeInTheDocument();
+  });
+
+  it("shows SynthEditor for instrument tracks", async () => {
+    const { useSynthStore } = await import("@state/synth/synth-store");
+    useSynthStore.getState().initSynth("i1");
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "i1", type: "instrument", color: "#D94A90" })],
+      selectedTrackIds: ["i1"],
+    });
+    const { InstrumentPanel } = await import("@ui/panels");
+    render(<InstrumentPanel />);
+    expect(screen.getByTestId("synth-editor")).toBeInTheDocument();
   });
 
   it("shows DrumMachinePanel for drum tracks", async () => {
