@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { MediaPoolPanel } from "./MediaPoolPanel";
 import type { AudioSourceHandle, MediaPool } from "@audio/media-pool";
@@ -51,5 +52,19 @@ describe("MediaPoolPanel", () => {
   it("renders media pool panel with test ID", () => {
     render(<MediaPoolPanel pool={mockPool()} />);
     expect(screen.getByTestId("media-pool-panel")).toBeInTheDocument();
+  });
+
+  it("shows error when removeSource fails", async () => {
+    const pool = mockPool([SAMPLE_HANDLE]);
+    (pool.removeSource as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("IDB error"),
+    );
+    render(<MediaPoolPanel pool={pool} />);
+    // Click the remove button on the item
+    const removeBtn = screen.getByRole("button", { name: /remove/i });
+    await act(async () => {
+      await userEvent.click(removeBtn);
+    });
+    expect(await screen.findByText(/failed to remove/i)).toBeInTheDocument();
   });
 });

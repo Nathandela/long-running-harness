@@ -34,6 +34,7 @@ export function MediaPoolPanel({
   const sources = useMemo(() => pool.listSources(), [pool, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const [peaksMap, setPeaksMap] = useState(new Map<string, WaveformPeaks>());
   const [errors, setErrors] = useState<MediaPoolError[]>([]);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const importingRef = useRef(false);
   const autoDismissTimerRef = useRef(0);
@@ -96,14 +97,20 @@ export function MediaPoolPanel({
 
   const handleRemove = useCallback(
     (id: string) => {
-      void pool.removeSource(id).then(() => {
-        setVersion((v) => v + 1);
-        setPeaksMap((prev) => {
-          const next = new Map(prev);
-          next.delete(id);
-          return next;
+      void pool
+        .removeSource(id)
+        .then(() => {
+          setVersion((v) => v + 1);
+          setPeaksMap((prev) => {
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+          });
+        })
+        .catch(() => {
+          const name = pool.getSource(id)?.name ?? id;
+          setRemoveError(`Failed to remove "${name}".`);
         });
-      });
     },
     [pool],
   );
@@ -161,17 +168,19 @@ export function MediaPoolPanel({
         />
       </div>
 
-      {errors.length > 0 && (
+      {(errors.length > 0 || removeError !== null) && (
         <div className={styles["error"]}>
           {errors.map((err, i) => (
             <div key={i}>{formatError(err)}</div>
           ))}
+          {removeError !== null && <div>{removeError}</div>}
           <button
             type="button"
             className={styles["dismissBtn"]}
             onClick={() => {
               window.clearTimeout(autoDismissTimerRef.current);
               setErrors([]);
+              setRemoveError(null);
             }}
             aria-label="Dismiss errors"
           >

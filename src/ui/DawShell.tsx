@@ -25,8 +25,10 @@ import { ActionToast } from "./primitives/ActionToast";
 
 function DawShellInner({
   sessionStorage,
+  idbWarning,
 }: {
   sessionStorage: SessionStorage;
+  idbWarning: boolean;
 }): React.JSX.Element {
   const registry = useMemo(() => new CommandRegistry(), []);
   const shortcuts = useMemo(() => new ShortcutMap(), []);
@@ -45,6 +47,12 @@ function DawShellInner({
     toastCountRef.current += 1;
     setToastMessage(`${msg}#${String(toastCountRef.current)}`);
   }, []);
+
+  useEffect(() => {
+    if (idbWarning) {
+      showToast("Storage unavailable -- changes won't persist");
+    }
+  }, [idbWarning, showToast]);
 
   useTransportShortcuts(registry, shortcuts);
   useSessionShortcuts(
@@ -132,14 +140,19 @@ function DawShellInner({
 
 export function DawShell({
   sessionStorage,
+  idbWarning = false,
 }: {
   sessionStorage: SessionStorage;
+  idbWarning?: boolean;
 }): React.JSX.Element {
   return (
     <TransportProvider>
       <EffectsBridgeProvider>
         <RoutingBridgeProvider>
-          <DawShellInner sessionStorage={sessionStorage} />
+          <DawShellInner
+            sessionStorage={sessionStorage}
+            idbWarning={idbWarning}
+          />
         </RoutingBridgeProvider>
       </EffectsBridgeProvider>
     </TransportProvider>

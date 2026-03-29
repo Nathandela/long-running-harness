@@ -18,6 +18,7 @@ export function App(): React.JSX.Element {
   const crossOriginOk = isCrossOriginIsolated();
   const [engine, setEngine] = useState<AudioEngineContext | null>(null);
   const [pool, setPool] = useState<MediaPool | null>(null);
+  const [idbWarning, setIdbWarning] = useState(false);
   const engineRef = useRef<AudioEngineContext | null>(null);
   const setEngineStatus = useDawStore((s) => s.setEngineStatus);
   const sessionStorage = useMemo(() => createIndexedDBSessionStorage(), []);
@@ -33,7 +34,10 @@ export function App(): React.JSX.Element {
       },
       () => {
         // IDB init failed -- pool works but starts empty
-        if (!cancelled) setPool(p);
+        if (!cancelled) {
+          setPool(p);
+          setIdbWarning(true);
+        }
       },
     );
     return () => {
@@ -42,7 +46,7 @@ export function App(): React.JSX.Element {
     };
   }, [engine]);
 
-  const handleStart = useCallback((): void => {
+  const handleStart = useCallback(async (): Promise<void> => {
     if (engineRef.current) return;
 
     let newEngine: AudioEngineContext;
@@ -50,24 +54,23 @@ export function App(): React.JSX.Element {
       newEngine = createAudioEngine();
     } catch {
       setEngineStatus("error");
-      return;
+      throw new Error("Failed to create audio engine");
     }
 
     engineRef.current = newEngine;
-    newEngine.resume().then(
-      () => {
-        if (engineRef.current !== newEngine) return;
-        setEngineStatus("running");
-        setEngine(newEngine);
-      },
-      () => {
-        void newEngine.close();
-        if (engineRef.current === newEngine) {
-          engineRef.current = null;
-        }
-        setEngineStatus("error");
-      },
-    );
+    try {
+      await newEngine.resume();
+      if (engineRef.current !== newEngine) return;
+      setEngineStatus("running");
+      setEngine(newEngine);
+    } catch {
+      void newEngine.close();
+      if (engineRef.current === newEngine) {
+        engineRef.current = null;
+      }
+      setEngineStatus("error");
+      throw new Error("Failed to resume audio engine");
+    }
   }, [setEngineStatus]);
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export function App(): React.JSX.Element {
     <ErrorBoundary>
       <AudioEngineProvider engine={engine}>
         <MediaPoolProvider pool={pool}>
-          <DawShell sessionStorage={sessionStorage} />
+          <DawShell sessionStorage={sessionStorage} idbWarning={idbWarning} />
         </MediaPoolProvider>
       </AudioEngineProvider>
     </ErrorBoundary>

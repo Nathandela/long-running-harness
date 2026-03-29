@@ -71,4 +71,38 @@ describe("SessionBrowser", () => {
     await userEvent.click(screen.getByTestId("delete-s1"));
     expect(await screen.findByText("No saved sessions")).toBeDefined();
   });
+
+  it("shows error when listSessions fails", async () => {
+    const storage = createInMemorySessionStorage();
+    vi.spyOn(storage, "listSessions").mockRejectedValue(new Error("IDB error"));
+    render(
+      <SessionBrowser
+        open={true}
+        storage={storage}
+        onLoad={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText("Failed to load sessions.")).toBeDefined();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeDefined();
+  });
+
+  it("shows error when deleteSession fails", async () => {
+    const storage = createInMemorySessionStorage();
+    await storage.putSession("s1", "My Song", "{}");
+    vi.spyOn(storage, "deleteSession").mockRejectedValue(
+      new Error("IDB error"),
+    );
+    render(
+      <SessionBrowser
+        open={true}
+        storage={storage}
+        onLoad={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("My Song");
+    await userEvent.click(screen.getByTestId("delete-s1"));
+    expect(await screen.findByText("Failed to delete session.")).toBeDefined();
+  });
 });

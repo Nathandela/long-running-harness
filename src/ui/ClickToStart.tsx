@@ -1,24 +1,47 @@
 import { useState } from "react";
 import { Spinner } from "./primitives/Spinner";
 
+export const ENGINE_TIMEOUT_MS = 30_000;
+
 type ClickToStartProps = {
-  onStart: () => void;
+  onStart: () => Promise<void>;
 };
 
 export function ClickToStart({
   onStart,
 }: ClickToStartProps): React.JSX.Element {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleClick = (): void => {
+  const handleClick = async (): Promise<void> => {
     setLoading(true);
-    onStart();
+    setError(null);
+    try {
+      await Promise.race([
+        onStart(),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error("timeout"));
+          }, ENGINE_TIMEOUT_MS);
+        }),
+      ]);
+    } catch (e) {
+      setLoading(false);
+      const isTimeout = e instanceof Error && e.message === "timeout";
+      setError(
+        isTimeout
+          ? "Audio engine timed out. Click to retry."
+          : "Failed to start audio engine. Click to retry.",
+      );
+    }
   };
 
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => {
+        void handleClick();
+      }}
       disabled={loading}
       style={{
         position: "fixed",
@@ -59,6 +82,15 @@ export function ClickToStart({
             <Spinner />
             <span>Starting audio engine...</span>
           </div>
+        ) : error !== null ? (
+          <p
+            style={{
+              fontSize: "var(--text-base)",
+              color: "var(--color-error)",
+            }}
+          >
+            {error}
+          </p>
         ) : (
           <p
             style={{

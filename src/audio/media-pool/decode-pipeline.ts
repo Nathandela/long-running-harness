@@ -2,6 +2,7 @@ import { detectAudioFormat } from "./magic-bytes";
 import type { AudioSourceHandle, DecodeResult } from "./types";
 
 export const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB
+export const DECODE_TIMEOUT_MS = 15_000;
 
 const HEADER_BYTES = 12;
 
@@ -47,11 +48,17 @@ export async function decodeAudioFile(
     };
   }
 
-  // Gate 3: decode
+  // Gate 3: decode with timeout
   const arrayBuffer = await file.arrayBuffer();
   let audioBuffer: AudioBuffer;
   try {
-    audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    const decodePromise = ctx.decodeAudioData(arrayBuffer);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("decode-timeout"));
+      }, DECODE_TIMEOUT_MS);
+    });
+    audioBuffer = await Promise.race([decodePromise, timeoutPromise]);
   } catch {
     return {
       ok: false,

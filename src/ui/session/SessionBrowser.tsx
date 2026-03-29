@@ -17,9 +17,18 @@ export function SessionBrowser({
   onClose,
 }: SessionBrowserProps): React.JSX.Element {
   const [sessions, setSessions] = useState<SessionListEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback((): void => {
-    void storage.listSessions().then(setSessions);
+    void storage
+      .listSessions()
+      .then((list) => {
+        setSessions(list);
+        setError(null);
+      })
+      .catch(() => {
+        setError("Failed to load sessions.");
+      });
   }, [storage]);
 
   useEffect(() => {
@@ -29,12 +38,24 @@ export function SessionBrowser({
   }, [open, refresh]);
 
   function handleDelete(id: string): void {
-    void storage.deleteSession(id).then(refresh);
+    void storage
+      .deleteSession(id)
+      .then(refresh)
+      .catch(() => {
+        setError("Failed to delete session.");
+      });
   }
 
   return (
     <Modal open={open} onClose={onClose} title="Sessions">
-      {sessions.length === 0 ? (
+      {error !== null ? (
+        <div>
+          <p style={{ color: "var(--color-error)" }}>{error}</p>
+          <Button size="sm" onClick={refresh}>
+            Retry
+          </Button>
+        </div>
+      ) : sessions.length === 0 ? (
         <p>No saved sessions</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>

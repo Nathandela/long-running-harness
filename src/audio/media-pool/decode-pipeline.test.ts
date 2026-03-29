@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { decodeAudioFile, MAX_FILE_SIZE_BYTES } from "./decode-pipeline";
+import {
+  decodeAudioFile,
+  MAX_FILE_SIZE_BYTES,
+  DECODE_TIMEOUT_MS,
+} from "./decode-pipeline";
 
 function mockAudioBuffer(opts: {
   length?: number;
@@ -172,5 +176,27 @@ describe("decodeAudioFile", () => {
     if (!result.ok) {
       expect(result.error.kind).toBe("unsupported-format");
     }
+  });
+
+  it("times out if decodeAudioData hangs", async () => {
+    vi.useFakeTimers();
+    const file = makeFile("hang.wav", wavHeader(), 1000);
+    ctx.decodeAudioData.mockReturnValue(new Promise(() => {})); // never resolves
+
+    const resultPromise = decodeAudioFile(
+      file,
+      ctx as unknown as BaseAudioContext,
+    );
+
+    // advanceTimersByTimeAsync also flushes pending microtasks (file.arrayBuffer etc.)
+    await vi.advanceTimersByTimeAsync(DECODE_TIMEOUT_MS);
+    const result = await resultPromise;
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("decode-failed");
+      expect(result.error.fileName).toBe("hang.wav");
+    }
+    vi.useRealTimers();
   });
 });
