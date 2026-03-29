@@ -1,14 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useDawStore } from "@state/store";
+import { useEffectsStore } from "@state/effects";
 import type { TrackModel } from "@state/track/types";
+import {
+  createEffectRegistry,
+  createReverbFactory,
+  createDelayFactory,
+} from "@audio/effects";
 import { MixerPanel } from "./MixerPanel";
+
+const testRegistry = createEffectRegistry();
+testRegistry.register(createReverbFactory());
+testRegistry.register(createDelayFactory());
 
 vi.mock("./useMeterData", () => ({
   useMeterData: () => ({
     channels: {},
     master: { level: 0, peak: 0, clipping: false },
   }),
+}));
+
+vi.mock("@audio/effects/EffectsBridgeProvider", () => ({
+  useEffectsBridgeContext: () => ({ registry: testRegistry }),
 }));
 
 function makeTrack(overrides: Partial<TrackModel> = {}): TrackModel {
@@ -103,5 +117,78 @@ describe("MixerPanel", () => {
   it("displays MASTER label on master strip", () => {
     render(<MixerPanel />);
     expect(screen.getByText("MASTER")).toBeDefined();
+  });
+
+  it("renders FX button on each channel strip", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1", name: "Drums" })],
+    });
+    render(<MixerPanel />);
+    expect(screen.getByLabelText("Toggle effects for Drums")).toBeDefined();
+  });
+
+  it("shows EffectsRack when FX button is clicked", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1", name: "Drums" })],
+    });
+    useEffectsStore.setState({ trackEffects: {} });
+
+    render(<MixerPanel />);
+    fireEvent.click(screen.getByLabelText("Toggle effects for Drums"));
+    expect(screen.getByTestId("effects-rack")).toBeDefined();
+  });
+
+  it("hides EffectsRack when FX button is clicked again", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1", name: "Drums" })],
+    });
+    useEffectsStore.setState({ trackEffects: {} });
+
+    render(<MixerPanel />);
+    const fxBtn = screen.getByLabelText("Toggle effects for Drums");
+    fireEvent.click(fxBtn);
+    expect(screen.getByTestId("effects-rack")).toBeDefined();
+    fireEvent.click(fxBtn);
+    expect(screen.queryByTestId("effects-rack")).toBeNull();
+  });
+
+  it("switches EffectsRack to different track when another FX button is clicked", () => {
+    useDawStore.setState({
+      tracks: [
+        makeTrack({ id: "t1", name: "Drums" }),
+        makeTrack({ id: "t2", name: "Bass" }),
+      ],
+    });
+    useEffectsStore.setState({ trackEffects: {} });
+
+    render(<MixerPanel />);
+    fireEvent.click(screen.getByLabelText("Toggle effects for Drums"));
+    expect(screen.getByTestId("effects-rack")).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText("Toggle effects for Bass"));
+    expect(screen.getByTestId("effects-rack")).toBeDefined();
+  });
+
+  it("renders ROUTING toggle button", () => {
+    render(<MixerPanel />);
+    expect(screen.getByLabelText("Toggle routing matrix")).toBeDefined();
+  });
+
+  it("shows RoutingMatrix when ROUTING button is clicked", () => {
+    useDawStore.setState({
+      tracks: [makeTrack({ id: "t1", name: "Drums" })],
+    });
+    render(<MixerPanel />);
+    fireEvent.click(screen.getByLabelText("Toggle routing matrix"));
+    expect(screen.getByTestId("routing-matrix")).toBeDefined();
+  });
+
+  it("hides RoutingMatrix when ROUTING button is clicked again", () => {
+    render(<MixerPanel />);
+    const btn = screen.getByLabelText("Toggle routing matrix");
+    fireEvent.click(btn);
+    expect(screen.getByTestId("routing-matrix")).toBeDefined();
+    fireEvent.click(btn);
+    expect(screen.queryByTestId("routing-matrix")).toBeNull();
   });
 });

@@ -21,10 +21,12 @@ type ChannelStripProps = {
   meterLevel: number;
   meterPeak: number;
   clipping: boolean;
+  fxActive: boolean;
   onVolumeChange: (trackId: string, volume: number) => void;
   onPanChange: (trackId: string, pan: number) => void;
   onMuteToggle: (trackId: string) => void;
   onSoloToggle: (trackId: string) => void;
+  onFxToggle: (trackId: string) => void;
 };
 
 export function ChannelStrip({
@@ -38,10 +40,12 @@ export function ChannelStrip({
   meterLevel,
   meterPeak,
   clipping,
+  fxActive,
   onVolumeChange,
   onPanChange,
   onMuteToggle,
   onSoloToggle,
+  onFxToggle,
 }: ChannelStripProps): React.JSX.Element {
   const handleVolume = useCallback(
     (v: number) => {
@@ -61,6 +65,9 @@ export function ChannelStrip({
   const handleSolo = useCallback(() => {
     onSoloToggle(trackId);
   }, [trackId, onSoloToggle]);
+  const handleFx = useCallback(() => {
+    onFxToggle(trackId);
+  }, [trackId, onFxToggle]);
 
   const stripClass = [styles["strip"], muted ? styles["strip-muted"] : ""]
     .filter(Boolean)
@@ -132,6 +139,17 @@ export function ChannelStrip({
           S
         </button>
       </div>
+      <button
+        className={
+          fxActive ? (styles["btn-fx-active"] ?? "") : (styles["btn"] ?? "")
+        }
+        onClick={handleFx}
+        aria-label={`Toggle effects for ${name}`}
+        aria-pressed={fxActive}
+        type="button"
+      >
+        FX
+      </button>
     </div>
   );
 }
