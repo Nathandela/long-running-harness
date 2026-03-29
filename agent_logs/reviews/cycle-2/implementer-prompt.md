@@ -6,52 +6,19 @@ npx ca load-session
 ```
 
 <claude-sonnet-review>
-REVIEW_CHANGES_REQUESTED
+All three findings from the previous review are resolved:
 
-All 4 original findings are properly resolved. One new issue introduced by the fix:
+- **P2 (multi-delete undo)**: `BatchCommand` added to undo system; clips and tracks are now deleted atomically, undone in reverse order with a single Ctrl+Z.
+- **P3 (redundant comment)**: Removed from `bounce-engine.ts`.
+- **Bonus fixes** (not in my review but correct): MIDI `trimClip` now shifts/filters `noteEvents` on left-edge trim, filters on right-edge trim; `Object.keys` cast replaced with `DRUM_INSTRUMENTS` iteration for type safety.
 
----
+`BatchCommand.undo()` correctly iterates in reverse. `execute()` re-captures `savedClip`/`savedTrack` on each call so redo is safe. MIDI trim note filtering logic is correct for the sequential newStart/newEnd case.
 
-**1. P2 — Drum scheduler restarts on every track property change, causing double-scheduled hits**
-
-`src/audio/TrackAudioBridgeProvider.tsx:271-277`
-
-```ts
-state.tracks !== prev.tracks
-```
-
-`state.tracks` is a new array reference on ANY track mutation (volume, pan, mute, solo, name, arm, etc.). When the user moves a fader during playback, this fires, calling `startScheduling()` which clears the interval and re-initializes from the current cursor position. The new interval then re-schedules steps that are already in the WebAudio queue (within the 100ms look-ahead window), producing duplicate drum hits.
-
-`scheduleStep` has no deduplication — it calls `onTrigger` directly for every active step (confirmed at `step-sequencer.ts:76-83`).
-
-Fix: restrict the restart condition to structural track changes only:
-
-```ts
-state.transportState !== prev.transportState ||
-state.bpm !== prev.bpm ||
-state.tracks.length !== prev.tracks.length ||
-state.tracks.some((t, i) => t.id !== (prev.tracks[i]?.id))
-```
-
-This avoids restarting when track properties (volume/pan/mute/solo) change while preserving restart on track add/remove.
+REVIEW_APPROVED
 </claude-sonnet-review>
 
 <claude-opus-review>
-All tests pass. Let me verify the fix status for each of my original findings:
-
-**Finding 1 (P2) - `sampleCachePromise` ignores AudioContext**: Fixed. `synthesize808Samples()` and `renderOffline()` no longer take an `AudioContext` parameter. Samples are rendered in a standalone `OfflineAudioContext` at 44100 Hz, making them context-independent. Comment documents this. Also added `.catch()` to reset cache on failure.
-
-**Finding 2 (P2) - `renderOffline` dead branch**: Fixed. The `targetCtx` parameter and the broken sample-rate-copy branch are removed entirely.
-
-**Finding 3 (P2) - Module-level `bridgeRef` singleton**: Addressed. Extracted to `sequencer-cache.ts` which centralizes cache and bridge management. The singleton pattern remains (acceptable for this DAW architecture with a single instrument panel).
-
-**Finding 4 (P3) - Mixer forwarding skips new tracks**: Fixed. Changed from `if (!prev) continue;` to `if (!prev || track.volume !== prev.volume)` pattern, so new tracks get their initial values forwarded.
-
-**Finding 5 (P3) - Double `removeStrip` for audio tracks**: Fixed. `addAudioTrack` cleanup no longer calls `removeStrip`; comment clarifies that `handleTrackRemoved` handles it for all track types.
-
-**Finding 6 (P3) - `useTransportCursor` RAF when stopped**: Not addressed, which is acceptable for a P3.
-
-The new drum scheduling service in `TrackAudioBridgeProvider` (lines 188-284) is well-structured: survives track deselection, re-evaluates on transport/BPM/track changes, properly cleans up intervals.
+Types clean, all 47 tests pass. Findings 1, 2, 4, 5 are properly resolved. Finding 3 (delete confirmation) was a P2 UX suggestion — acceptable to defer given undo support exists.
 
 REVIEW_APPROVED
 </claude-opus-review>
@@ -107,23 +74,23 @@ YOLO mode is enabled. All tool calls will be automatically approved.
     at ChildProcess.<anonymous> (file:///usr/local/lib/node_modules/@google/gemini-cli/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js:85:31)
     at ChildProcess.emit (node:events:518:28)
     at maybeClose (node:internal/child_process:1101:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:518:28)
-    at Pipe.<anonymous> (node:net:351:12) {
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5) {
   code: -32000,
   data: undefined
 }
 MCP issues detected. Run /mcp list for status.Scheduling MCP context refresh...
 Executing MCP context refresh...
 MCP context refresh complete.
-REVIEW_APPROVED
+REVIEW_CHANGES_REQUESTED
+
+1. **P2 - Unsafe track deletion:** The track delete button logic in `use-arrangement-interactions.ts` was not updated to prevent accidental clicks. A single click on the small button still permanently removes a track instantly. Please require a modifier key (e.g., `if (!e.shiftKey) return;`), check for a double-click (`if (e.detail !== 2) return;`), or add a confirmation tooltip before executing the `RemoveTrackCommand`.
 </gemini-review>
 
 <codex-review>
 REVIEW_CHANGES_REQUESTED
 
-- **[P1] Drum playback still depends on opening the drum UI at least once** ([TrackAudioBridgeProvider.tsx:222](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:222), [TrackAudioBridgeProvider.tsx:223](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:223), [panels.tsx:44](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:44), [sequencer-cache.ts:29](/Users/Nathan/Documents/Code/long-running-harness/src/audio/drum-machine/sequencer-cache.ts:29))  
-  Moving scheduling into `TrackAudioBridgeProvider` fixed the “selected panel owns playback” problem only partially. The provider still skips any drum track whose sequencer is missing from `sequencerCache`, and that cache is still populated lazily by `getOrCreateSequencer(trackId)` inside `useDrumMachineState()` when the drum panel mounts. So a loaded drum track that has never been opened in the UI will still stay silent until the user selects it once. Initialize sequencers for drum tracks in the audio bridge/provider layer instead of relying on UI mount, and add a regression test for “loaded drum track plays without opening its panel.”</codex-review>
+- **[P1] Drum playback still depends on `InstrumentPanel` being mounted, so opening the piano roll can silence all drum triggers** ([TrackAudioBridgeProvider.tsx:191](/Users/Nathan/Documents/Code/long-running-harness/src/audio/TrackAudioBridgeProvider.tsx:191), [sequencer-cache.ts:23](/Users/Nathan/Documents/Code/long-running-harness/src/audio/drum-machine/sequencer-cache.ts:23), [sequencer-cache.ts:33](/Users/Nathan/Documents/Code/long-running-harness/src/audio/drum-machine/sequencer-cache.ts:33), [panels.tsx:285](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:285), [panels.tsx:287](/Users/Nathan/Documents/Code/long-running-harness/src/ui/panels.tsx:287), [DawShell.tsx:134](/Users/Nathan/Documents/Code/long-running-harness/src/ui/DawShell.tsx:134))  
+  The scheduler is persistent now, but each sequencer callback still reads the module-level `bridgeRef`, and that ref is only set from `InstrumentPanel` and cleared on unmount. When the bottom panel switches to piano-roll, `InstrumentPanel` unmounts, `bridgeRef` becomes `null`, and the scheduler keeps running but emits no drum audio. Move the bridge wiring out of `InstrumentPanel` so drum triggering is independent of whether that UI panel is mounted.</codex-review>
 
 
 Fix ALL P0 and P1 findings. Address P2 where reasonable. Commit fixes.

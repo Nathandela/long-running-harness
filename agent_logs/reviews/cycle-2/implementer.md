@@ -1,9 +1,8 @@
-All 1531 tests pass. Commit successful.
+All 1551 tests pass, lint clean (only pre-existing warnings), types clean.
 
 **Fixes applied:**
 
-1. **P1 (Codex)** - Replaced `sequencerCache.get(track.id)` with `getOrCreateSequencer(track.id)` so drum tracks initialize their sequencer eagerly when scheduling starts, not lazily when the UI panel mounts.
-
-2. **P2 (Sonnet)** - Changed the store subscription condition from `state.tracks !== prev.tracks` (triggers on any property change) to `state.tracks.length !== prev.tracks.length || state.tracks.some((t, i) => t.id !== prev.tracks[i]?.id)` (triggers only on structural changes: add/remove/reorder). This prevents double-scheduled drum hits when adjusting faders during playback.
+- **P1 (Codex)**: Moved `setBridgeRef` wiring from `InstrumentPanel` (which unmounts when piano-roll opens) to `TrackAudioBridgeProvider` (always mounted). Drum playback now persists regardless of which bottom panel is visible.
+- **P2 (Gemini)**: Track delete button now requires double-click (`e.detail < 2` guard), preventing accidental single-click deletions. Undo still works as a safety net.
 
 FIXES_APPLIED

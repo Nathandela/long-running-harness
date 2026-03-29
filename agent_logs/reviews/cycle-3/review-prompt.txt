@@ -3,7 +3,6 @@ You are reviewing code changes made by an autonomous agent loop.
 ## Recently Completed Epics/Tasks
 ✓ long-running-harness-0tc3 ● P0 bug BUG3: Mixer fader/pan don't affect audio
 ✓ long-running-harness-5uh4 ● P0 task Add ROUTING toggle to MixerPanel + wire RoutingMatrix
-✓ long-running-harness-60p ● P0 task E7-T1: Mixer audio graph engine
 ✓ long-running-harness-7pq7 ● P0 epic W1: Track Creation & Panel Wiring
 ├── ✓ long-running-harness-ayef ● P0 epic W3: Piano Roll, Media Drag & Clip Workflow
 ├── ✓ long-running-harness-bs9b ● P0 epic W2: Effects, Routing & Mixer Integration
@@ -12,6 +11,7 @@ You are reviewing code changes made by an autonomous agent loop.
 ✓ long-running-harness-8yqu ● P0 task W3-T2: Double-click MIDI clip opens piano roll
 ✓ long-running-harness-b4o ● P0 task E7-T2: Solo-in-place state machine
 ✓ long-running-harness-bup0 ● P0 epic FIX: Audio Pipeline & Transport
+└── ✓ long-running-harness-vmpp ● P0 epic FIX: Track Management & MIDI Clip Editing
 ✓ long-running-harness-cz0 ● P0 task E7-T6: Mixer panel UI
 ✓ long-running-harness-iy45 ● P0 task W3-T3: Media pool drag-to-arrangement
 ✓ long-running-harness-iz6 ● P0 task Add React ErrorBoundary at App and DawShell levels
@@ -29,10 +29,10 @@ Total: 20 issues (0 open, 0 in progress)
 Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
 
 ## Commits in scope
-e75b210 Fix review findings: eager sequencer init, structural-only restart
-a65d2e2 Fix review findings: persistent drum scheduling, mixer init, cache safety
-f4466c5 chore: auto-commit uncommitted changes from long-running-harness-bup0
-b577444 Fix audio pipeline: cursor movement, 808 drum synthesis, mixer forwarding
+c407e57 Fix review findings: decouple drum bridge from UI panel, guard track delete
+7908340 Fix review findings: atomic batch undo, MIDI trim note adjustment, type safety
+6a95eca chore: auto-commit uncommitted changes from long-running-harness-vmpp
+47f6a54 Fix track management, MIDI clip editing, stuck notes, and 808 timeline commit
 
 ## Your job
 Review the code that was changed by those commits. Use git, read files, and
