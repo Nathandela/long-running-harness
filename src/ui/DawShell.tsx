@@ -25,6 +25,7 @@ import { hydrateStore } from "@state/session/use-session-persistence";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { KeyboardShortcutsPanel } from "./keyboard/KeyboardShortcutsPanel";
 import { ActionToast } from "./primitives/ActionToast";
+import shellStyles from "./DawShell.module.css";
 
 export type BottomPanelMode = "default" | "piano-roll";
 
@@ -137,15 +138,7 @@ function DawShellInner({
   };
 
   return (
-    <div
-      data-testid="daw-shell"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        backgroundColor: "var(--color-black)",
-      }}
-    >
+    <div data-testid="daw-shell" className={shellStyles.shell}>
       <Toolbar />
       <ErrorBoundary fallbackLabel="Panel crashed">
         <div

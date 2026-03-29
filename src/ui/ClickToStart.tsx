@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Spinner } from "./primitives/Spinner";
+import { useIsMobile } from "./hooks/useIsMobile";
 import styles from "./ClickToStart.module.css";
 
 export const ENGINE_TIMEOUT_MS = 30_000;
@@ -11,6 +12,7 @@ type ClickToStartProps = {
 export function ClickToStart({
   onStart,
 }: ClickToStartProps): React.JSX.Element {
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,27 +40,35 @@ export function ClickToStart({
   };
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        void handleClick();
-      }}
-      disabled={loading}
-      className={`${styles["overlay"] ?? ""} ${styles["scanline"] ?? ""}`}
-    >
-      <div className={styles.content}>
-        <p className={styles.title}>BRUTALWAV</p>
-        {loading ? (
-          <div className={styles.status}>
-            <Spinner />
-            <span>Starting audio engine...</span>
-          </div>
-        ) : error !== null ? (
-          <p className={styles.error}>{error}</p>
-        ) : (
-          <p className={styles.hint}>Click to start audio engine</p>
-        )}
-      </div>
-    </button>
+    <div className={`${styles["overlay"] ?? ""} ${styles["scanline"] ?? ""}`}>
+      <button
+        type="button"
+        onClick={() => {
+          void handleClick();
+        }}
+        disabled={loading}
+        className={styles.startBtn}
+      >
+        <div className={styles.content}>
+          <p className={styles.title}>BRUTALWAV</p>
+          {loading ? (
+            <div className={styles.status}>
+              <Spinner />
+              <span>Starting audio engine...</span>
+            </div>
+          ) : error !== null ? (
+            <p className={styles.error}>{error}</p>
+          ) : (
+            <p className={styles.hint}>Click to start audio engine</p>
+          )}
+        </div>
+      </button>
+      {isMobile && (
+        <p className={styles.mobileNotice} role="note">
+          Best experienced on desktop. The DAW interface is not optimized for
+          small screens.
+        </p>
+      )}
+    </div>
   );
 }

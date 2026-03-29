@@ -130,8 +130,10 @@ describe("Polish animations", () => {
       mockMatchMedia(false);
       render(<ClickToStart onStart={vi.fn().mockResolvedValue(undefined)} />);
 
+      // Scanline is on the overlay wrapper div, which is the button's parent
       const button = screen.getByRole("button");
-      expect(button.className).toContain("scanline");
+      const overlay = button.parentElement;
+      expect(overlay?.className).toContain("scanline");
     });
 
     it("renders hint text", () => {
