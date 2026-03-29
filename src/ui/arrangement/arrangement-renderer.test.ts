@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { TrackModel, AudioClipModel } from "@state/track/types";
+import type { TrackModel, AudioClipModel, ClipModel } from "@state/track/types";
 import type { AutomationLane } from "@audio/automation/automation-types";
 import {
   renderArrangement,

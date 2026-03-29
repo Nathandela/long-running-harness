@@ -6,7 +6,6 @@ type AutomationLaneEditorProps = {
   trackId: string;
   viewStartSec: number;
   viewEndSec: number;
-  trackTop: number;
   trackHeight: number;
 };
 
@@ -26,6 +25,7 @@ export function AutomationLaneEditor({
   const movePoint = useAutomationStore((s) => s.movePoint);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [draggingPointId, setDraggingPointId] = useState<string | null>(null);
+  const didDragRef = useRef(false);
 
   const volumeLane = lanes.find(
     (l) => l.target.type === "mixer" && l.target.param === "volume",
@@ -60,6 +60,10 @@ export function AutomationLaneEditor({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>): void => {
+      if (didDragRef.current) {
+        didDragRef.current = false;
+        return;
+      }
       if (!volumeLane) return;
       const time = posToTime(e.clientX);
       const value = posToValue(e.clientY);
@@ -100,6 +104,7 @@ export function AutomationLaneEditor({
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>): void => {
       if (draggingPointId === null || !volumeLane) return;
+      didDragRef.current = true;
       const time = posToTime(e.clientX);
       const value = posToValue(e.clientY);
       movePoint(trackId, volumeLane.id, draggingPointId, time, value);

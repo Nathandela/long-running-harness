@@ -15,7 +15,8 @@ type BounceDialogProps = {
 type BounceState =
   | { status: "idle" }
   | { status: "bouncing"; progress: BounceProgress }
-  | { status: "done" };
+  | { status: "done" }
+  | { status: "error"; message: string };
 
 export function BounceDialog({
   open,
@@ -25,7 +26,7 @@ export function BounceDialog({
   const [bounceState, setBounceState] = useState<BounceState>({
     status: "idle",
   });
-  const engineRef = useRef(createBounceEngine());
+  const engineRef = useRef<ReturnType<typeof createBounceEngine> | null>(null);
 
   const handleBounce = useCallback(async (): Promise<void> => {
     const state = useDawStore.getState();
@@ -69,6 +70,13 @@ export function BounceDialog({
       } while (result.done !== true);
 
       const bounceResult = result.value;
+
+      // Cancelled bounce returns an empty blob -- skip download
+      if (bounceResult.blob.size === 0) {
+        setBounceState({ status: "idle" });
+        return;
+      }
+
       setBounceState({ status: "done" });
 
       // Trigger browser download
@@ -76,19 +84,25 @@ export function BounceDialog({
       const a = document.createElement("a");
       a.href = url;
       a.download = "bounce.wav";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 0);
 
       setBounceState({ status: "idle" });
       onClose();
-    } catch {
-      setBounceState({ status: "idle" });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Bounce failed unexpectedly";
+      setBounceState({ status: "error", message });
     }
   }, [rangeType, onClose]);
 
   const handleCancel = useCallback((): void => {
     if (bounceState.status === "bouncing") {
-      engineRef.current.cancel();
+      engineRef.current?.cancel();
     }
     setBounceState({ status: "idle" });
     onClose();
@@ -132,6 +146,12 @@ export function BounceDialog({
         </div>
 
         <span className={styles["formatInfo"]}>WAV / 48kHz / 32-bit float</span>
+
+        {bounceState.status === "error" && (
+          <span className={styles["formatInfo"]} style={{ color: "#ff4444" }}>
+            {bounceState.message}
+          </span>
+        )}
 
         {isBouncing && (
           <div className={styles["progressSection"]}>

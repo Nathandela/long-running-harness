@@ -13,7 +13,6 @@ describe("AutomationLaneEditor", () => {
     trackId: "track-1",
     viewStartSec: 0,
     viewEndSec: 10,
-    trackTop: 0,
     trackHeight: 64,
   };
 
