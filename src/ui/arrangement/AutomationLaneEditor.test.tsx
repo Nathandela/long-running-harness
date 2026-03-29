@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AutomationLaneEditor } from "./AutomationLaneEditor";
 import { useAutomationStore } from "@state/automation";
@@ -62,5 +62,46 @@ describe("AutomationLaneEditor", () => {
 
     const lanes = useAutomationStore.getState().getLanes("track-1");
     expect(lanes[0]?.points.length).toBe(1);
+  });
+
+  it("does not add a duplicate point when clicking an existing point without dragging", () => {
+    // Set up a lane with one point
+    useAutomationStore
+      .getState()
+      .addLane("track-1", { type: "mixer", param: "volume" });
+    const lane = useAutomationStore.getState().getLanes("track-1")[0];
+    if (!lane) throw new Error("lane not found");
+    useAutomationStore.getState().addPoint("track-1", lane.id, {
+      id: "pt-existing",
+      time: 5,
+      value: 0.5,
+      interpolation: "linear" as const,
+      curve: 0,
+    });
+
+    render(<AutomationLaneEditor {...defaultProps} />);
+    const canvas = screen.getByTestId("automation-lane-canvas");
+
+    // Mock getBoundingClientRect so hit-testing works in jsdom
+    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      right: 100,
+      bottom: 64,
+      width: 100,
+      height: 64,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    // Point at time=5 in [0,10]s on 100px => clientX=50
+    // Value 0.5 in 64px (top=1, bottom=0) => clientY=32
+    fireEvent.pointerDown(canvas, { clientX: 50, clientY: 32, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+    fireEvent.click(canvas, { clientX: 50, clientY: 32 });
+
+    const points = useAutomationStore.getState().getLanes("track-1")[0]?.points;
+    expect(points?.length).toBe(1);
   });
 });

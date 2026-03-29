@@ -94,8 +94,12 @@ export function AutomationLaneEditor({
 
       if (hit) {
         e.preventDefault();
+        didDragRef.current = true;
         setDraggingPointId(hit.id);
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        const el = e.target as HTMLElement;
+        if (typeof el.setPointerCapture === "function") {
+          el.setPointerCapture(e.pointerId);
+        }
       }
     },
     [volumeLane, posToTime, posToValue, viewStartSec, viewEndSec],

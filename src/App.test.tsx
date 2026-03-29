@@ -77,6 +77,9 @@ class MockAudioContext {
       connect: vi.fn().mockReturnThis(),
       disconnect: vi.fn(),
       fftSize: 2048,
+      getByteFrequencyData: vi.fn(),
+      getByteTimeDomainData: vi.fn(),
+      getFloatTimeDomainData: vi.fn(),
     } as unknown as AnalyserNode;
   }
   createStereoPanner(): StereoPannerNode {
