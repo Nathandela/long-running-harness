@@ -1,0 +1,5 @@
+.knob:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--space-half);
+}

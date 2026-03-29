@@ -148,7 +148,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
                 background: "transparent",
                 color: tokens.color.white,
                 cursor: "pointer",
-                padding: "4px 8px",
+                padding: `${String(tokens.space[1])}px ${String(tokens.space[2])}px`,
               }}
             >
               {f.definition.name}

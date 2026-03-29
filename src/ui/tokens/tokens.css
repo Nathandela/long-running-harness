@@ -7,6 +7,10 @@
   --color-green: #39ff14;
   --color-amber: #ffb800;
   --color-red: #ff0000;
+  --color-orange: #ff6600;
+  --color-violet: #cc44ff;
+  --color-cyan: #00ccff;
+  --color-hotpink: #ff4488;
 
   /* Grays */
   --color-gray-900: #111111;
@@ -30,6 +34,8 @@
   --text-4xl: 48px;
 
   /* Spacing (8px grid with 4px half-step) */
+  --space-px: 1px;
+  --space-half: 2px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

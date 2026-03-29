@@ -65,8 +65,8 @@ export function SessionBrowser({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
-                padding: "4px 0",
+                gap: "var(--space-2)",
+                padding: "var(--space-1) 0",
               }}
             >
               <span style={{ flex: 1 }}>{s.name}</span>

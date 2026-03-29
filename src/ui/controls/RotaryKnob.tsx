@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { tokens } from "../tokens/tokens";
+import styles from "./RotaryKnob.module.css";
 
 type RotaryKnobProps = {
   value: number;
@@ -79,7 +80,6 @@ export function RotaryKnob({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listenersRef = useRef<AbortController | null>(null);
-  const [isFocusVisible, setIsFocusVisible] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
   const ratio = max === min ? 0 : (value - min) / (max - min);
@@ -179,6 +179,7 @@ export function RotaryKnob({
   return (
     <div
       ref={wrapperRef}
+      className={styles.knob}
       role="slider"
       tabIndex={0}
       aria-valuemin={min}
@@ -193,26 +194,12 @@ export function RotaryKnob({
       onPointerLeave={() => {
         setIsHovered(false);
       }}
-      onFocus={(e) => {
-        if (
-          e.target === wrapperRef.current &&
-          e.target.matches(":focus-visible")
-        ) {
-          setIsFocusVisible(true);
-        }
-      }}
-      onBlur={() => {
-        setIsFocusVisible(false);
-      }}
       style={{
         display: "inline-flex",
         flexDirection: "column",
         alignItems: "center",
         gap: tokens.space[1],
         userSelect: "none",
-        outline: isFocusVisible ? `2px solid ${tokens.color.blue}` : "none",
-        outlineOffset: "2px",
-        borderRadius: "2px",
       }}
     >
       <span

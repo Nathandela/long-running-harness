@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Spinner } from "./primitives/Spinner";
+import styles from "./ClickToStart.module.css";
 
 export const ENGINE_TIMEOUT_MS = 30_000;
 
@@ -43,63 +44,19 @@ export function ClickToStart({
         void handleClick();
       }}
       disabled={loading}
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "var(--color-black)",
-        color: "var(--color-white)",
-        fontFamily: "var(--font-mono)",
-        cursor: loading ? "wait" : "pointer",
-        zIndex: "var(--z-overlay)",
-        border: "none",
-        width: "100%",
-        height: "100%",
-      }}
+      className={styles.overlay}
     >
-      <div style={{ textAlign: "center" }}>
-        <p
-          style={{
-            fontSize: "var(--text-2xl)",
-            marginBottom: "var(--space-2)",
-          }}
-        >
-          BRUTALWAV
-        </p>
+      <div className={styles.content}>
+        <p className={styles.title}>BRUTALWAV</p>
         {loading ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "var(--space-2)",
-              color: "var(--color-gray-300)",
-              fontSize: "var(--text-base)",
-            }}
-          >
+          <div className={styles.status}>
             <Spinner />
             <span>Starting audio engine...</span>
           </div>
         ) : error !== null ? (
-          <p
-            style={{
-              fontSize: "var(--text-base)",
-              color: "var(--color-error)",
-            }}
-          >
-            {error}
-          </p>
+          <p className={styles.error}>{error}</p>
         ) : (
-          <p
-            style={{
-              fontSize: "var(--text-base)",
-              color: "var(--color-gray-300)",
-            }}
-          >
-            Click to start audio engine
-          </p>
+          <p className={styles.hint}>Click to start audio engine</p>
         )}
       </div>
     </button>

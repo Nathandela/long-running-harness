@@ -42,10 +42,10 @@ const SOURCE_COLORS: Record<ModSource, string> = {
   lfo2: tokens.color.pink,
   ampEnv: tokens.color.amber,
   filterEnv: tokens.color.green,
-  velocity: "#ff6600",
-  aftertouch: "#cc44ff",
-  modWheel: "#00ccff",
-  pitchBend: "#ff4488",
+  velocity: tokens.color.orange,
+  aftertouch: tokens.color.violet,
+  modWheel: tokens.color.cyan,
+  pitchBend: tokens.color.hotpink,
 };
 
 function Port({
@@ -279,7 +279,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                 display: "flex",
                 alignItems: "center",
                 gap: tokens.space[2],
-                padding: "2px 0",
+                padding: `${String(tokens.space.half)}px 0`,
               }}
             >
               <span
@@ -326,7 +326,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                   fontFamily: tokens.font.mono,
                   fontSize: tokens.text["2xs"],
                   cursor: "pointer",
-                  padding: "1px 3px",
+                  padding: `${String(tokens.space.px)}px ${String(tokens.space[1] - 1)}px`,
                 }}
               >
                 {route.bipolar ? "BI" : "UNI"}
@@ -343,7 +343,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                   fontFamily: tokens.font.mono,
                   fontSize: tokens.text.xs,
                   cursor: "pointer",
-                  padding: "1px 4px",
+                  padding: `${String(tokens.space.px)}px ${String(tokens.space[1])}px`,
                 }}
               >
                 X

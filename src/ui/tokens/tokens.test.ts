@@ -19,10 +19,16 @@ describe("tokens", () => {
     expect(tokens.color.red).toBeDefined();
   });
 
-  it("has spacing values as multiples of 4", () => {
-    for (const value of Object.values(tokens.space)) {
+  it("has spacing values as multiples of 4 (except sub-grid px and half)", () => {
+    for (const [key, value] of Object.entries(tokens.space)) {
+      if (key === "px" || key === "half") continue;
       expect(value % 4).toBe(0);
     }
+  });
+
+  it("has sub-grid spacing tokens", () => {
+    expect(tokens.space.px).toBe(1);
+    expect(tokens.space.half).toBe(2);
   });
 
   it("has both font families", () => {
