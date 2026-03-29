@@ -1,0 +1,17 @@
+.instrumentPanel {
+  border: var(--border);
+  background-color: var(--color-gray-900);
+  color: var(--color-gray-300);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  height: 240px;
+}
+
+.instrumentPanelFull {
+  height: 240px;
+  overflow: auto;
+}

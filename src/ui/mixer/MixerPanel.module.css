@@ -83,7 +83,7 @@
 .db-label {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--color-gray-500);
+  color: var(--color-gray-300);
   text-align: center;
   user-select: none;
 }

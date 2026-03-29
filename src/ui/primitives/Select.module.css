@@ -31,6 +31,10 @@
   min-width: 120px;
 }
 
+.select:hover {
+  border-color: var(--color-white);
+}
+
 .select:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);

@@ -6,64 +6,11 @@ import type {
 } from "@audio/media-pool";
 import { MediaPoolItem } from "./MediaPoolItem";
 import { useFileDrop } from "./useFileDrop";
+import { Spinner } from "@ui/primitives/Spinner";
+import styles from "./MediaPoolPanel.module.css";
 
 type MediaPoolPanelProps = {
   pool: MediaPool;
-};
-
-const panelStyle: React.CSSProperties = {
-  border: "var(--border)",
-  backgroundColor: "var(--color-gray-900)",
-  display: "flex",
-  flexDirection: "column",
-  height: "200px",
-  overflow: "hidden",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "var(--space-1) var(--space-2)",
-  borderBottom: "1px solid var(--color-gray-700)",
-  fontFamily: "var(--font-mono)",
-  fontSize: "var(--text-sm)",
-  color: "var(--color-gray-500)",
-  flexShrink: 0,
-};
-
-const importBtnStyle: React.CSSProperties = {
-  background: "none",
-  border: "1px solid var(--color-gray-500)",
-  color: "var(--color-gray-300)",
-  fontFamily: "var(--font-mono)",
-  fontSize: "var(--text-xs)",
-  padding: "var(--space-1) var(--space-2)",
-  cursor: "pointer",
-};
-
-const listStyle: React.CSSProperties = {
-  flex: 1,
-  overflowY: "auto",
-};
-
-const emptyStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flex: 1,
-  color: "var(--color-gray-500)",
-  fontFamily: "var(--font-mono)",
-  fontSize: "var(--text-sm)",
-};
-
-const errorStyle: React.CSSProperties = {
-  padding: "var(--space-1) var(--space-2)",
-  backgroundColor: "var(--color-red)",
-  color: "var(--color-white)",
-  fontFamily: "var(--font-mono)",
-  fontSize: "var(--text-xs)",
-  flexShrink: 0,
 };
 
 function formatError(error: MediaPoolError): string {
@@ -87,6 +34,7 @@ export function MediaPoolPanel({
   const sources = useMemo(() => pool.listSources(), [pool, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const [peaksMap, setPeaksMap] = useState(new Map<string, WaveformPeaks>());
   const [errors, setErrors] = useState<MediaPoolError[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
   const importingRef = useRef(false);
 
   useEffect(() => {
@@ -110,6 +58,7 @@ export function MediaPoolPanel({
     async (files: File[]) => {
       if (importingRef.current) return;
       importingRef.current = true;
+      setIsImporting(true);
       setErrors([]);
       try {
         const importErrors: MediaPoolError[] = [];
@@ -134,6 +83,7 @@ export function MediaPoolPanel({
         setVersion((v) => v + 1);
       } finally {
         importingRef.current = false;
+        setIsImporting(false);
       }
     },
     [pool],
@@ -176,19 +126,25 @@ export function MediaPoolPanel({
     [handleImport],
   );
 
+  const panelClass = isDragging
+    ? [styles["panel"], styles["dragging"]].join(" ")
+    : (styles["panel"] ?? "");
+
   return (
     <section
       data-testid="media-pool-panel"
-      style={{
-        ...panelStyle,
-        ...(isDragging ? { borderColor: "var(--color-blue)" } : {}),
-      }}
+      className={panelClass}
       {...handlers}
     >
-      <div style={headerStyle}>
+      <div className={styles["header"]}>
         <span>MEDIA POOL</span>
-        <button type="button" style={importBtnStyle} onClick={onImportClick}>
-          IMPORT
+        <button
+          type="button"
+          className={styles["importBtn"]}
+          onClick={onImportClick}
+          disabled={isImporting}
+        >
+          {isImporting ? "IMPORTING..." : "IMPORT"}
         </button>
         <input
           ref={fileInputRef}
@@ -201,17 +157,26 @@ export function MediaPoolPanel({
       </div>
 
       {errors.length > 0 && (
-        <div style={errorStyle}>
+        <div className={styles["error"]}>
           {errors.map((err, i) => (
             <div key={i}>{formatError(err)}</div>
           ))}
         </div>
       )}
 
+      {isImporting && (
+        <div className={styles["importing"]}>
+          <Spinner />
+          <span>Importing audio...</span>
+        </div>
+      )}
+
       {sources.length === 0 ? (
-        <div style={emptyStyle}>Drop audio files here or click IMPORT</div>
+        <div className={styles["empty"]}>
+          Drop audio files here or click IMPORT
+        </div>
       ) : (
-        <div style={listStyle}>
+        <div className={styles["list"]}>
           {sources.map((source) => (
             <MediaPoolItem
               key={source.id}

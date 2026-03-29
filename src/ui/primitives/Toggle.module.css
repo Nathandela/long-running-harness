@@ -14,9 +14,26 @@
   font-family: var(--font-mono);
 }
 
+.toggle:hover {
+  border-color: var(--color-white);
+}
+
+.toggle:active {
+  background: var(--color-black);
+}
+
+.toggle:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .toggle:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.toggle:disabled:hover {
+  border-color: var(--border-color);
 }
 
 .thumb {

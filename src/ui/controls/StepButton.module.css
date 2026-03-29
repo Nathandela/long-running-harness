@@ -18,6 +18,19 @@
   background: var(--color-amber);
 }
 
+.step:hover {
+  background: var(--color-gray-700);
+}
+
+.step:active {
+  background: var(--color-white);
+}
+
+.step:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .current {
   border-color: var(--color-white);
 }

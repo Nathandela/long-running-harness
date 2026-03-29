@@ -40,6 +40,21 @@ export const tokens = {
   border: {
     width: 2,
   },
+  semantic: {
+    success: "#39ff14",
+    warning: "#ffb800",
+    error: "#ff0000",
+  },
+  zIndex: {
+    base: 0,
+    dropdown: 100,
+    sticky: 200,
+    overlay: 300,
+    modal: 400,
+    popover: 500,
+    tooltip: 600,
+    contextMenu: 700,
+  },
 } as const;
 
 export type ThemeTokens = typeof tokens;

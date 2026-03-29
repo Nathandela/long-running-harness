@@ -22,4 +22,15 @@
 
 .pad:hover {
   border-color: var(--color-white);
+  background: var(--color-gray-700);
+}
+
+.pad:active {
+  background: var(--color-white);
+  color: var(--color-black);
+}
+
+.pad:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
