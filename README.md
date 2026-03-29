@@ -4,6 +4,10 @@ A browser-based Digital Audio Workstation built autonomously by AI agents. Neo-B
 
 **[Try the live demo](https://nathan-delacretaz.com/daw/index.html)**
 
+<p align="center">
+  <img src="docs/screenshots/mixer.png" alt="BRUTALWAV - Arrangement view with mixer panel" width="700">
+</p>
+
 ## Context
 
 On March 24 2026, Anthropic published a [post on harness design](https://www.anthropic.com/engineering/harness-design-long-running-apps) for long-running AI coding sessions. As a demonstration, they built a browser-based DAW in 3h50m for $124.70 using an internal multi-agent harness.
@@ -21,6 +25,11 @@ Full writeup: **[Harness Design for Dark Software Factories](https://nathan-dela
 - **Mixer.** Multi-track mixer with volume, pan, mute, solo, and master bus
 - **Automation.** Breakpoint automation lanes with multiple curve types
 - **Audio.** AudioWorklet-based DSP, SharedArrayBuffer transport, look-ahead scheduling, offline WAV bounce
+
+<p align="center">
+  <img src="docs/screenshots/synth-editor.png" alt="Synth editor" width="340">
+  <img src="docs/screenshots/drum-machine.png" alt="Drum machine step sequencer" width="340">
+</p>
 
 ## Running locally
 
