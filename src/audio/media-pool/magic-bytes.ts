@@ -55,8 +55,12 @@ export function detectAudioFormat(header: Uint8Array): AudioFormat | null {
   }
 
   // MP3: 11-bit frame sync (0xFF followed by byte with top 3 bits set)
+  // Additionally reject reserved MPEG version (bits 3-4 of byte 1 == 01)
   if (header[0] === 0xff && ((header[1] ?? 0) & 0xe0) === 0xe0) {
-    return "mp3";
+    const versionBits = ((header[1] ?? 0) >> 3) & 0x03;
+    if (versionBits !== 0x01) {
+      return "mp3";
+    }
   }
 
   return null;

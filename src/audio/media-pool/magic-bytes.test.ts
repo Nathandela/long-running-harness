@@ -83,6 +83,24 @@ describe("detectAudioFormat", () => {
     expect(detectAudioFormat(bytes(0xff))).toBeNull();
   });
 
+  it("rejects frame-sync with reserved MPEG version bits (0xFF 0xE8)", () => {
+    // 0xE8 = 1110 1000 -> version bits 4-3 = 01 = reserved
+    const header = bytes(0xff, 0xe8, 0x90, 0x00, 0, 0, 0, 0, 0, 0, 0, 0);
+    expect(detectAudioFormat(header)).toBeNull();
+  });
+
+  it("rejects frame-sync with reserved MPEG version bits (0xFF 0xEA)", () => {
+    // 0xEA = 1110 1010 -> version bits 4-3 = 01 = reserved
+    const header = bytes(0xff, 0xea, 0x90, 0x00, 0, 0, 0, 0, 0, 0, 0, 0);
+    expect(detectAudioFormat(header)).toBeNull();
+  });
+
+  it("accepts frame-sync with MPEG 2.5 version (0xFF 0xE0)", () => {
+    // 0xE0 = 1110 0000 -> version bits 4-3 = 00 = MPEG 2.5
+    const header = bytes(0xff, 0xe0, 0x90, 0x00, 0, 0, 0, 0, 0, 0, 0, 0);
+    expect(detectAudioFormat(header)).toBe("mp3");
+  });
+
   it("returns null for RIFF with non-WAVE marker (e.g. AVI)", () => {
     const header = bytes(
       ...ascii("RIFF"),
