@@ -8,24 +8,10 @@
 
 import type { ChannelStrip, MasterBus, MixerEngine } from "./types";
 import { createInsertChain, type InsertChain } from "./insert-chain";
+import { faderTaper } from "./fader-taper";
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
-}
-
-/**
- * Quadratic fader taper: attempt to model a real mixing console fader.
- * Maps linear 0..2 -> gain curve.
- * 0 -> 0 (silence), 1 -> 1 (unity), 2 -> 2 (boost)
- */
-function faderTaper(linear: number): number {
-  if (linear <= 0) return 0;
-  if (linear <= 1) {
-    // Attempt log curve: x^2 gives reasonable taper for 0..1
-    return linear * linear;
-  }
-  // Above unity: linear interpolation from 1..2
-  return 1 + (linear - 1);
 }
 
 function createMasterBus(ctx: AudioContext): MasterBus {
