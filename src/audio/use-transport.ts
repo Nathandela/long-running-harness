@@ -46,7 +46,7 @@ export type UseTransportReturn = {
   /** Set the param resolver for automation playback (call from mixer provider) */
   setParamResolver(resolver: ParamResolver): void;
   /** Set an additional onAdvance callback for clip scheduling (call from bridge provider) */
-  setOnAdvanceCallback(cb: OnAdvanceCallback): void;
+  setOnAdvanceCallback(cb: OnAdvanceCallback | null): void;
 };
 
 /**
@@ -210,9 +210,12 @@ export function useTransportInit(): UseTransportReturn {
     paramResolverRef.current = resolver;
   }, []);
 
-  const setOnAdvanceCallback = useCallback((cb: OnAdvanceCallback): void => {
-    onAdvanceCallbackRef.current = cb;
-  }, []);
+  const setOnAdvanceCallback = useCallback(
+    (cb: OnAdvanceCallback | null): void => {
+      onAdvanceCallbackRef.current = cb;
+    },
+    [],
+  );
 
   return {
     play,

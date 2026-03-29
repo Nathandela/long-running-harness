@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDawStore } from "@state/store";
 import { SynthEditor } from "@ui/synth";
 import { DrumMachinePanel } from "@ui/drum-machine";
 import { useTrackAudioBridge } from "@audio/TrackAudioBridgeProvider";
+import type { TrackAudioBridge } from "@audio/track-audio-bridge";
 import {
   createStepSequencer,
   type StepSequencer,
@@ -220,6 +221,46 @@ function DrumMachineController({
   );
 }
 
+function SynthTrackPanel({
+  trackId,
+  bridge,
+}: {
+  trackId: string;
+  bridge: TrackAudioBridge;
+}): React.JSX.Element {
+  const instrument = bridge.getInstrument(trackId);
+  const onNoteOn = useMemo(
+    () =>
+      instrument
+        ? (note: number, velocity: number) => {
+            instrument.noteOn(note, velocity);
+          }
+        : undefined,
+    [instrument],
+  );
+  const onNoteOff = useMemo(
+    () =>
+      instrument
+        ? (note: number) => {
+            instrument.noteOff(note);
+          }
+        : undefined,
+    [instrument],
+  );
+  return (
+    <section
+      data-testid="instrument-panel"
+      className={styles["instrumentPanelFull"]}
+    >
+      <SynthEditor
+        trackId={trackId}
+        onNoteOn={onNoteOn}
+        onNoteOff={onNoteOff}
+      />
+    </section>
+  );
+}
+
 export function InstrumentPanel(): React.JSX.Element {
   const selectedTrackIds = useDawStore((s) => s.selectedTrackIds);
   const tracks = useDawStore((s) => s.tracks);
@@ -227,31 +268,7 @@ export function InstrumentPanel(): React.JSX.Element {
   const bridge = useTrackAudioBridge();
 
   if (selectedTrack?.type === "instrument") {
-    const instrument = bridge.getInstrument(selectedTrack.id);
-    return (
-      <section
-        data-testid="instrument-panel"
-        className={styles["instrumentPanelFull"]}
-      >
-        <SynthEditor
-          trackId={selectedTrack.id}
-          onNoteOn={
-            instrument
-              ? (note: number, velocity: number) => {
-                  instrument.noteOn(note, velocity);
-                }
-              : undefined
-          }
-          onNoteOff={
-            instrument
-              ? (note: number) => {
-                  instrument.noteOff(note);
-                }
-              : undefined
-          }
-        />
-      </section>
-    );
+    return <SynthTrackPanel trackId={selectedTrack.id} bridge={bridge} />;
   }
 
   if (selectedTrack?.type === "drum") {

@@ -82,17 +82,18 @@ export function createTrackAudioBridge(
   const instruments = new Map<string, SynthInstrument>();
   const drumKits = new Map<string, DrumKit>();
   const trackCleanups = new Map<string, () => void>();
-  // Tracks with pending async instrument creation
-  const alive = new Set<string>();
+  // Generation counter to detect stale async instrument resolutions
+  const trackGeneration = new Map<string, number>();
   let disposed = false;
 
   function addInstrumentTrack(trackId: string): void {
-    alive.add(trackId);
+    const gen = (trackGeneration.get(trackId) ?? 0) + 1;
+    trackGeneration.set(trackId, gen);
     mixer.getOrCreateStrip(trackId);
     useSynthStore.getState().initSynth(trackId);
 
     void createSynthInstrument(ctx).then((instrument) => {
-      if (!alive.has(trackId) || disposed) {
+      if (trackGeneration.get(trackId) !== gen || disposed) {
         instrument.dispose();
         return;
       }
@@ -114,7 +115,6 @@ export function createTrackAudioBridge(
   }
 
   function addDrumTrack(trackId: string): void {
-    alive.add(trackId);
     const samples = createPlaceholderSamples(ctx);
     const kit = createDrumKit(ctx, samples);
     drumKits.set(trackId, kit);
@@ -128,8 +128,10 @@ export function createTrackAudioBridge(
   }
 
   function addAudioTrack(trackId: string): void {
-    alive.add(trackId);
     mixer.getOrCreateStrip(trackId);
+    trackCleanups.set(trackId, () => {
+      mixer.removeStrip(trackId);
+    });
   }
 
   function handleTrackAdded(track: TrackModel): void {
@@ -147,7 +149,8 @@ export function createTrackAudioBridge(
   }
 
   function handleTrackRemoved(trackId: string): void {
-    alive.delete(trackId);
+    // Bump generation so in-flight async instrument creation is discarded
+    trackGeneration.set(trackId, (trackGeneration.get(trackId) ?? 0) + 1);
     trackCleanups.get(trackId)?.();
     trackCleanups.delete(trackId);
     mixer.removeStrip(trackId);
@@ -200,7 +203,7 @@ export function createTrackAudioBridge(
         cleanup();
       }
       trackCleanups.clear();
-      alive.clear();
+      trackGeneration.clear();
     },
   };
 }

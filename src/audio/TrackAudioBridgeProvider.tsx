@@ -42,26 +42,39 @@ export function TrackAudioBridgeProvider({
 
   // Maintain a sync buffer cache for clip scheduling
   const bufferCacheRef = useRef(new Map<string, AudioBuffer>());
+  const inFlightRef = useRef(new Set<string>());
 
-  // Prefetch clip buffers when clips change
+  // Prefetch clip buffers when clips change; evict stale entries
   useEffect(() => {
-    const unsub = useDawStore.subscribe((state) => {
-      for (const clip of Object.values(state.clips)) {
-        if (isAudioClip(clip) && !bufferCacheRef.current.has(clip.sourceId)) {
-          void pool.getAudioBuffer(clip.sourceId).then((buf) => {
-            if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
-          });
+    function syncBuffers(clips: Record<string, unknown>): void {
+      const activeSourceIds = new Set<string>();
+      for (const clip of Object.values(clips)) {
+        if (isAudioClip(clip)) {
+          activeSourceIds.add(clip.sourceId);
+          if (
+            !bufferCacheRef.current.has(clip.sourceId) &&
+            !inFlightRef.current.has(clip.sourceId)
+          ) {
+            inFlightRef.current.add(clip.sourceId);
+            void pool.getAudioBuffer(clip.sourceId).then((buf) => {
+              inFlightRef.current.delete(clip.sourceId);
+              if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
+            });
+          }
         }
       }
-    });
-    // Prefetch existing clips
-    for (const clip of Object.values(useDawStore.getState().clips)) {
-      if (isAudioClip(clip) && !bufferCacheRef.current.has(clip.sourceId)) {
-        void pool.getAudioBuffer(clip.sourceId).then((buf) => {
-          if (buf) bufferCacheRef.current.set(clip.sourceId, buf);
-        });
+      // Evict buffers for removed clips
+      for (const sourceId of bufferCacheRef.current.keys()) {
+        if (!activeSourceIds.has(sourceId)) {
+          bufferCacheRef.current.delete(sourceId);
+        }
       }
     }
+
+    syncBuffers(useDawStore.getState().clips);
+    const unsub = useDawStore.subscribe((state) => {
+      syncBuffers(state.clips);
+    });
     return unsub;
   }, [pool]);
 
@@ -103,11 +116,14 @@ export function TrackAudioBridgeProvider({
             windowEnd,
             timeOffset,
             (sourceId) => bufferCacheRef.current.get(sourceId),
-            strip.inputGain as unknown as AudioNode,
+            strip.inputGain,
           );
         }
       },
     );
+    return () => {
+      transport.setOnAdvanceCallback(null);
+    };
   }, [transport, mixer, value.clipScheduler]);
 
   // Stop all clip playback when transport stops
