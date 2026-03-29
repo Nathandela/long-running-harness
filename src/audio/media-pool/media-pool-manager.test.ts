@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createMediaPool } from "./media-pool-manager";
+import {
+  createMediaPool,
+  DEFAULT_CACHE_LIMIT_BYTES,
+} from "./media-pool-manager";
 import { createInMemoryStorage } from "./idb-storage";
 import type { MediaPool, AudioSourceHandle } from "./types";
 
@@ -155,6 +158,67 @@ describe("createMediaPool", () => {
     const peaks = await pool.getPeaks(result.handle.id, 256);
     expect(peaks).toBeDefined();
     expect(peaks?.samplesPerPeak).toBe(256);
+  });
+
+  describe("LRU buffer cache eviction", () => {
+    it("evicts least-recently-used buffer when cache exceeds limit", async () => {
+      // Each buffer: length=44100, 2 channels, 4 bytes/sample = 352,800 bytes
+      // Import enough files to exceed 200MB, check that oldest is evicted
+      const bytesPerBuffer = 44100 * 2 * 4; // 352,800
+      const buffersToFill = Math.ceil(
+        DEFAULT_CACHE_LIMIT_BYTES / bytesPerBuffer,
+      );
+
+      // Import buffersToFill + 1 files to trigger eviction
+      for (let i = 0; i <= buffersToFill; i++) {
+        await pool.importFile(makeWavFile(`file-${String(i)}.wav`));
+      }
+
+      // First imported file should have been evicted from cache
+      // but still available via re-decode from storage
+      const firstId = `id-1`;
+      const buf = await pool.getAudioBuffer(firstId);
+      expect(buf).toBeDefined();
+      // decodeAudioData called buffersToFill+1 times for imports, +1 for re-decode
+      expect(ctx.decodeAudioData).toHaveBeenCalledTimes(buffersToFill + 2);
+    });
+
+    it("does not evict when cache is under limit", async () => {
+      await pool.importFile(makeWavFile("a.wav"));
+      await pool.importFile(makeWavFile("b.wav"));
+
+      // Both should be cached (no re-decode needed)
+      const buf1 = await pool.getAudioBuffer("id-1");
+      const buf2 = await pool.getAudioBuffer("id-2");
+      expect(buf1).toBeDefined();
+      expect(buf2).toBeDefined();
+      // Only 2 decode calls (one per import, no re-decode)
+      expect(ctx.decodeAudioData).toHaveBeenCalledTimes(2);
+    });
+
+    it("getAudioBuffer refreshes LRU access order", async () => {
+      const bytesPerBuffer = 44100 * 2 * 4;
+      const buffersToFill = Math.ceil(
+        DEFAULT_CACHE_LIMIT_BYTES / bytesPerBuffer,
+      );
+
+      // Import buffersToFill files
+      for (let i = 0; i < buffersToFill; i++) {
+        await pool.importFile(makeWavFile(`file-${String(i)}.wav`));
+      }
+
+      // Access the first file to refresh it in LRU
+      await pool.getAudioBuffer("id-1");
+
+      // Import one more to trigger eviction
+      await pool.importFile(makeWavFile("overflow.wav"));
+
+      // id-1 was refreshed, so id-2 should be evicted instead
+      // Accessing id-1 should NOT require re-decode
+      const decodeCountBefore = ctx.decodeAudioData.mock.calls.length;
+      await pool.getAudioBuffer("id-1");
+      expect(ctx.decodeAudioData).toHaveBeenCalledTimes(decodeCountBefore);
+    });
   });
 
   it("init loads existing metadata from storage", async () => {

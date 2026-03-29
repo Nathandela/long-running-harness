@@ -9,13 +9,58 @@ import type {
 } from "./types";
 
 const DEFAULT_SAMPLES_PER_PEAK = 256;
+export const DEFAULT_CACHE_LIMIT_BYTES = 200 * 1024 * 1024; // 200MB
+
+function bufferByteSize(buf: AudioBuffer): number {
+  return buf.length * buf.numberOfChannels * 4; // Float32 = 4 bytes
+}
 
 export function createMediaPool(
   ctx: BaseAudioContext,
   storage: MediaPoolStorage,
+  cacheLimitBytes = DEFAULT_CACHE_LIMIT_BYTES,
 ): MediaPool {
   const sources = new Map<string, AudioSourceHandle>();
+  // LRU cache: Map iteration order = insertion order; delete+re-set moves to end
   const bufferCache = new Map<string, AudioBuffer>();
+  let cacheBytes = 0;
+
+  function cacheSet(id: string, buffer: AudioBuffer): void {
+    // If already cached, remove old entry first
+    const existing = bufferCache.get(id);
+    if (existing !== undefined) {
+      cacheBytes -= bufferByteSize(existing);
+      bufferCache.delete(id);
+    }
+    // Evict LRU entries (front of Map) until under limit
+    while (
+      cacheBytes + bufferByteSize(buffer) > cacheLimitBytes &&
+      bufferCache.size > 0
+    ) {
+      const oldest = bufferCache.keys().next();
+      if (oldest.done === true) break;
+      const oldBuf = bufferCache.get(oldest.value);
+      if (oldBuf !== undefined) cacheBytes -= bufferByteSize(oldBuf);
+      bufferCache.delete(oldest.value);
+    }
+    bufferCache.set(id, buffer);
+    cacheBytes += bufferByteSize(buffer);
+  }
+
+  function cacheGet(id: string): AudioBuffer | undefined {
+    const buf = bufferCache.get(id);
+    if (buf === undefined) return undefined;
+    // Refresh LRU position: delete and re-insert at end
+    bufferCache.delete(id);
+    bufferCache.set(id, buf);
+    return buf;
+  }
+
+  function cacheDelete(id: string): void {
+    const buf = bufferCache.get(id);
+    if (buf !== undefined) cacheBytes -= bufferByteSize(buf);
+    bufferCache.delete(id);
+  }
 
   const pool: MediaPool = {
     async init(): Promise<void> {
@@ -63,7 +108,7 @@ export function createMediaPool(
       }
 
       sources.set(handle.id, handle);
-      bufferCache.set(handle.id, buffer);
+      cacheSet(handle.id, buffer);
       return result;
     },
 
@@ -72,7 +117,7 @@ export function createMediaPool(
     },
 
     async getAudioBuffer(id: string): Promise<AudioBuffer | undefined> {
-      const cached = bufferCache.get(id);
+      const cached = cacheGet(id);
       if (cached !== undefined) return cached;
 
       const blob = await storage.getBlob(id);
@@ -80,7 +125,7 @@ export function createMediaPool(
 
       const arrayBuffer = await blob.arrayBuffer();
       const decoded = await ctx.decodeAudioData(arrayBuffer);
-      bufferCache.set(id, decoded);
+      cacheSet(id, decoded);
       return decoded;
     },
 
@@ -101,7 +146,7 @@ export function createMediaPool(
       await storage.deleteMeta(id);
       await storage.deletePeaksBySource(id);
       sources.delete(id);
-      bufferCache.delete(id);
+      cacheDelete(id);
     },
 
     get count(): number {
