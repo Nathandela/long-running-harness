@@ -1,0 +1,33 @@
+All epics created and wired. Here's the summary:
+
+---
+
+## Polish Cycle 2 -- Epic Plan
+
+**Context**: All cycle 1 fixes verified as genuinely implemented (10/10 items properly done). Cycle 2 addresses remaining gaps: incomplete design token adoption, missing empty states/wayfinding, interaction edge cases, and production hardening.
+
+### Dependency Graph
+
+```
+long-running-harness-kno (BRUTALWAV parent)
+  └── il2 (QA: Full-Feature Verification) ──blocks──> kni (Design Token Integrity)
+                                           ──blocks──> j1x (Spatial Layout & Wayfinding)
+                                           ──blocks──> 1fn (Interaction & Production Hardening)
+```
+
+### Epics
+
+POLISH_EPIC: long-running-harness-il2
+POLISH_EPIC: long-running-harness-kni
+POLISH_EPIC: long-running-harness-j1x
+POLISH_EPIC: long-running-harness-1fn
+
+### What I found beyond the (empty) reviewer report:
+
+- **z-index chaos**: ClickToStart at 9999, Tooltip at 10, VirtualKeyboard at 1/2 -- all bypass the token system that was just built in cycle 1
+- **CrossOriginError is a token-free zone**: 3 hardcoded hex colors, 5 hardcoded pixel values
+- **Empty panels are the first impression**: New users see blank canvas in arrangement, blank piano roll, empty mixer -- no guidance anywhere
+- **No heading hierarchy**: Screen readers have zero navigation landmarks beyond a single HEADER region
+- **Select primitive is half-finished**: Has no disabled styling while Button does
+- **Safari AudioContext fragility**: Single-attempt resume with no retry
+- **Tooltip renders behind everything**: z-index: 10 when contextMenu is 700

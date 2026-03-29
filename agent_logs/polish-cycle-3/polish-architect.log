@@ -1,0 +1,34 @@
+All 6 epics created and wired. Here's the summary:
+
+---
+
+## Polish Cycle 3 -- Architect Output
+
+Since all 3 reviewer cycles failed (crashed/timed out), I conducted my own deep audit across UI, audio engine, and CSS, identifying **80+ distinct issues** spanning accessibility, robustness, design system compliance, and interaction quality.
+
+### Epic Plan (6 epics)
+
+| # | Epic | Priority | Key Focus |
+|---|------|----------|-----------|
+| 1 | `long-running-harness-0yz` | **P1** | QA verification via browser automation (runs first) |
+| 2 | `long-running-harness-6o3` | P2 | Interactive states & accessibility (focus rings, disabled states, keyboard nav) |
+| 3 | `long-running-harness-3as` | P2 | Design system token compliance (z-index mismatch, undefined CSS vars, hardcoded values) |
+| 4 | `long-running-harness-isy` | P2 | Audio engine robustness (voice allocator crash, race conditions, silent failures) |
+| 5 | `long-running-harness-v9w` | P2 | Micro-interactions & transitions (clip indicator pulse, fader transitions, note preview) |
+| 6 | `long-running-harness-9fl` | P2 | Empty states, error UX, edge cases (empty mixer, piano roll, error auto-dismiss) |
+
+**Dependencies**: QA epic (P1) blocks all 5 fix epics. Fix epics are independent of each other.
+
+### Most Critical Finds
+- **Tooltip z-index: 10** vs token value 600 -- tooltips render behind everything
+- **Voice allocator force-steals voice 0** without crossfade when pool exhausted -- audible glitch
+- **Transport seek race condition** -- non-atomic SAB update can corrupt cursor position
+- **Metronome toggle has no visual on/off state** -- users can't tell if it's enabled
+- **Undefined CSS variable** `--color-gray-800` in RoutingMatrix -- renders as transparent
+
+POLISH_EPIC: long-running-harness-0yz
+POLISH_EPIC: long-running-harness-6o3
+POLISH_EPIC: long-running-harness-3as
+POLISH_EPIC: long-running-harness-isy
+POLISH_EPIC: long-running-harness-v9w
+POLISH_EPIC: long-running-harness-9fl

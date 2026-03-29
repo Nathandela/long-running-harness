@@ -21,3 +21,6 @@
 {"epic_id":"long-running-harness-3tn","result":"complete","attempts":1,"duration_s":560,"timestamp":"2026-03-29T01:37:17Z"}
 {"epic_id":"long-running-harness-wzc","result":"complete","attempts":1,"duration_s":932,"timestamp":"2026-03-29T01:53:03Z"}
 {"epic_id":"long-running-harness-wjm","result":"complete","attempts":1,"duration_s":692,"timestamp":"2026-03-29T02:04:51Z"}
+{"epic_id":"long-running-harness-kza","result":"complete","attempts":1,"duration_s":606,"timestamp":"2026-03-29T02:15:13Z"}
+{"type":"summary","completed":5,"failed":0,"skipped":0,"total_duration_s":3768}
+{"type":"summary","completed":0,"failed":0,"skipped":0,"total_duration_s":3}
