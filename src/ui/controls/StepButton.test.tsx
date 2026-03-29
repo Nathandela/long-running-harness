@@ -34,4 +34,47 @@ describe("StepButton", () => {
     render(<StepButton active={false} current onToggle={vi.fn()} index={0} />);
     expect(screen.getByRole("button").className).toContain("current");
   });
+
+  it("calls onArrowNav with 1 on ArrowRight", () => {
+    const onArrowNav = vi.fn();
+    render(
+      <StepButton
+        active={false}
+        onToggle={vi.fn()}
+        index={3}
+        onArrowNav={onArrowNav}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button"), { key: "ArrowRight" });
+    expect(onArrowNav).toHaveBeenCalledWith(1);
+  });
+
+  it("calls onArrowNav with -1 on ArrowLeft", () => {
+    const onArrowNav = vi.fn();
+    render(
+      <StepButton
+        active={false}
+        onToggle={vi.fn()}
+        index={3}
+        onArrowNav={onArrowNav}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole("button"), { key: "ArrowLeft" });
+    expect(onArrowNav).toHaveBeenCalledWith(-1);
+  });
+
+  it("supports tabIndex prop", () => {
+    render(
+      <StepButton active={false} onToggle={vi.fn()} index={0} tabIndex={-1} />,
+    );
+    expect(screen.getByRole("button")).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("forwards ref", () => {
+    const ref = { current: null as HTMLButtonElement | null };
+    render(
+      <StepButton ref={ref} active={false} onToggle={vi.fn()} index={0} />,
+    );
+    expect(ref.current).toBeInstanceOf(HTMLButtonElement);
+  });
 });

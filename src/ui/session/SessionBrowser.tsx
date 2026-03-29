@@ -18,6 +18,7 @@ export function SessionBrowser({
 }: SessionBrowserProps): React.JSX.Element {
   const [sessions, setSessions] = useState<SessionListEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const refresh = useCallback((): void => {
     void storage
@@ -37,18 +38,64 @@ export function SessionBrowser({
     }
   }, [open, refresh]);
 
+  const handleClose = useCallback(() => {
+    setConfirmDeleteId(null);
+    onClose();
+  }, [onClose]);
+
   function handleDelete(id: string): void {
     void storage
       .deleteSession(id)
-      .then(refresh)
+      .then(() => {
+        setConfirmDeleteId(null);
+        refresh();
+      })
       .catch(() => {
+        setConfirmDeleteId(null);
         setError("Failed to delete session.");
       });
   }
 
+  const pendingSession = sessions.find((s) => s.id === confirmDeleteId);
+
   return (
-    <Modal open={open} onClose={onClose} title="Sessions">
-      {error !== null ? (
+    <Modal open={open} onClose={handleClose} title="Sessions">
+      {confirmDeleteId !== null && pendingSession !== undefined ? (
+        <div data-testid="delete-confirm">
+          <p>
+            Delete session &ldquo;{pendingSession.name}&rdquo;? This cannot be
+            undone.
+          </p>
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-2)",
+              marginTop: "var(--space-2)",
+            }}
+          >
+            <Button
+              size="sm"
+              variant="primary"
+              data-testid="confirm-delete"
+              onClick={() => {
+                handleDelete(confirmDeleteId);
+              }}
+            >
+              Delete
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="cancel-delete"
+              onClick={() => {
+                setConfirmDeleteId(null);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : error !== null ? (
         <div>
           <p style={{ color: "var(--color-error)" }}>{error}</p>
           <Button size="sm" onClick={refresh}>
@@ -84,7 +131,7 @@ export function SessionBrowser({
                 variant="ghost"
                 data-testid={`delete-${s.id}`}
                 onClick={() => {
-                  handleDelete(s.id);
+                  setConfirmDeleteId(s.id);
                 }}
               >
                 Delete

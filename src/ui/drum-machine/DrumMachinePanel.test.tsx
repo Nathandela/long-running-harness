@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DrumMachinePanel } from "./DrumMachinePanel";
 import type {
   DrumInstrumentId,
@@ -199,5 +200,67 @@ describe("DrumMachinePanel", () => {
     });
     const first = buttons[0];
     if (first) expect(first).toHaveAttribute("aria-pressed", "true");
+  });
+
+  describe("roving tabindex keyboard navigation", () => {
+    it("only first step has tabIndex=0, rest have tabIndex=-1", () => {
+      const props = createMockProps();
+      render(<DrumMachinePanel {...props} />);
+      const bdRow = screen.getByTestId("instrument-row-bd");
+      const steps = within(bdRow).getAllByRole("button", { name: /Step/ });
+      expect(steps[0]).toHaveAttribute("tabindex", "0");
+      expect(steps[1]).toHaveAttribute("tabindex", "-1");
+      expect(steps[15]).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("ArrowRight moves focus to next step", async () => {
+      const props = createMockProps();
+      render(<DrumMachinePanel {...props} />);
+      const bdRow = screen.getByTestId("instrument-row-bd");
+      const steps = within(bdRow).getAllByRole("button", { name: /Step/ });
+      const step1 = steps[0];
+      if (step1) {
+        step1.focus();
+        await userEvent.keyboard("{ArrowRight}");
+        expect(steps[1]).toHaveAttribute("tabindex", "0");
+        expect(steps[0]).toHaveAttribute("tabindex", "-1");
+      }
+    });
+
+    it("ArrowLeft moves focus to previous step", async () => {
+      const props = createMockProps();
+      render(<DrumMachinePanel {...props} />);
+      const bdRow = screen.getByTestId("instrument-row-bd");
+      const steps = within(bdRow).getAllByRole("button", { name: /Step/ });
+      // Move right first
+      const step1 = steps[0];
+      if (step1) {
+        step1.focus();
+        await userEvent.keyboard("{ArrowRight}");
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(steps[0]).toHaveAttribute("tabindex", "0");
+      }
+    });
+
+    it("ArrowLeft at first step does not wrap", async () => {
+      const props = createMockProps();
+      render(<DrumMachinePanel {...props} />);
+      const bdRow = screen.getByTestId("instrument-row-bd");
+      const steps = within(bdRow).getAllByRole("button", { name: /Step/ });
+      const step1 = steps[0];
+      if (step1) {
+        step1.focus();
+        await userEvent.keyboard("{ArrowLeft}");
+        expect(steps[0]).toHaveAttribute("tabindex", "0");
+      }
+    });
+
+    it("instrument row has role=group with aria-label", () => {
+      const props = createMockProps();
+      render(<DrumMachinePanel {...props} />);
+      const bdRow = screen.getByTestId("instrument-row-bd");
+      expect(bdRow).toHaveAttribute("role", "group");
+      expect(bdRow).toHaveAttribute("aria-label", "Bass Drum steps");
+    });
   });
 });

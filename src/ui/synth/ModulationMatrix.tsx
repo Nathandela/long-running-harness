@@ -2,6 +2,9 @@
  * Modulation Matrix panel: drag-to-connect UI with SVG cable visualization.
  * Source list on left, destination list on right.
  * Active routes shown as colored cables with amount controls.
+ *
+ * Keyboard flow: Enter on source port starts connection mode,
+ * Tab to destination port, Enter to confirm. Escape cancels.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -48,30 +51,53 @@ const SOURCE_COLORS: Record<ModSource, string> = {
   pitchBend: tokens.color.hotpink,
 };
 
+const PORT_STYLE: React.CSSProperties = {
+  width: 12,
+  height: 12,
+  borderRadius: "50%",
+  backgroundColor: tokens.color.gray900,
+  cursor: "pointer",
+  flexShrink: 0,
+  padding: 0,
+  background: "none",
+};
+
 function Port({
   testId,
   color,
+  label,
+  highlight,
   onMouseDown,
   onMouseUp,
+  onKeyAction,
 }: {
   testId: string;
   color: string;
+  label: string;
+  highlight?: boolean;
   onMouseDown?: () => void;
   onMouseUp?: () => void;
+  onKeyAction?: () => void;
 }): React.JSX.Element {
   return (
-    <div
+    <button
+      type="button"
       data-testid={testId}
+      aria-label={label}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && onKeyAction) {
+          e.preventDefault();
+          onKeyAction();
+        }
+      }}
       style={{
-        width: 12,
-        height: 12,
-        borderRadius: "50%",
+        ...PORT_STYLE,
         border: `2px solid ${color}`,
-        backgroundColor: tokens.color.gray900,
-        cursor: "pointer",
-        flexShrink: 0,
+        outline:
+          highlight === true ? `2px solid ${tokens.color.white}` : undefined,
+        outlineOffset: 2,
       }}
     />
   );
@@ -92,7 +118,13 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
   }, [trackId, initMatrix]);
 
   const [dragSource, setDragSource] = useState<ModSource | null>(null);
+  const [connectingSource, setConnectingSource] = useState<ModSource | null>(
+    null,
+  );
+  const [announcement, setAnnouncement] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const activeSource = dragSource ?? connectingSource;
 
   const handleSrcMouseDown = useCallback((source: ModSource) => {
     setDragSource(source);
@@ -112,6 +144,47 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
     setDragSource(null);
   }, []);
 
+  // Keyboard: start connecting from source
+  const handleSrcKeyAction = useCallback(
+    (source: ModSource) => {
+      if (connectingSource === source) {
+        setConnectingSource(null);
+        setAnnouncement("Connection cancelled.");
+      } else {
+        setConnectingSource(source);
+        setAnnouncement(
+          `Connecting from ${MOD_SOURCE_LABELS[source]}. Tab to a destination and press Enter to connect.`,
+        );
+      }
+    },
+    [connectingSource],
+  );
+
+  // Keyboard: complete connection to destination
+  const handleDestKeyAction = useCallback(
+    (destination: ModDestination) => {
+      if (connectingSource) {
+        addRoute(trackId, connectingSource, destination);
+        setAnnouncement(
+          `Connected ${MOD_SOURCE_LABELS[connectingSource]} to ${MOD_DEST_LABELS[destination]}.`,
+        );
+        setConnectingSource(null);
+      }
+    },
+    [connectingSource, trackId, addRoute],
+  );
+
+  // Escape cancels keyboard connection
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape" && connectingSource !== null) {
+        setConnectingSource(null);
+        setAnnouncement("Connection cancelled.");
+      }
+    },
+    [connectingSource],
+  );
+
   // Clear drag state when mouse released anywhere (including outside component)
   useEffect(() => {
     document.addEventListener("mouseup", handleGlobalMouseUp);
@@ -125,6 +198,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
       ref={containerRef}
       data-testid="mod-matrix"
       onMouseUp={handleGlobalMouseUp}
+      onKeyDown={handleKeyDown}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -147,6 +221,23 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
       >
         MOD MATRIX
       </span>
+
+      {/* Live region for screen reader announcements */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {announcement}
+      </div>
 
       {/* Sources and Destinations side by side */}
       <div style={{ display: "flex", gap: tokens.space[4] }}>
@@ -173,7 +264,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
                   ...LABEL_STYLE,
                   width: 80,
                   color:
-                    dragSource === src
+                    activeSource === src
                       ? SOURCE_COLORS[src]
                       : tokens.color.gray300,
                 }}
@@ -183,8 +274,13 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               <Port
                 testId={`src-port-${src}`}
                 color={SOURCE_COLORS[src]}
+                label={`Source: ${MOD_SOURCE_LABELS[src]}`}
+                highlight={connectingSource === src}
                 onMouseDown={() => {
                   handleSrcMouseDown(src);
+                }}
+                onKeyAction={() => {
+                  handleSrcKeyAction(src);
                 }}
               />
             </div>
@@ -247,9 +343,17 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
             >
               <Port
                 testId={`dest-port-${dest}`}
-                color={tokens.color.gray500}
+                color={
+                  connectingSource !== null
+                    ? tokens.color.white
+                    : tokens.color.gray500
+                }
+                label={`Destination: ${MOD_DEST_LABELS[dest]}`}
                 onMouseUp={() => {
                   handleDestMouseUp(dest);
+                }}
+                onKeyAction={() => {
+                  handleDestKeyAction(dest);
                 }}
               />
               <span style={{ ...LABEL_STYLE, width: 80 }}>
@@ -314,6 +418,8 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               </span>
               <button
                 data-testid={`route-bipolar-${route.id}`}
+                aria-label={`Toggle bipolar mode for ${MOD_SOURCE_LABELS[route.source]} to ${MOD_DEST_LABELS[route.destination]}`}
+                aria-pressed={route.bipolar}
                 onClick={() => {
                   toggleBipolar(trackId, route.id);
                 }}
@@ -333,6 +439,7 @@ export function ModulationMatrix({ trackId }: Props): React.JSX.Element {
               </button>
               <button
                 data-testid={`route-delete-${route.id}`}
+                aria-label={`Remove route ${MOD_SOURCE_LABELS[route.source]} to ${MOD_DEST_LABELS[route.destination]}`}
                 onClick={() => {
                   removeRoute(trackId, route.id);
                 }}

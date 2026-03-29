@@ -36,4 +36,14 @@ describe("ArrangementPanel", () => {
     expect(canvas).toBeInTheDocument();
     expect(canvas).toHaveAttribute("aria-label", "Arrangement timeline");
   });
+
+  it("canvas has aria-describedby referencing keyboard hints", () => {
+    render(<ArrangementPanel />);
+    const canvas = screen.getByRole("application");
+    expect(canvas).toHaveAttribute("aria-describedby", "arrangement-keys");
+    const hints = document.getElementById("arrangement-keys");
+    expect(hints).toBeTruthy();
+    expect(hints?.textContent).toContain("Scroll");
+    expect(hints?.textContent).toContain("Zoom");
+  });
 });

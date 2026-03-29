@@ -4,6 +4,7 @@
  * pattern A/B selector, accent row, current step indicator.
  */
 
+import { useCallback, useRef, useState } from "react";
 import { tokens } from "@ui/tokens/tokens";
 import { StepButton } from "@ui/controls/StepButton";
 import { DrumPad } from "@ui/controls/DrumPad";
@@ -112,9 +113,25 @@ function InstrumentRow({
   onTriggerPad: () => void;
   onParamChange: (key: keyof DrumInstrumentParams, value: number) => void;
 }): React.JSX.Element {
+  const [focusedStep, setFocusedStep] = useState(0);
+  const stepRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleArrowNav = useCallback(
+    (index: number, direction: -1 | 1) => {
+      const next = index + direction;
+      if (next >= 0 && next < steps.length) {
+        setFocusedStep(next);
+        stepRefs.current[next]?.focus();
+      }
+    },
+    [steps.length],
+  );
+
   return (
     <div
       data-testid={`instrument-row-${instrumentId}`}
+      role="group"
+      aria-label={`${instrumentLabel} steps`}
       style={{ display: "flex", alignItems: "center", gap: tokens.space[2] }}
     >
       <DrumPad label={instrumentLabel} onTrigger={onTriggerPad} size={32} />
@@ -123,12 +140,19 @@ function InstrumentRow({
         {steps.map((step, i) => (
           <StepButton
             key={i}
+            ref={(el) => {
+              stepRefs.current[i] = el;
+            }}
             active={step.triggers[instrumentId]}
             current={i === currentStep}
             onToggle={() => {
               onToggle(i);
             }}
             index={i}
+            tabIndex={i === focusedStep ? 0 : -1}
+            onArrowNav={(dir) => {
+              handleArrowNav(i, dir);
+            }}
           />
         ))}
       </div>

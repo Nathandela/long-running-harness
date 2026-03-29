@@ -8,6 +8,8 @@ import { useEffectsStore } from "@state/effects";
 import { useEffectsBridgeContext } from "@audio/effects/EffectsBridgeProvider";
 import { tokens } from "@ui/tokens/tokens";
 import { EffectPanel } from "./EffectPanel";
+import { UndoToast, type UndoToastState } from "@ui/primitives/UndoToast";
+import type { EffectSlotState } from "@state/effects/types";
 
 const EMPTY_SLOTS: readonly never[] = [];
 
@@ -33,6 +35,28 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
   const swapEffectType = useEffectsStore((s) => s.swapEffectType);
 
   const [showSelector, setShowSelector] = useState(false);
+  const [undoPending, setUndoPending] = useState<UndoToastState | null>(null);
+
+  const handleRemove = useCallback(
+    (slot: EffectSlotState) => {
+      const snapshot = { ...slot, params: { ...slot.params } };
+      const factory = registry.get(slot.typeId);
+      const name = factory?.definition.name ?? slot.typeId;
+      removeEffect(trackId, slot.id);
+      setUndoPending({
+        message: `Removed ${name}.`,
+        onUndo: () => {
+          addEffect(trackId, snapshot);
+          setUndoPending(null);
+        },
+      });
+    },
+    [trackId, removeEffect, addEffect, registry],
+  );
+
+  const handleUndoExpired = useCallback(() => {
+    setUndoPending(null);
+  }, []);
 
   const handleSwapReverb = useCallback(
     (
@@ -112,7 +136,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
               toggleBypass(trackId, slot.id);
             }}
             onRemove={() => {
-              removeEffect(trackId, slot.id);
+              handleRemove(slot);
             }}
             onSwapType={
               isReverbType
@@ -138,6 +162,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
             <button
               key={f.definition.id}
               type="button"
+              aria-label={`Add ${f.definition.name} effect`}
               onClick={() => {
                 handleAdd(f.definition.id);
               }}
@@ -193,6 +218,7 @@ export function EffectsRack({ trackId }: EffectsRackProps): React.JSX.Element {
           + INSERT
         </button>
       )}
+      <UndoToast pending={undoPending} onExpired={handleUndoExpired} />
     </div>
   );
 }

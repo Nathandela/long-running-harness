@@ -313,11 +313,18 @@ export function PianoRollEditor({
         </select>
       </div>
       <div className={styles["canvasWrapper"]}>
+        <span id="piano-roll-keys" hidden>
+          P: pencil tool. S: select tool. E: erase tool. Delete/Backspace:
+          delete selected notes. Scroll: mouse wheel. Horizontal scroll: Shift +
+          wheel. Zoom: Ctrl/Cmd + wheel. Click to place/select notes. Drag to
+          move notes.
+        </span>
         <canvas
           ref={canvasRef}
           role="application"
           tabIndex={0}
           aria-label="Piano roll editor"
+          aria-describedby="piano-roll-keys"
           className={styles["canvas"]}
           style={{ cursor: interactions.cursor }}
           onPointerDown={interactions.onPointerDown}

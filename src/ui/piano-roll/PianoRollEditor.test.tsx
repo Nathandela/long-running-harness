@@ -157,6 +157,16 @@ describe("PianoRollEditor", () => {
     expect(canvas).toHaveAttribute("aria-label", "Piano roll editor");
   });
 
+  it("canvas has aria-describedby referencing keyboard hints", () => {
+    render(<PianoRollEditor clipId="clip1" />);
+    const canvas = screen.getByRole("application");
+    expect(canvas).toHaveAttribute("aria-describedby", "piano-roll-keys");
+    const hints = document.getElementById("piano-roll-keys");
+    expect(hints).toBeTruthy();
+    expect(hints?.textContent).toContain("pencil tool");
+    expect(hints?.textContent).toContain("Zoom");
+  });
+
   it("tool buttons have aria-pressed attribute", () => {
     render(<PianoRollEditor clipId="clip1" />);
     const pencilBtn = screen.getByTestId("tool-pencil");

@@ -7,6 +7,7 @@ import type {
 import { MediaPoolItem } from "./MediaPoolItem";
 import { useFileDrop } from "./useFileDrop";
 import { Spinner } from "@ui/primitives/Spinner";
+import { UndoToast, type UndoToastState } from "@ui/primitives/UndoToast";
 import styles from "./MediaPoolPanel.module.css";
 
 type MediaPoolPanelProps = {
@@ -36,6 +37,8 @@ export function MediaPoolPanel({
   const [errors, setErrors] = useState<MediaPoolError[]>([]);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [undoPending, setUndoPending] = useState<UndoToastState | null>(null);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const importingRef = useRef(false);
   const autoDismissTimerRef = useRef(0);
 
@@ -95,7 +98,7 @@ export function MediaPoolPanel({
     [pool],
   );
 
-  const handleRemove = useCallback(
+  const executeRemove = useCallback(
     (id: string) => {
       void pool
         .removeSource(id)
@@ -114,6 +117,31 @@ export function MediaPoolPanel({
     },
     [pool],
   );
+
+  const handleRemove = useCallback(
+    (id: string) => {
+      const name = pool.getSource(id)?.name ?? id;
+      setPendingRemoveId(id);
+      setUndoPending({
+        message: `Removed "${name}".`,
+        onUndo: () => {
+          setPendingRemoveId(null);
+          setUndoPending(null);
+        },
+      });
+    },
+    [pool],
+  );
+
+  const handleUndoExpired = useCallback(() => {
+    setPendingRemoveId((prev) => {
+      if (prev !== null) {
+        executeRemove(prev);
+      }
+      return null;
+    });
+    setUndoPending(null);
+  }, [executeRemove]);
 
   const onFileDrop = useCallback(
     (files: File[]) => {
@@ -202,16 +230,19 @@ export function MediaPoolPanel({
         </div>
       ) : (
         <div className={styles["list"]}>
-          {sources.map((source) => (
-            <MediaPoolItem
-              key={source.id}
-              source={source}
-              peaks={peaksMap.get(source.id)}
-              onRemove={handleRemove}
-            />
-          ))}
+          {sources
+            .filter((s) => s.id !== pendingRemoveId)
+            .map((source) => (
+              <MediaPoolItem
+                key={source.id}
+                source={source}
+                peaks={peaksMap.get(source.id)}
+                onRemove={handleRemove}
+              />
+            ))}
         </div>
       )}
+      <UndoToast pending={undoPending} onExpired={handleUndoExpired} />
     </section>
   );
 }

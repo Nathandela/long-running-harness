@@ -137,10 +137,15 @@ export function ArrangementPanel(): React.JSX.Element {
 
   return (
     <section data-testid="arrangement-panel" className={styles["container"]}>
+      <span id="arrangement-keys" hidden>
+        Scroll: mouse wheel. Horizontal scroll: Shift + wheel. Zoom: Ctrl/Cmd +
+        wheel. Double-click to create clip. Click to select. Drag to move clips.
+      </span>
       <canvas
         ref={canvasRef}
         role="application"
         aria-label="Arrangement timeline"
+        aria-describedby="arrangement-keys"
         className={styles["canvas"]}
         style={{ cursor: interactions.cursor }}
         onWheel={handleWheel}

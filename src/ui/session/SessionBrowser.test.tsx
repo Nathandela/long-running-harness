@@ -56,7 +56,7 @@ describe("SessionBrowser", () => {
     expect(onLoad).toHaveBeenCalledWith("s1");
   });
 
-  it("deletes a session", async () => {
+  it("deletes a session after confirmation", async () => {
     const storage = createInMemorySessionStorage();
     await storage.putSession("s1", "My Song", "{}");
     render(
@@ -69,7 +69,32 @@ describe("SessionBrowser", () => {
     );
     await screen.findByText("My Song");
     await userEvent.click(screen.getByTestId("delete-s1"));
+    // Confirmation prompt appears
+    expect(screen.getByTestId("delete-confirm")).toBeDefined();
+    expect(screen.getByText(/delete session/i)).toBeDefined();
+    // Confirm the deletion
+    await userEvent.click(screen.getByTestId("confirm-delete"));
     expect(await screen.findByText("No saved sessions")).toBeDefined();
+  });
+
+  it("cancels session deletion", async () => {
+    const storage = createInMemorySessionStorage();
+    await storage.putSession("s1", "My Song", "{}");
+    render(
+      <SessionBrowser
+        open={true}
+        storage={storage}
+        onLoad={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    await screen.findByText("My Song");
+    await userEvent.click(screen.getByTestId("delete-s1"));
+    expect(screen.getByTestId("delete-confirm")).toBeDefined();
+    // Cancel the deletion
+    await userEvent.click(screen.getByTestId("cancel-delete"));
+    // Session is still visible
+    expect(screen.getByText("My Song")).toBeDefined();
   });
 
   it("shows error when listSessions fails", async () => {
@@ -103,6 +128,8 @@ describe("SessionBrowser", () => {
     );
     await screen.findByText("My Song");
     await userEvent.click(screen.getByTestId("delete-s1"));
+    // Confirm the deletion
+    await userEvent.click(screen.getByTestId("confirm-delete"));
     expect(await screen.findByText("Failed to delete session.")).toBeDefined();
   });
 });

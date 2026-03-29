@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { ModulationMatrix } from "./ModulationMatrix";
 import { useModulationStore } from "@state/synth/modulation-store";
 
@@ -133,5 +134,106 @@ describe("ModulationMatrix", () => {
     expect(useModulationStore.getState().getRoutes(trackId)[0]?.amount).toBe(
       0.8,
     );
+  });
+
+  describe("keyboard accessibility", () => {
+    it("renders ports as focusable buttons with aria-labels", () => {
+      render(<ModulationMatrix trackId={trackId} />);
+      const srcPort = screen.getByTestId("src-port-lfo1");
+      expect(srcPort.tagName).toBe("BUTTON");
+      expect(srcPort).toHaveAttribute("aria-label", "Source: LFO 1");
+
+      const destPort = screen.getByTestId("dest-port-filterCutoff");
+      expect(destPort.tagName).toBe("BUTTON");
+      expect(destPort).toHaveAttribute(
+        "aria-label",
+        "Destination: Filter Cutoff",
+      );
+    });
+
+    it("starts keyboard connection on Enter at source port", async () => {
+      render(<ModulationMatrix trackId={trackId} />);
+      const srcPort = screen.getByTestId("src-port-lfo1");
+      srcPort.focus();
+      await userEvent.keyboard("{Enter}");
+
+      const matrix = screen.getByTestId("mod-matrix");
+      const liveRegion = within(matrix).getByText(/connecting from lfo 1/i);
+      expect(liveRegion).toBeInTheDocument();
+    });
+
+    it("completes keyboard connection on Enter at destination port", async () => {
+      render(<ModulationMatrix trackId={trackId} />);
+
+      // Start connection from source
+      const srcPort = screen.getByTestId("src-port-lfo1");
+      srcPort.focus();
+      await userEvent.keyboard("{Enter}");
+
+      // Complete at destination
+      const destPort = screen.getByTestId("dest-port-filterCutoff");
+      destPort.focus();
+      await userEvent.keyboard("{Enter}");
+
+      // Route created
+      const routes = useModulationStore.getState().getRoutes(trackId);
+      expect(routes).toHaveLength(1);
+      expect(routes[0]?.source).toBe("lfo1");
+      expect(routes[0]?.destination).toBe("filterCutoff");
+
+      // Announcement
+      const matrix = screen.getByTestId("mod-matrix");
+      expect(
+        within(matrix).getByText(/connected lfo 1 to filter cutoff/i),
+      ).toBeInTheDocument();
+    });
+
+    it("cancels keyboard connection on Escape", async () => {
+      render(<ModulationMatrix trackId={trackId} />);
+      const srcPort = screen.getByTestId("src-port-lfo1");
+      srcPort.focus();
+      await userEvent.keyboard("{Enter}");
+
+      await userEvent.keyboard("{Escape}");
+
+      const matrix = screen.getByTestId("mod-matrix");
+      expect(
+        within(matrix).getByText(/connection cancelled/i),
+      ).toBeInTheDocument();
+
+      // Clicking destination should not create route
+      const destPort = screen.getByTestId("dest-port-filterCutoff");
+      destPort.focus();
+      await userEvent.keyboard("{Enter}");
+      expect(useModulationStore.getState().getRoutes(trackId)).toHaveLength(0);
+    });
+
+    it("has aria-live region for announcements", () => {
+      render(<ModulationMatrix trackId={trackId} />);
+      const matrix = screen.getByTestId("mod-matrix");
+      const liveRegion = matrix.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toBeTruthy();
+    });
+
+    it("route buttons have descriptive aria-labels", () => {
+      useModulationStore
+        .getState()
+        .addRoute(trackId, "lfo1", "filterCutoff", 0.5);
+      render(<ModulationMatrix trackId={trackId} />);
+
+      const routeId = useModulationStore.getState().getRoutes(trackId)[0]?.id;
+      const bipolarBtn = screen.getByTestId(`route-bipolar-${routeId ?? ""}`);
+      expect(bipolarBtn).toHaveAttribute(
+        "aria-label",
+        "Toggle bipolar mode for LFO 1 to Filter Cutoff",
+      );
+      expect(bipolarBtn).toHaveAttribute("aria-pressed");
+
+      const deleteBtn = screen.getByTestId(`route-delete-${routeId ?? ""}`);
+      expect(deleteBtn).toHaveAttribute(
+        "aria-label",
+        "Remove route LFO 1 to Filter Cutoff",
+      );
+    });
   });
 });
